@@ -1,0 +1,100 @@
+/* Custom styles for Exercise Platform with Bulma */
+
+.card {
+    box-shadow: 0 4px 8px rgba(10, 10, 10, 0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(10, 10, 10, 0.2);
+}
+
+.choice-option {
+    display: block;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    border: 2px solid #dbdbdb;
+    border-radius: 0.375rem;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.choice-option:hover {
+    border-color: #3273dc;
+    background-color: #f5f5f5;
+}
+
+.choice-option input[type="radio"] {
+    margin-right: 0.75rem;
+}
+
+.choice-option input[type="radio"]:checked + * {
+    font-weight: 600;
+}
+
+.question-section .title {
+    color: #363636;
+    margin-bottom: 1.5rem;
+}
+
+.navbar-item strong {
+    font-size: 1.25rem;
+}
+
+.section {
+    padding-top: 2rem;
+    padding-bottom: 1rem;
+}
+
+.breadcrumb {
+    margin-bottom: 1.5rem;
+}
+
+/* Loading animation enhancement */
+.button.is-loading::after {
+    border-color: transparent transparent #fff #fff !important;
+}
+
+/* Card footer styling */
+.card-footer-item .field.is-grouped {
+    width: 100%;
+    justify-content: flex-start;
+}
+
+.card-footer-item .field.is-grouped .control:not(:last-child) {
+    margin-right: 0.75rem;
+}
+
+/* Success and error text colors */
+.has-text-success {
+    color: #48c774 !important;
+}
+
+.has-text-danger {
+    color: #f14668 !important;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 768px) {
+    .card-content {
+        padding: 1rem;
+    }
+    
+    .choice-option {
+        padding: 0.75rem;
+    }
+    
+    .field.is-grouped {
+        flex-direction: column;
+    }
+    
+    .field.is-grouped .control:not(:last-child) {
+        margin-right: 0;
+        margin-bottom: 0.5rem;
+    }
+    
+    .columns.is-multiline .column {
+        padding: 0.5rem;
+    }
+} 

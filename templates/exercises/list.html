@@ -1,0 +1,39 @@
+{% extends 'exercises/base.html' %}
+{% load static %}
+
+{% block title %}Exercises - Exercise Platform{% endblock %}
+
+{% block content %}
+<div class="section">
+    <h1 class="title">Available Exercises</h1>
+    <p class="subtitle has-text-grey">Choose an exercise to start practicing</p>
+</div>
+
+<div class="columns is-multiline">
+    {% for exercise in exercises %}
+    <div class="column is-4">
+        <div class="card">
+            <div class="card-content">
+                <h5 class="title is-5">{{ exercise.title }}</h5>
+                <p class="content">{{ exercise.description|truncatewords:20 }}</p>
+                <div class="tags">
+                    <span class="tag is-info">{{ exercise.exercise_type }}</span>
+                </div>
+            </div>
+            <footer class="card-footer">
+                <a href="{% url 'exercises:detail' exercise.pk %}" class="card-footer-item button is-primary is-outlined">
+                    Start Exercise
+                </a>
+            </footer>
+        </div>
+    </div>
+    {% empty %}
+    <div class="column is-12">
+        <div class="notification is-info">
+            <h4 class="title is-4">No exercises available</h4>
+            <p>There are no exercises created yet. Please contact your administrator.</p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %} 
