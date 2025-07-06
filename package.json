@@ -10,9 +10,10 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "bulma": "^1.0.0",
+    "@electric-sql/pglite": "0.3.4",
+    "bulma": "^1.0.4",
     "codemirror": "^5.65.2",
-    "vue": "^3.4.27"
+    "vue": "^3.5.17"
   },
   "devDependencies": {
     "@types/codemirror": "^5.60.15",

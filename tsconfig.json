@@ -5,6 +5,8 @@
     "skipLibCheck": true,
     "target": "es2022",
     "allowJs": true,
+    "module": "es2022",
+    "moduleResolution": "node",
 
     /* Strictness */
     "strict": true,

@@ -6,12 +6,14 @@
 {% block content %}
 <nav class="breadcrumb" aria-label="breadcrumbs">
     <ul>
-        <li><a href="{% url 'exercises:list' %}">Exercises</a></li>
+        <li><a href="{% url 'exercises:exercise_list' %}">Exercises</a></li>
         <li class="is-active"><a href="#" aria-current="page">{{ exercise.title }}</a></li>
     </ul>
 </nav>
 
-<div id="sql-exercise-app">
+<div id="sql-exercise-app"
+     data-static-prefix="{% get_static_prefix %}"
+     data-asset-url="{% if exercise.exercise_data.db %}{% url 'exercises:serve_asset' exercise_id=exercise.id filename=exercise.exercise_data.db %}{% endif %}">
     <div class="sql-exercise">
         <div class="card">
             <header class="card-header">
@@ -39,9 +41,15 @@
                     <!-- Database Schema Info -->
                     <div v-if="exercise.exercise_data.db" class="mb-4">
                         <h5 class="title is-5">Database: [[ exercise.exercise_data.db ]]</h5>
-                        <p class="has-text-grey">
-                            <em>The database schema will be available when you run your query.</em>
-                        </p>
+                        <div v-if="isLoading && !databaseLoaded" class="notification is-info">
+                            <p><em>Loading database...</em></p>
+                        </div>
+                        <div v-else-if="databaseLoaded" class="notification is-success is-light">
+                            <p><em>Database loaded successfully! You can now run your queries.</em></p>
+                        </div>
+                        <div v-else-if="queryError && !databaseLoaded" class="notification is-danger">
+                            <p><em>Error loading database: [[ queryError ]]</em></p>
+                        </div>
                     </div>
                     
                     <!-- SQL Editor -->
@@ -109,11 +117,56 @@
                             </div>
                     </div>
                     
-                    <!-- Query Result Area (placeholder for future implementation) -->
-                    <div v-if="queryResult" class="mt-4">
-                        <h6 class="title is-6">Query Result:</h6>
+                    <!-- Query Error Display -->
+                    <div v-if="queryError" class="mt-4">
+                        <div class="notification is-danger">
+                            <h6 class="title is-6">Error:</h6>
+                            <p>[[ queryError ]]</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Query Loading State -->
+                    <div v-if="isLoading" class="mt-4">
                         <div class="notification is-info">
-                            <p><em>Query execution will be implemented later...</em></p>
+                            <p><em>Executing query...</em></p>
+                        </div>
+                    </div>
+                    
+                    <!-- Query Result Area -->
+                    <div v-if="queryResult && !isLoading" class="mt-4">
+                        <h6 class="title is-6">Query Result:</h6>
+                        
+                        <!-- SELECT Query Results -->
+                        <div v-if="queryResult.type === 'select'" class="table-container">
+                            <div class="notification is-success is-light mb-3">
+                                <p><strong>[[ queryResult.rowCount ]] row(s) returned</strong></p>
+                            </div>
+                            <table class="table is-striped is-fullwidth">
+                                <thead>
+                                    <tr>
+                                        <th v-for="column in queryResult.columns" :key="column">
+                                            [[ column ]]
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="row in queryResult.rows" :key="JSON.stringify(row)">
+                                        <td v-for="column in queryResult.columns" :key="column">
+                                            [[ row[column] !== null ? row[column] : 'NULL' ]]
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Modification Query Results -->
+                        <div v-else-if="queryResult.type === 'modification'" class="notification is-success">
+                            <p><strong>[[ queryResult.message ]]</strong></p>
+                        </div>
+                        
+                        <!-- Other Query Results -->
+                        <div v-else class="notification is-success">
+                            <p><strong>[[ queryResult.message ]]</strong></p>
                         </div>
                     </div>
                 </div>
@@ -126,7 +179,8 @@
                             <button 
                                 @click="runQuery"
                                 class="button is-primary"
-                                :disabled="!userQuery.trim()">
+                                :class="{ 'is-loading': isLoading }"
+                                :disabled="!userQuery.trim() || isLoading || !databaseLoaded">
                                 <span class="icon">
                                     <i class="fas fa-play"></i>
                                 </span>
@@ -178,6 +232,15 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- Import Map for Bare Module Specifiers -->
+<script type="importmap">
+{
+  "imports": {
+    "@electric-sql/pglite": "{% static '@electric-sql/pglite/dist/index.js' %}"
+  }
+}
+</script>
+
 <!-- CodeMirror CSS -->
 <link rel="stylesheet" href="{% static 'codemirror/lib/codemirror.css' %}">
 <link rel="stylesheet" href="{% static 'codemirror/theme/eclipse.css' %}">
@@ -187,7 +250,7 @@
 <script src="{% static 'codemirror/mode/sql/sql.js' %}"></script>
 
 <!-- SQL Exercise JavaScript -->
-<script src="{% static 'js/dist/sql.js' %}"></script>
+<script type="module" src="{% static 'js/dist/sql.js' %}"></script>
 
 <!-- Pass exercise data safely using JSON script tag -->
 {{ exercise|json_script:"exercise-data" }}

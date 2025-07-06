@@ -1,4 +1,4 @@
-"use strict";
+import { PGlite } from '@electric-sql/pglite';
 // CodeMirror Editor Component - using any for Vue component typing
 const CodeMirrorEditor = {
     props: {
@@ -61,14 +61,17 @@ const CodeMirrorEditor = {
     }
 };
 document.addEventListener('DOMContentLoaded', function () {
-    const { createApp } = window.Vue;
+    const { createApp, markRaw } = window.Vue;
     // Get exercise data from JSON script tag
     const exerciseDataScript = document.getElementById('exercise-data');
-    if (!exerciseDataScript) {
-        console.error('Exercise data script tag not found!');
+    const appElement = document.getElementById('sql-exercise-app');
+    if (!exerciseDataScript || !appElement) {
+        console.error('Required script tags or app element not found!');
         return;
     }
     const exerciseData = JSON.parse(exerciseDataScript.textContent || '{}');
+    const staticPrefix = appElement.dataset.staticPrefix || '/static/';
+    const assetUrl = appElement.dataset.assetUrl || '';
     // Main Vue app - using any for component typing
     const app = createApp({
         delimiters: ['[[', ']]'],
@@ -79,17 +82,99 @@ document.addEventListener('DOMContentLoaded', function () {
                 showHints: false,
                 showExpectedResult: false,
                 showCorrectAnswers: false,
-                queryResult: null
+                queryResult: null,
+                queryError: null,
+                isLoading: false,
+                database: null,
+                databaseLoaded: false
             };
         },
+        async mounted() {
+            // Initialize database if db file is specified
+            if (this.exercise.exercise_data.db) {
+                await this.loadDatabase();
+            }
+        },
         methods: {
-            runQuery() {
-                console.log('Running query:', this.userQuery);
-                this.queryResult = 'Query execution will be implemented later...';
+            async loadDatabase() {
+                try {
+                    this.isLoading = true;
+                    // When integrating a class-based library like PGlite with Vue,
+                    // it's crucial to prevent Vue from making the library's instance
+                    // reactive. Vue's reactivity system wraps objects in Proxies,
+                    // which can interfere with the internal private fields of complex
+                    // classes, leading to "Cannot read from private field" errors.
+                    // `markRaw` tells Vue to treat the PGlite instance as a raw,
+                    // non-reactive object, preserving its internal integrity.
+                    this.database = markRaw(await PGlite.create());
+                    // Fetch and execute the SQL file from the asset endpoint
+                    if (!assetUrl) {
+                        throw new Error('Asset URL not provided in the template.');
+                    }
+                    const sql = await fetch(assetUrl).then(res => res.text());
+                    await this.database.exec(sql);
+                    this.databaseLoaded = true;
+                }
+                catch (error) {
+                    console.error('Error loading database:', error);
+                    this.queryError = 'Failed to load database: ' + String(error);
+                }
+                finally {
+                    this.isLoading = false;
+                }
+            },
+            async runQuery() {
+                if (!this.database || !this.databaseLoaded) {
+                    this.queryError = 'Database not loaded yet. Please wait...';
+                    return;
+                }
+                if (!this.userQuery.trim()) {
+                    this.queryError = 'Please enter a query';
+                    return;
+                }
+                try {
+                    this.isLoading = true;
+                    this.queryError = null;
+                    this.queryResult = null;
+                    const result = await this.database.query(this.userQuery);
+                    // Format result based on query type
+                    if (result.rows && result.rows.length > 0) {
+                        // SELECT query with results
+                        this.queryResult = {
+                            type: 'select',
+                            columns: result.fields.map((field) => field.name),
+                            rows: result.rows,
+                            rowCount: result.rows.length
+                        };
+                    }
+                    else if (result.affectedRows !== undefined) {
+                        // INSERT/UPDATE/DELETE query
+                        this.queryResult = {
+                            type: 'modification',
+                            affectedRows: result.affectedRows,
+                            message: `${result.affectedRows} row(s) affected`
+                        };
+                    }
+                    else {
+                        // Other queries (CREATE, DROP, etc.)
+                        this.queryResult = {
+                            type: 'other',
+                            message: 'Query executed successfully'
+                        };
+                    }
+                }
+                catch (error) {
+                    console.error('Query error:', error);
+                    this.queryError = 'SQL Error: ' + String(error);
+                }
+                finally {
+                    this.isLoading = false;
+                }
             },
             clearQuery() {
                 this.userQuery = '';
                 this.queryResult = null;
+                this.queryError = null;
             },
             getResultColumns(resultArray) {
                 if (!resultArray || resultArray.length === 0)

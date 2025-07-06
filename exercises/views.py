@@ -1,11 +1,11 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.core import serializers
 import json
-from .models import Exercise, Answer
+from .models import Exercise, Answer, ExerciceAsset
 from .serializers import ExerciseSerializer, ExerciseFrontendSerializer, AnswerSerializer
 
 
@@ -43,4 +43,18 @@ def exercise_detail(request, pk):
         'exercise': exercise_data,
         'previous_answer': previous_answer_data,
     })
+
+
+def serve_asset(request, exercise_id, filename):
+    """Serve asset files for exercises. Only serves assets relevant to the given exercise."""
+    exercise = get_object_or_404(Exercise, pk=exercise_id)
+    asset = get_object_or_404(ExerciceAsset, exercise=exercise, name=filename)
+    
+    # Convert memoryview to bytes, then decode to text
+    content = bytes(asset.content).decode('utf-8')
+    
+    # Return as plain text with appropriate content type
+    response = HttpResponse(content, content_type='text/plain')
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
 
