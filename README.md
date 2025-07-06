@@ -48,10 +48,22 @@ python set_admin_password.py  # Sets password to 'admin123'
 ### 7. Start Development Server
 
 ```bash
+# Terminal 1: Django
+cd test_django
 python manage.py runserver
+
+# Terminal 2: TypeScript compiler
+cd test_django  
+npm run watch
 ```
 
+
+
+
 Visit `http://127.0.0.1:8000/` to see the exercise list.
+
+
+
 
 ## Database Configuration
 

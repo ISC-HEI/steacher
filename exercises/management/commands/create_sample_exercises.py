@@ -10,51 +10,51 @@ class Command(BaseCommand):
         Exercise.objects.all().delete()
         ExerciceAsset.objects.all().delete()
         
-        # Sample multiple choice exercises
-        sql_exercises_data =   {
-                'title': 'Hello SQL',
-                'description': 'Hello world with SQL using minimalisting students db',
-                'exercise_type': 'sql',
-                'exercise_data': {
-                    "question": "Write a query to list all students from the `students` table",
-                    "db": "students_v1.sql",
-                    "expected_result": [
-                        {
-                            "first_name": "Yoko",
-                            "last_name": "Tsuno",
-                            "city": None,
-                            "age": 23
-                        },
-                        {
-                            "first_name": "Raoul",
-                            "last_name": "Chatigré",
-                            "city": None,
-                            "age": 17
-                        }
-                    ],
-                    "correct_answers": [
-                        {
-                            "answer": "SELECT * FROM students;",
-                            "explanation": "This is the most straightforward answer"
-                        },
-                        {
-                            "answer": "SELECT first_name, last_name FROM students;",
-                            "explanation": "This works too, but it was not specifically asked to select `first_name` and `last_name`. It's fine because it's the first ever sql query that the students will write"
-                        }
-                    ],
-                    "hints": [
-                        "The command to list all entries from a database table has the form `SELECT * FROM {table name}`"
-                    ],
-                    "additional_context": "This is the first ever SQL exercice/command that the students will write. It's kind of the hello world in SQL for them. Focus on getting them on-board, not on details."
-                }
+        # SQL Exercise data
+        sql_exercises_data = {
+            'title': 'Hello SQL',
+            'description': 'Hello world with SQL using minimalisting students db',
+            'exercise_type': 'sql',
+            'exercise_data': {
+                "question": "Write a query to list all students from the `students` table",
+                "db": "students_v1.sql"
+            },
+            'answer_data': {
+                "expected_result": [
+                    {
+                        "first_name": "Yoko",
+                        "last_name": "Tsuno",
+                        "city": None,
+                        "age": 23
+                    },
+                    {
+                        "first_name": "Raoul",
+                        "last_name": "Chatigré",
+                        "city": None,
+                        "age": 17
+                    }
+                ],
+                "correct_answers": [
+                    {
+                        "answer": "SELECT * FROM students;",
+                        "explanation": "This is the most straightforward answer"
+                    },
+                    {
+                        "answer": "SELECT first_name, last_name FROM students;",
+                        "explanation": "This works too, but it was not specifically asked to select `first_name` and `last_name`. It's fine because it's the first ever sql query that the students will write"
+                    }
+                ],
+                "hints": [
+                    "The command to list all entries from a database table has the form `SELECT * FROM {table name}`"
+                ],
+                "additional_context": "This is the first ever SQL exercice/command that the students will write. It's kind of the hello world in SQL for them. Focus on getting them on-board, not on details."
             }
-          
+        }
            
-           
-           
-        
+        # Create SQL exercise
         sql_exercise = Exercise.objects.create(**sql_exercises_data)
         
+        # Create associated SQL asset
         sql_content = """CREATE TABLE students
 (
   first_name        VARCHAR, 
@@ -86,31 +86,35 @@ INSERT INTO students (first_name, last_name, age)
                 'choices': [
                     {
                         'id': 'a',
-                        'text': 'To increase database size',
-                        'is_correct': False
+                        'text': 'To increase database size'
                     },
                     {
                         'id': 'b',
-                        'text': 'To reduce data redundancy and improve data integrity',
-                        'is_correct': True
+                        'text': 'To reduce data redundancy and improve data integrity'
                     },
                     {
                         'id': 'c',
-                        'text': 'To make queries slower',   
-                        'is_correct': False
+                        'text': 'To make queries slower'
                     },
                     {
                         'id': 'd',
-                        'text': 'To duplicate data across tables',
-                        'is_correct': False 
+                        'text': 'To duplicate data across tables'
                     }
                 ]
+            },
+            answer_data={
+                'correct_choice': 'b',
+                'explanation': 'Database normalization is primarily used to reduce data redundancy and improve data integrity by organizing data efficiently.',
+                'choice_explanations': {
+                    'a': 'Incorrect - Normalization typically reduces database size by eliminating redundancy',
+                    'b': 'Correct - This is the main purpose of normalization',
+                    'c': 'Incorrect - Normalization can actually improve query performance in many cases',
+                    'd': 'Incorrect - Normalization reduces data duplication, not increases it'
+                }
             }
         )
 
 
-
-    
         self.stdout.write(
             self.style.SUCCESS(
                 f'Successfully created sample exercises and assets'

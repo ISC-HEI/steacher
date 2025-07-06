@@ -6,7 +6,8 @@ class Exercise(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     exercise_type = models.CharField(max_length=50)  # 'multiple_choice', 'text', 'turtle', etc.
-    exercise_data = models.JSONField()  # All exercise-specific data
+    exercise_data = models.JSONField()  # Only question data (sent to frontend)
+    answer_data = models.JSONField(default=dict)  # Answer data (backend only)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

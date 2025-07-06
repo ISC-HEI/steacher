@@ -6,7 +6,7 @@ from django.views import View
 from django.core import serializers
 import json
 from .models import Exercise, Answer
-from .serializers import ExerciseSerializer, AnswerSerializer
+from .serializers import ExerciseSerializer, ExerciseFrontendSerializer, AnswerSerializer
 
 
 def exercise_list(request):
@@ -24,8 +24,8 @@ def exercise_detail(request, pk):
     # Get user's previous answer if exists
     previous_answer = Answer.objects.filter(exercise=exercise).first()
     
-    # Serialize data using Django REST Framework serializers
-    exercise_data = ExerciseSerializer(exercise).data
+    # Use public serializer to exclude answer_data from frontend
+    exercise_data = ExerciseFrontendSerializer(exercise).data
     
     previous_answer_data = 'null'
     if previous_answer:
