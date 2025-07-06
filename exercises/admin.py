@@ -1,14 +1,5 @@
 from django.contrib import admin
-from django import forms
-from .models import Exercise, Answer, Course, ExerciceAsset
-
-
-class ExerciceAssetForm(forms.ModelForm):
-    file_upload = forms.FileField(required=False, label="Upload asset file")
-
-    class Meta:
-        model = ExerciceAsset
-        fields = ('name', 'description', 'exercise')
+from .models import Exercise, Course, ExerciceAsset, GuidanceLog
 
 
 @admin.register(Course)
@@ -26,37 +17,28 @@ class ExerciseAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at', 'updated_at']
 
 
-@admin.register(Answer)
-class AnswerAdmin(admin.ModelAdmin):
-    list_display = ['exercise', 'submitted_at', 'is_correct']
-    list_filter = ['submitted_at', 'is_correct', 'exercise__course', 'exercise__exercise_type']
-    readonly_fields = ['submitted_at']
-
-
 @admin.register(ExerciceAsset)
 class ExerciceAssetAdmin(admin.ModelAdmin):
-    form = ExerciceAssetForm
-    list_display = ('name', 'exercise', 'created_at')
+    """Admin view for ExerciceAsset"""
+    list_display = ('name', 'exercise', 'description', 'created_at')
+    list_filter = ('exercise__course', 'exercise')
     search_fields = ('name', 'description')
-    list_filter = ('exercise',)
     readonly_fields = ('created_at', 'updated_at')
-    fields = ('name', 'description', 'exercise', 'file_upload')
 
     def save_model(self, request, obj, form, change):
-        uploaded_file = form.cleaned_data.get('file_upload')
-        if uploaded_file:
-            # If name is not provided, use the filename
-            if not obj.name:
-                obj.name = uploaded_file.name
-            obj.content = uploaded_file.read()
-        
-        # If there's no file and no content, we can't save
-        if not obj.content and not uploaded_file:
-            # Simple way to prevent saving without content.
-            # A more advanced implementation could use form validation.
-            from django.contrib import messages
-            messages.set_level(request, messages.ERROR)
-            messages.error(request, "Cannot save an asset without content. Please upload a file.")
-            return
-
+        if not obj.pk:  # If this is a new object
+            # If content is in-memory, no need to read from disk
+            # For UploadedFile, size is available.
+            # For files read from disk, you might need to calculate size differently
+            if hasattr(form.cleaned_data['content'], 'size'):
+                obj.file_size = form.cleaned_data['content'].size
         super().save_model(request, obj, form, change)
+
+
+@admin.register(GuidanceLog)
+class GuidanceLogAdmin(admin.ModelAdmin):
+    """Admin view for GuidanceLog"""
+    list_display = ('exercise', 'user', 'submitted_at')
+    list_filter = ('user', 'exercise')
+    date_hierarchy = 'submitted_at'
+    ordering = ('-submitted_at',)

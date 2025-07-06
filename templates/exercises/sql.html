@@ -13,8 +13,10 @@
 </nav>
 
 <div id="sql-exercise-app"
+     v-cloak
      data-static-prefix="{% get_static_prefix %}"
      data-asset-url="{% if exercise.exercise_data.db %}{% url 'exercises:serve_asset' exercise_id=exercise.id filename=exercise.exercise_data.db %}{% endif %}">
+    {% csrf_token %}
     <div class="exercise-container">
         <div class="left-panel">
             <div class="exercise">
@@ -35,7 +37,7 @@
                         <button
                             @click="runQuery"
                             class="button is-primary"
-                            :class="{ 'is-loading': loadingState === 'querying' }"
+                            :class="{ 'is-loading': loadingState === 'querying' || loadingState === 'getting-guidance' }"
                             :disabled="!userQuery.trim() || loadingState !== 'idle'">
                             <span class="icon"><i class="fas fa-play"></i></span>
                             <span>Run Query</span>
@@ -44,19 +46,11 @@
                     <div class="control">
                         <button
                             @click="giveHint"
-                            class="button is-primary"
-                            :class="{ 'is-loading': loadingState === 'querying' }"
+                            class="button is-info"
+                            :class="{ 'is-loading': loadingState === 'querying' || loadingState === 'getting-guidance' }"
                             :disabled="loadingState !== 'idle'">
                             <span class="icon"><i class="fas fa-lightbulb"></i></span>
                             <span>Gimme a Hint</span>
-                        </button>
-                    </div>
-                    <div class="control">
-                        <button
-                            @click="clearQuery"
-                            class="button is-light">
-                            <span class="icon"><i class="fas fa-eraser"></i></span>
-                            <span>Clear</span>
                         </button>
                     </div>
                 </div>
@@ -68,10 +62,13 @@
                         </div>
                     </div>
                     <div v-if="loadingState === 'db-loading'">
-                        <div class="notification is-info"><p><em>Loading database...</em></p></div>
+                        <div class="notification"><p><em>Loading database...</em></p></div>
                     </div>
                     <div v-if="loadingState === 'querying'">
                         <div class="notification is-info"><p><em>Executing query...</em></p></div>
+                    </div>
+                    <div v-if="loadingState === 'getting-guidance'">
+                        <div class="notification is-info"><p><em>Analysing your code and creating guidance...</em></p></div>
                     </div>
                     <div v-if="queryResult && loadingState === 'idle'">
                         <h6 class="title is-6">Query Result:</h6>
@@ -105,7 +102,12 @@
             </div>
         </div>
         <div class="right-panel">
-            <chatbot-panel :initial-question="exercise.exercise_data.question"></chatbot-panel>
+            <chatbot-panel
+                :initial-question="exercise.exercise_data.question"
+                :messages="chatMessages"
+                :loading="loadingState !== 'idle'"
+                @question-asked="handleQuestion">
+            </chatbot-panel>
         </div>
     </div>
 </div>
@@ -117,6 +119,7 @@
 {
   "imports": {
     "@electric-sql/pglite": "{% static '@electric-sql/pglite/dist/index.js' %}",
+    "canvas-confetti": "{% static 'canvas-confetti/dist/confetti.module.mjs' %}",
     "./ChatbotPanel.js": "{% static 'js/dist/ChatbotPanel.js' %}",
     "marked": "{% static 'marked/lib/marked.esm.js' %}",
     "dompurify": "{% static 'dompurify/dist/purify.es.mjs' %}",
@@ -139,4 +142,5 @@
 
 <!-- Pass exercise data safely using JSON script tag -->
 {{ exercise_json|json_script:"exercise-data" }}
+{{ guidance_logs|json_script:"guidance-logs-data" }}
 {% endblock %}

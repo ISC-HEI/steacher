@@ -1,4 +1,7 @@
-/* Custom styles for Exercise Platform with Bulma */
+/* Add v-cloak to hide elements before Vue compiles them */
+[v-cloak] {
+    display: none;
+}
 
 .question-section .title {
     color: #363636;
@@ -210,7 +213,6 @@
 
 #chatbot {
     padding: 10px;
-    background-color: #fafafa;
     overflow-y: auto;
     height: 100%;
 }
@@ -240,6 +242,7 @@
     text-align: left; /* Align text to the left */
     border-radius: 5px;
     margin-right: auto; /* Pushes the message to the left */
+    max-width: 80%; /* Limit the width of the message */
     box-shadow: none;
     border: 1px solid lightgray;
     padding: 10px;

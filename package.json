@@ -15,6 +15,7 @@
     "@types/dompurify": "^3.2.0",
     "@types/marked": "^6.0.0",
     "bulma": "^1.0.4",
+    "canvas-confetti": "^1.9.3",
     "codemirror": "^5.65.2",
     "dompurify": "^3.2.6",
     "marked": "^16.0.0",

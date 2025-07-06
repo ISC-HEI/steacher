@@ -1,8 +1,14 @@
+import type { DefineComponent } from 'vue';
+
 // Declare global variables that are loaded via script tags in the HTML template
 declare const CodeMirror: any;
 
+interface CodeMirrorEditorData {
+    editor: any | null; // CodeMirror.Editor is not easily typed here
+}
+
 // CodeMirror Editor Component - using any for Vue component typing
-export const CodeMirrorEditor: any = {
+export const CodeMirrorEditor = (window.Vue as typeof import('vue')).defineComponent({
     props: {
         language: {
             type: String,
@@ -20,41 +26,50 @@ export const CodeMirrorEditor: any = {
     emits: ['update:modelValue', 'run-query'],
     template: `<div ref="editorContainer" class="code-editor"></div>`,
 
-    data() {
+    data(): CodeMirrorEditorData {
         return {
-            editor: null as any
+            editor: null,
         }
     },
 
     mounted() {
-        const container = (this as any).$refs.editorContainer as HTMLDivElement;
-        const editor = CodeMirror(container, {
-            mode: (this as any).language,
-            value: (this as any).modelValue,
-            placeholder: (this as any).placeholder,
-            lineNumbers: true,
-            theme: 'eclipse',
-            indentUnit: 2,
-            tabSize: 2,
-            lineWrapping: true,
-            extraKeys: {
-                'Ctrl-Space': 'autocomplete',
-                'Ctrl-Enter': () => {
-                    (this as any).$emit('run-query');
-                }
-            }
-        });
-        (this as any).editor = editor;
+        this.$nextTick(() => {
+            const container = this.$refs.editorContainer as HTMLDivElement;
+            if (!container) return;
 
-        editor.on('change', (editorInstance: any) => {
-            const currentValue = editorInstance.getValue();
-            (this as any).$emit('update:modelValue', currentValue);
+            const editor = CodeMirror(container, {
+                mode: this.language,
+                value: this.modelValue,
+                placeholder: this.placeholder,
+                lineNumbers: true,
+                theme: 'eclipse',
+                indentUnit: 2,
+                tabSize: 2,
+                lineWrapping: true,
+                extraKeys: {
+                    'Ctrl-Space': 'autocomplete',
+                    'Ctrl-Enter': () => {
+                        this.$emit('run-query');
+                    }
+                }
+            });
+            this.editor = editor;
+
+            editor.on('change', (editorInstance: any) => {
+                const currentValue = editorInstance.getValue();
+                this.$emit('update:modelValue', currentValue);
+            });
+
+            // Refresh the editor after the initial rendering to fix layout issues
+            setTimeout(() => {
+                editor.refresh();
+            }, 10); // A small delay can help ensure rendering is complete
         });
     },
 
     watch: {
         modelValue(newValue: string) {
-            const editor = (this as any).editor;
+            const editor = this.editor;
             if (editor && editor.getValue() !== newValue) {
                 editor.setValue(newValue);
             }
@@ -62,10 +77,10 @@ export const CodeMirrorEditor: any = {
     },
 
     beforeUnmount() {
-        const editor = (this as any).editor;
+        const editor = this.editor;
         if (editor) {
             editor.getWrapperElement().remove();
-            (this as any).editor = null;
+            this.editor = null;
         }
     }
-}; 
+}); 

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Exercise, Answer
+from .models import Exercise
 
 
 class ExerciseSerializer(serializers.ModelSerializer):
@@ -13,10 +13,4 @@ class ExerciseFrontendSerializer(serializers.ModelSerializer):
     """Frontend serializer - excludes answer_data"""
     class Meta:
         model = Exercise
-        fields = ['id', 'title', 'description', 'exercise_type', 'exercise_data', 'created_at', 'updated_at']
-
-
-class AnswerSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Answer
-        fields = '__all__' 
+        fields = ['id', 'title', 'description', 'exercise_type', 'exercise_data', 'created_at', 'updated_at'] 

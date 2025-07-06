@@ -6,31 +6,41 @@ export const ChatbotPanel = {
     initialQuestion: {
       type: String,
       default: ''
+    },
+    messages: {
+      type: Array,
+      default: () => []
+    },
+    loading: {
+      type: Boolean,
+      default: false,
     }
   },
   // language=HTML
   template: `
     <div id="chatbot">
-      <!-- Initial Question -->
+
+      <!-- First, we display the initial question of the exercise -->
       <div v-if="initialQuestion"
            v-html="initialQuestion"
            ref="initialQuestionMessage"
            class="box mb-3 assistant-message"></div>
-      <!-- Chatbot Content -->
+
+      <!-- Chatbot Content. A list of messages exchanged between the user and the assistant. -->
       <div>
-        <template v-for="(message, index) in chatMessages">
-          <div v-if="message.role === 'user' && message.question !== ''"
-               v-html="message.question"
+        <template v-for="(message, index) in messages">
+          <div v-if="message.role === 'user' && message.content"
+               v-html="renderMarkdown(formatUserMessage(message))"
                class="box mb-3 user-message"
                :key="'user-' + index"></div>
-          <div v-if="message.role === 'assistant'"
+          <div v-if="message.role === 'assistant' && message.content"
                v-html="renderMarkdown(message.content)"
                class="box mb-3 assistant-message"
                :key="'assistant-' + index"></div>
         </template>
       </div>
 
-      <!-- Section for Question Input and Hint Button -->
+      <!-- Text Input and Button for asking a question. -->
       <div class="field has-addons mt-3">
         <!-- Single Input Field -->
         <p class="control is-expanded">
@@ -45,7 +55,12 @@ export const ChatbotPanel = {
         </p>
         <!-- Ask Question Button -->
         <p class="control">
-          <button class="button is-info" @click="askQuestion" :disabled="loading">Ask Question</button>
+          <button class="button is-info" @click="askQuestion" :disabled="loading">
+            <span class="icon">
+              <i class="fas fa-question-circle"></i>
+            </span>
+            <span>Ask Question</span>
+          </button>
         </p>
       </div>
 
@@ -53,9 +68,7 @@ export const ChatbotPanel = {
   `,
   data() {
     return {
-      chatMessages: [],
       question: '',
-      loading: false,
     };
   },
   mounted(this: any) {
@@ -68,17 +81,47 @@ export const ChatbotPanel = {
     }
   },
   methods: {
+    formatUserMessage(message: any) {
+        if (!message.metadata || !message.metadata.action) {
+            return message.content;
+        }
+
+        const { action, code, question, error_message } = message.metadata;
+
+        if (action === 'ask_hint') {
+            return '<span class="icon"><i class="fas fa-lightbulb"></i></span> _Hint requested_';
+        }
+
+        if (action === 'ask_question') {
+            return '<span class="icon"><i class="fas fa-question-circle"></i></span> ' + (question || 'Question asked');
+        }
+
+        if (action === 'run_query' && code) {
+            let display = '';
+
+            const lines = code.split('\n');
+            if (lines.length > 2) {
+                display += `\`${lines.slice(0, 2).join('\n')}\n...\n\``;
+            } else {
+                display += `\`${code}\``;
+            }
+
+            if (error_message) {
+                display += `<br/>_\`${error_message}\`_`;
+            }
+
+            return display;
+        }
+
+        return message.content; // Fallback
+    },
     askQuestion(this: any) {
-      // Placeholder for sending question to backend
       if (this.question.trim()) {
-        this.chatMessages.push({ role: 'user', question: this.question });
-        // In a real app, you would make an API call here.
-        // For now, we'll just simulate a response.
-        this.loading = true;
-        setTimeout(() => {
-          this.chatMessages.push({ role: 'assistant', content: 'This is a simulated response.' });
-          this.loading = false;
-        }, 1000);
+        const userQuestion = this.question.trim();
+        // Emit an event to the parent component
+        this.$emit('question-asked', userQuestion);
+
+        // Clear the input field
         this.question = '';
       }
     },

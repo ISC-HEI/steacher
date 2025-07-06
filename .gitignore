@@ -1,3 +1,6 @@
 project.db
 _old
 node_modules
+
+# Compiled JS files
+static/js/dist/

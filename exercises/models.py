@@ -35,17 +35,29 @@ class Exercise(models.Model):
         unique_together = ('course', 'order')
 
 
-class Answer(models.Model):
-    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='answers')
-    user_answer = models.JSONField(help_text="Flexible answer format.")
+class GuidanceLog(models.Model):
+    """
+    Stores a single turn of interaction between a user and the AI tutor for a specific exercise.
+    Each log entry contains the user's action and the AI's corresponding guidance.
+    """
+    # Foreign keys to link the log to a user and exercise
+    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='guidance_logs')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='guidance_logs')
+
+    # A single field to store the full interaction turn
+    interaction = models.JSONField(
+        help_text="Stores the user's submission and the LLM's response for a single turn."
+    )
+
+    # Timestamp for ordering the conversation
     submitted_at = models.DateTimeField(auto_now_add=True)
-    is_correct = models.BooleanField(null=True, blank=True, help_text="Calculated on backend")
 
     def __str__(self):
-        return f"Answer for {self.exercise.title} at {self.submitted_at}"
+        return f"Log for {self.exercise.title} by {self.user.username} at {self.submitted_at}"
 
     class Meta:
-        ordering = ['-submitted_at']
+        # Ensures logs are always ordered correctly when fetched
+        ordering = ['submitted_at']
 
 
 class ExerciceAsset(models.Model):
