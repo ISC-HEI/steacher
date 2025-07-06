@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    /* Base Options */
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "es2022",
+    "allowJs": true,
+
+    /* Strictness */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitAny": true,
+
+    /* Output configuration */
+    "outDir": "static/js/dist",
+    
+    /* If your code runs in the DOM: */
+    "lib": ["es2022", "dom", "dom.iterable"],
+    
+    /* Our source code location */
+    "rootDir": "frontend"
+  },
+  "include": ["frontend/**/*"],
+  "exclude": ["node_modules"]
+} 

@@ -1,4 +1,5 @@
-// CodeMirror Editor Component
+"use strict";
+// CodeMirror Editor Component - using any for Vue component typing
 const CodeMirrorEditor = {
     props: {
         language: {
@@ -14,59 +15,63 @@ const CodeMirrorEditor = {
             default: '-- Write your code here'
         }
     },
-    emits: ['update:modelValue'],
+    emits: ['update:modelValue', 'run-query'],
     template: `<div ref="editorContainer" class="code-editor"></div>`,
-    
+    data() {
+        return {
+            editor: null
+        };
+    },
     mounted() {
-        // Initialize CodeMirror
-        this.editor = CodeMirror(this.$refs.editorContainer, {
+        const container = this.$refs.editorContainer;
+        this.editor = CodeMirror(container, {
             mode: this.language,
             value: this.modelValue,
             lineNumbers: true,
-            theme: 'default',
+            theme: 'eclipse',
             indentUnit: 2,
             tabSize: 2,
             lineWrapping: true,
-            placeholder: this.placeholder,
             extraKeys: {
-                'Ctrl-Space': 'autocomplete', // LATER autocomplete not working
+                'Ctrl-Space': 'autocomplete',
                 'Ctrl-Enter': () => {
-                    // Emit a run query event
                     this.$emit('run-query');
                 }
             }
         });
-        
-        // Handle changes
         this.editor.on('change', (editor) => {
             this.$emit('update:modelValue', editor.getValue());
         });
     },
-    
     watch: {
         modelValue(newValue) {
-            if (this.editor && this.editor.getValue() !== newValue) {
-                this.editor.setValue(newValue);
+            const editor = this.editor;
+            if (editor && editor.getValue() !== newValue) {
+                editor.setValue(newValue);
             }
         }
     },
-    
     beforeUnmount() {
-        if (this.editor) {
-            this.editor.toTextArea();
+        const editor = this.editor;
+        if (editor) {
+            // Clean up the editor instance
+            editor.getWrapperElement().remove();
+            this.editor = null;
         }
     }
 };
-
-document.addEventListener('DOMContentLoaded', function() {
-    const { createApp } = Vue;
-    
+document.addEventListener('DOMContentLoaded', function () {
+    const { createApp } = window.Vue;
     // Get exercise data from JSON script tag
     const exerciseDataScript = document.getElementById('exercise-data');
-    const exerciseData = JSON.parse(exerciseDataScript.textContent);
-    
-    createApp({
-        delimiters: ['[[', ']]'],  // Use [[ ]] instead of {{ }} to avoid Django conflicts
+    if (!exerciseDataScript) {
+        console.error('Exercise data script tag not found!');
+        return;
+    }
+    const exerciseData = JSON.parse(exerciseDataScript.textContent || '{}');
+    // Main Vue app - using any for component typing
+    const app = createApp({
+        delimiters: ['[[', ']]'],
         data() {
             return {
                 exercise: exerciseData,
@@ -75,29 +80,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 showExpectedResult: false,
                 showCorrectAnswers: false,
                 queryResult: null
-            }
+            };
         },
-        
         methods: {
             runQuery() {
-                // Placeholder for query execution
                 console.log('Running query:', this.userQuery);
                 this.queryResult = 'Query execution will be implemented later...';
             },
-            
             clearQuery() {
                 this.userQuery = '';
                 this.queryResult = null;
             },
-            
             getResultColumns(resultArray) {
-                if (!resultArray || resultArray.length === 0) return [];
+                if (!resultArray || resultArray.length === 0)
+                    return [];
                 return Object.keys(resultArray[0]);
             }
         },
-        
         components: {
             'code-mirror-editor': CodeMirrorEditor
         }
-    }).mount('#sql-exercise-app');
-}); 
+    });
+    app.mount('#sql-exercise-app');
+});

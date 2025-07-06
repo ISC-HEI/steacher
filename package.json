@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Frontend dependencies for exam_project",
   "scripts": {
+    "watch": "tsc --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -12,5 +13,9 @@
     "bulma": "^1.0.0",
     "codemirror": "^5.65.2",
     "vue": "^3.4.27"
+  },
+  "devDependencies": {
+    "@types/codemirror": "^5.60.15",
+    "typescript": "^5.4.5"
   }
 } 
