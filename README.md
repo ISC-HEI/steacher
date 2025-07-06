@@ -2,38 +2,67 @@
 
 ## Quick Start
 
-### 1. Install Dependencies
+### 1. Install PostgreSQL
+
+Make sure PostgreSQL is installed and running on your system
+
+### 2. Create Database
+
+Create the PostgreSQL database:
+```bash
+# Connect to PostgreSQL as postgres user
+psql -U postgres
+
+# Create database
+CREATE DATABASE steacher;
+
+# Exit psql
+\q
+```
+
+### 3. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Run Migrations
+### 4. Run Migrations
 
 ```bash
 python manage.py migrate
 ```
 
-### 3. Create Sample Data
+### 5. Create Sample Data
 
 ```bash
 python manage.py create_sample_exercises
 ```
 
-### 4. Create Admin User
+### 6. Create Admin User
 
 ```bash
 python manage.py createsuperuser --username admin --email admin@example.com --noinput
 python set_admin_password.py  # Sets password to 'admin123'
 ```
 
-### 5. Start Development Server
+### 7. Start Development Server
 
 ```bash
 python manage.py runserver
 ```
 
 Visit `http://127.0.0.1:8000/` to see the exercise list.
+
+## Database Configuration
+
+The project uses PostgreSQL with the following default settings:
+- Database: `steacher`
+- Username: `postgres`
+- Password: `postgres`
+- Host: `localhost`
+- Port: `5432`
+
+You can modify these settings in `exam_project/settings.py` if needed.
 
 ## Admin Access
 
