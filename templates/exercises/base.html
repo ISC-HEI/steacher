@@ -4,12 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Steacher{% endblock %}</title>
+
+     <!-- Favicon -->
+     <link rel="shortcut icon" href="{% load static %}{% static 'images/favicon.ico' %}" type="image/x-icon">
+     <link rel="icon" href="{% load static %}{% static 'images/favicon.png' %}" type="image/png">
     
-    <!-- Vue.js 3 CDN -->
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     
-    <!-- Bulma CSS framework -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.0/css/bulma.min.css">
+    <!-- Vue.js 3 from node_modules -->
+    <script src="{% static 'vue/dist/vue.global.js' %}"></script>
+    
+    <!-- Bulma CSS from node_modules -->
+    <link rel="stylesheet" href="{% static 'bulma/css/bulma.min.css' %}">
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{% load static %}{% static 'css/style.css' %}">

@@ -1,176 +1,118 @@
 from django.core.management.base import BaseCommand
-from exercises.models import Exercise
+from exercises.models import Exercise, ExerciceAsset
 
 
 class Command(BaseCommand):
     help = 'Create sample multiple choice exercises'
 
     def handle(self, *args, **options):
-        # Clear existing exercises
+        # Clear existing exercises and assets
         Exercise.objects.all().delete()
+        ExerciceAsset.objects.all().delete()
         
         # Sample multiple choice exercises
-        exercises_data = [
-            {
-                'title': 'Python Basics: Variables',
-                'description': 'Test your knowledge of Python variable declarations.',
-                'exercise_type': 'multiple_choice',
+        sql_exercises_data =   {
+                'title': 'Hello SQL',
+                'description': 'Hello world with SQL using minimalisting students db',
+                'exercise_type': 'sql',
                 'exercise_data': {
-                    'question': 'Which of the following is the correct way to declare a variable in Python?',
-                    'choices': [
+                    "question": "Write a query to list all students from the `students` table",
+                    "db": "students_v1.sql",
+                    "expected_result": [
                         {
-                            'id': 'a',
-                            'text': 'int x = 5',
-                            'is_correct': False
+                            "first_name": "Yoko",
+                            "last_name": "Tsuno",
+                            "city": None,
+                            "age": 23
                         },
                         {
-                            'id': 'b',
-                            'text': 'x = 5',
-                            'is_correct': True
-                        },
-                        {
-                            'id': 'c',
-                            'text': 'var x = 5',
-                            'is_correct': False
-                        },
-                        {
-                            'id': 'd',
-                            'text': 'declare x = 5',
-                            'is_correct': False
+                            "first_name": "Raoul",
+                            "last_name": "Chatigré",
+                            "city": None,
+                            "age": 17
                         }
-                    ]
-                }
-            },
-            {
-                'title': 'JavaScript Functions',
-                'description': 'Understanding function syntax in JavaScript.',
-                'exercise_type': 'multiple_choice',
-                'exercise_data': {
-                    'question': 'Which is the correct syntax for defining a function in JavaScript?',
-                    'choices': [
+                    ],
+                    "correct_answers": [
                         {
-                            'id': 'a',
-                            'text': 'function myFunction() {}',
-                            'is_correct': True
+                            "answer": "SELECT * FROM students;",
+                            "explanation": "This is the most straightforward answer"
                         },
                         {
-                            'id': 'b',
-                            'text': 'def myFunction():',
-                            'is_correct': False
-                        },
-                        {
-                            'id': 'c',
-                            'text': 'func myFunction() {}',
-                            'is_correct': False
-                        },
-                        {
-                            'id': 'd',
-                            'text': 'function = myFunction() {}',
-                            'is_correct': False
+                            "answer": "SELECT first_name, last_name FROM students;",
+                            "explanation": "This works too, but it was not specifically asked to select `first_name` and `last_name`. It's fine because it's the first ever sql query that the students will write"
                         }
-                    ]
-                }
-            },
-            {
-                'title': 'HTML Structure',
-                'description': 'Basic HTML document structure knowledge.',
-                'exercise_type': 'multiple_choice',
-                'exercise_data': {
-                    'question': 'Which HTML tag is used to define the main content of a document?',
-                    'choices': [
-                        {
-                            'id': 'a',
-                            'text': '<content>',
-                            'is_correct': False
-                        },
-                        {
-                            'id': 'b',
-                            'text': '<main>',
-                            'is_correct': True
-                        },
-                        {
-                            'id': 'c',
-                            'text': '<section>',
-                            'is_correct': False
-                        },
-                        {
-                            'id': 'd',
-                            'text': '<article>',
-                            'is_correct': False
-                        }
-                    ]
-                }
-            },
-            {
-                'title': 'CSS Selectors',
-                'description': 'Understanding CSS selector syntax.',
-                'exercise_type': 'multiple_choice',
-                'exercise_data': {
-                    'question': 'Which CSS selector targets an element with the class "container"?',
-                    'choices': [
-                        {
-                            'id': 'a',
-                            'text': '#container',
-                            'is_correct': False
-                        },
-                        {
-                            'id': 'b',
-                            'text': '.container',
-                            'is_correct': True
-                        },
-                        {
-                            'id': 'c',
-                            'text': 'container',
-                            'is_correct': False
-                        },
-                        {
-                            'id': 'd',
-                            'text': '*container',
-                            'is_correct': False
-                        }
-                    ]
-                }
-            },
-            {
-                'title': 'Database Normalization',
-                'description': 'Understanding database design principles.',
-                'exercise_type': 'multiple_choice',
-                'exercise_data': {
-                    'question': 'What is the main purpose of database normalization?',
-                    'choices': [
-                        {
-                            'id': 'a',
-                            'text': 'To increase database size',
-                            'is_correct': False
-                        },
-                        {
-                            'id': 'b',
-                            'text': 'To reduce data redundancy and improve data integrity',
-                            'is_correct': True
-                        },
-                        {
-                            'id': 'c',
-                            'text': 'To make queries slower',
-                            'is_correct': False
-                        },
-                        {
-                            'id': 'd',
-                            'text': 'To duplicate data across tables',
-                            'is_correct': False
-                        }
-                    ]
+                    ],
+                    "hints": [
+                        "The command to list all entries from a database table has the form `SELECT * FROM {table name}`"
+                    ],
+                    "additional_context": "This is the first ever SQL exercice/command that the students will write. It's kind of the hello world in SQL for them. Focus on getting them on-board, not on details."
                 }
             }
-        ]
+          
+           
+           
+           
         
-        # Create exercises
-        created_count = 0
-        for exercise_data in exercises_data:
-            Exercise.objects.create(**exercise_data)
-            created_count += 1
-            
+        sql_exercise = Exercise.objects.create(**sql_exercises_data)
+        
+        sql_content = """CREATE TABLE students
+(
+  first_name        VARCHAR, 
+  last_name         VARCHAR,
+  city              VARCHAR,
+  age               INTEGER
+);
+
+INSERT INTO students (first_name, last_name, age) 
+  VALUES ('Yoko', 'Tsuno', 23);
+
+INSERT INTO students (first_name, last_name, age) 
+  VALUES ('Raoul', 'Chatigré', 17);"""
+                
+        ExerciceAsset.objects.create(
+            name="students_v1.sql",
+            description="Sample students table with initial data",
+            content=sql_content.encode('utf-8'),
+            exercise=sql_exercise
+        )
+
+        # Multiple choice exercise
+        Exercise.objects.create(
+            title='Database Normalization',
+            description='Understanding database design principles.',
+            exercise_type='multiple_choice',
+            exercise_data={
+                'question': 'What is the main purpose of database normalization?',
+                'choices': [
+                    {
+                        'id': 'a',
+                        'text': 'To increase database size',
+                        'is_correct': False
+                    },
+                    {
+                        'id': 'b',
+                        'text': 'To reduce data redundancy and improve data integrity',
+                        'is_correct': True
+                    },
+                    {
+                        'id': 'c',
+                        'text': 'To make queries slower',   
+                        'is_correct': False
+                    },
+                    {
+                        'id': 'd',
+                        'text': 'To duplicate data across tables',
+                        'is_correct': False 
+                    }
+                ]
+            }
+        )
+
+
+
+    
         self.stdout.write(
             self.style.SUCCESS(
-                f'Successfully created {created_count} sample exercises'
+                f'Successfully created sample exercises and assets'
             )
         ) 

@@ -126,8 +126,11 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Add the node_modules directory to the static files search path
 STATICFILES_DIRS = [
-    BASE_DIR / 'static',
+    BASE_DIR / "static",
+    BASE_DIR / "node_modules",
 ]
 
 # Default primary key field type

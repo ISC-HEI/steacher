@@ -32,47 +32,15 @@ def exercise_detail(request, pk):
         previous_answer_data = AnswerSerializer(previous_answer).data
         previous_answer_data = json.dumps(previous_answer_data)
     
-    return render(request, 'exercises/detail.html', {
-        'exercise': json.dumps(exercise_data),
+    # Choose template based on exercise type
+    # LATER dynamically choose template based on exercise type
+    if exercise.exercise_type == 'sql':
+        template_name = 'exercises/sql.html'
+    else:
+        template_name = 'exercises/detail.html'
+    
+    return render(request, template_name, {
+        'exercise': exercise_data,
         'previous_answer': previous_answer_data,
     })
 
-
-@method_decorator(csrf_exempt, name='dispatch')
-class SubmitAnswerView(View):
-    def post(self, request, pk):
-        """Handle answer submission"""
-        exercise = get_object_or_404(Exercise, pk=pk)
-        
-        try:
-            data = json.loads(request.body)
-            user_answer = data.get('answer')
-            
-            # Calculate if answer is correct (for multiple choice)
-            is_correct = None
-            if exercise.exercise_type == 'multiple_choice':
-                correct_choice = None
-                for choice in exercise.exercise_data.get('choices', []):
-                    if choice.get('is_correct', False):
-                        correct_choice = choice['id']
-                        break
-                is_correct = user_answer == correct_choice
-            
-            # Save the answer
-            answer = Answer.objects.create(
-                exercise=exercise,
-                user_answer=user_answer,
-                is_correct=is_correct
-            )
-            
-            return JsonResponse({
-                'success': True,
-                'is_correct': is_correct,
-                'message': 'Answer submitted successfully!'
-            })
-            
-        except Exception as e:
-            return JsonResponse({
-                'success': False,
-                'error': str(e)
-            }, status=400)

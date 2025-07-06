@@ -1,0 +1,194 @@
+{% extends 'exercises/base.html' %}
+{% load static %}
+
+{% block title %}{{ exercise.title }} - SQL Exercise{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="breadcrumbs">
+    <ul>
+        <li><a href="{% url 'exercises:list' %}">Exercises</a></li>
+        <li class="is-active"><a href="#" aria-current="page">{{ exercise.title }}</a></li>
+    </ul>
+</nav>
+
+<div id="sql-exercise-app">
+    <div class="sql-exercise">
+        <div class="card">
+            <header class="card-header">
+                <p class="card-header-title">
+                    [[ exercise.title ]]
+                </p>
+                <span class="tag is-primary">[[ exercise.exercise_type ]]</span>
+            </header>
+            
+            <div class="card-content">
+                <div class="content">
+                    <p class="is-size-5 mb-4" v-if="exercise.description">
+                        [[ exercise.description ]]
+                    </p>
+                    
+                    <div class="question-section mb-5">
+                        <h4 class="title is-4">[[ exercise.exercise_data.question ]]</h4>
+                        
+                        <!-- Additional context -->
+                        <div v-if="exercise.exercise_data.additional_context" class="notification is-info is-light">
+                            <p><strong>Context:</strong> [[ exercise.exercise_data.additional_context ]]</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Database Schema Info -->
+                    <div v-if="exercise.exercise_data.db" class="mb-4">
+                        <h5 class="title is-5">Database: [[ exercise.exercise_data.db ]]</h5>
+                        <p class="has-text-grey">
+                            <em>The database schema will be available when you run your query.</em>
+                        </p>
+                    </div>
+                    
+                    <!-- SQL Editor -->
+                    <div class="field">
+                        <label class="label">Your SQL Query</label>
+                        <div class="control">
+                            <code-mirror-editor
+                                language="sql"
+                                v-model="userQuery"
+                                :placeholder="'-- Write your SQL query here\\n-- Press Ctrl+Enter to run (coming soon)'"
+                                @run-query="runQuery">
+                            </code-mirror-editor>
+                        </div>
+                    </div>
+                    
+                    <!-- Hints Section -->
+                    <div v-if="exercise.exercise_data.hints && exercise.exercise_data.hints.length > 0" class="mt-4">
+                        <div class="field">
+                            <button @click="showHints = !showHints" class="button is-small is-outlined">
+                                [[ showHints ? 'Hide' : 'Show' ]] Hints
+                            </button>
+                        </div>
+                        <div v-show="showHints" class="notification is-warning is-light">
+                            <h6 class="title is-6">Hints:</h6>
+                                                            <ul>
+                                    <li v-for="hint in exercise.exercise_data.hints" :key="hint">
+                                        [[ hint ]]
+                                    </li>
+                                </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Expected Result (for reference) -->
+                    <div v-if="showExpectedResult && exercise.exercise_data.expected_result" class="mt-4">
+                        <h6 class="title is-6">Expected Result:</h6>
+                        <div class="table-container">
+                            <table class="table is-striped is-fullwidth">
+                                <thead>
+                                                                            <tr>
+                                            <th v-for="column in getResultColumns(exercise.exercise_data.expected_result)" :key="column">
+                                                [[ column ]]
+                                            </th>
+                                        </tr>
+                                </thead>
+                                <tbody>
+                                                                            <tr v-for="row in exercise.exercise_data.expected_result" :key="JSON.stringify(row)">
+                                            <td v-for="column in getResultColumns(exercise.exercise_data.expected_result)" :key="column">
+                                                [[ row[column] || 'NULL' ]]
+                                            </td>
+                                        </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Correct Answers (for reference) -->
+                    <div v-if="showCorrectAnswers && exercise.exercise_data.correct_answers" class="mt-4">
+                        <h6 class="title is-6">Correct Answers:</h6>
+                                                    <div v-for="(answer, index) in exercise.exercise_data.correct_answers" :key="index" class="mb-3">
+                                <div class="notification is-success is-light">
+                                    <p><strong>Answer [[ index + 1 ]]:</strong></p>
+                                    <code>[[ answer.answer ]]</code>
+                                    <p class="mt-2"><em>[[ answer.explanation ]]</em></p>
+                                </div>
+                            </div>
+                    </div>
+                    
+                    <!-- Query Result Area (placeholder for future implementation) -->
+                    <div v-if="queryResult" class="mt-4">
+                        <h6 class="title is-6">Query Result:</h6>
+                        <div class="notification is-info">
+                            <p><em>Query execution will be implemented later...</em></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <footer class="card-footer">
+                <div class="card-footer-item">
+                    <div class="field is-grouped">
+                        <div class="control">
+                            <button 
+                                @click="runQuery"
+                                class="button is-primary"
+                                :disabled="!userQuery.trim()">
+                                <span class="icon">
+                                    <i class="fas fa-play"></i>
+                                </span>
+                                <span>Run Query</span>
+                            </button>
+                        </div>
+                        
+                        <div class="control">
+                            <button 
+                                @click="clearQuery"
+                                class="button is-light">
+                                <span class="icon">
+                                    <i class="fas fa-eraser"></i>
+                                </span>
+                                <span>Clear</span>
+                            </button>
+                        </div>
+                        
+                        <div class="control">
+                                                            <button 
+                                    @click="showExpectedResult = !showExpectedResult"
+                                    class="button is-outlined">
+                                    [[ showExpectedResult ? 'Hide' : 'Show' ]] Expected Result
+                                </button>
+                        </div>
+                        
+                        <div class="control">
+                                                            <button 
+                                    @click="showCorrectAnswers = !showCorrectAnswers"
+                                    class="button is-outlined">
+                                    [[ showCorrectAnswers ? 'Hide' : 'Show' ]] Correct Answers
+                                </button>
+                        </div>
+                        
+                        <div class="control">
+                            <a href="/exercises/" class="button is-outlined">
+                                <span class="icon">
+                                    <i class="fas fa-arrow-left"></i>
+                                </span>
+                                <span>Back to Exercises</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- CodeMirror CSS -->
+<link rel="stylesheet" href="{% static 'codemirror/lib/codemirror.css' %}">
+<link rel="stylesheet" href="{% static 'codemirror/theme/eclipse.css' %}">
+
+<!-- CodeMirror JavaScript -->
+<script src="{% static 'codemirror/lib/codemirror.js' %}"></script>
+<script src="{% static 'codemirror/mode/sql/sql.js' %}"></script>
+
+<!-- SQL Exercise JavaScript -->
+<script src="{% static 'js/sql.js' %}"></script>
+
+<!-- Pass exercise data safely using JSON script tag -->
+{{ exercise|json_script:"exercise-data" }}
+{% endblock %} 
