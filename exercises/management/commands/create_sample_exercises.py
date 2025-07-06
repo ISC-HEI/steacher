@@ -13,8 +13,8 @@ class Command(BaseCommand):
         
         # Create a course
         sql_course = Course.objects.create(
-            name='SQL Class',
-            description='A course for learning SQL basics.',
+            name='Introduction to Databases',
+            description='A course for learning SQL basics and the relational model.',
             llm_prompts={
                 'sql': '''### Specialized SQL Tutor Prompt
 

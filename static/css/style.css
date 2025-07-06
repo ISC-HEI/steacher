@@ -202,19 +202,25 @@
 .left-panel {
     width: 60%;
     padding-right: 1rem;
+    display: flex;
+    flex-direction: column;
 }
 
 .right-panel {
     width: 40%;
     padding-left: 1rem;
     border-left: 1px solid #dbdbdb;
-    height: 100%;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 150px); /* Adjust 150px based on nav/header height */
 }
 
 #chatbot {
     padding: 10px;
-    overflow-y: auto;
-    height: 100%;
+    flex-grow: 1; /* Allow the chatbot to fill the available space */
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto; /* Make this container scrollable */
 }
 
 #chatbot div p, #chatbot div li {
@@ -228,6 +234,7 @@
 /* User Message Styling */
 .user-message {
     background-color: #E8E8E880; /* Light gray background for user messages */
+
     border-radius: 5px;
     margin-left: auto; /* Pushes the message to the right */
     max-width: 80%; /* Limit the width of the message */
@@ -235,6 +242,11 @@
     border: 1px solid lightgray;
     font-size: 16px;
     padding: 10px;
+    text-align: left; /* Explicitly align text to the left */
+}
+
+.user-message code {
+    background-color: white;
 }
 
 /* Assistant Message Styling */
@@ -248,6 +260,10 @@
     padding: 10px;
     font-size: 16px;
 } 
+
+.initial-question {
+    font-weight: bold;
+}
 
 /* Highlight for new questions */
 .highlight-question {

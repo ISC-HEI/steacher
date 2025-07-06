@@ -49,6 +49,7 @@ interface SqlDataContext {
     database: any | null; // PGlite instance
     guidance: string | null;
     chatMessages: any[];
+    start_timestamp: string;
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -103,7 +104,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 loadingState: 'idle', // 'idle', 'db-loading', 'querying', 'getting-guidance'
                 database: null,
                 guidance: null,
-                chatMessages: initialMessages
+                chatMessages: initialMessages,
+                start_timestamp: new Date().toISOString()
             }
         },
         
@@ -136,6 +138,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         query_result: this.queryResult ? JSON.stringify(this.queryResult, null, 2) : null,
                         question: details.question || null,
                         error_message: details.error || null,
+                        start_timestamp: this.start_timestamp,
+                        submission_timestamp: new Date().toISOString()
                     };
 
                     // 3. Make API call
@@ -182,6 +186,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.queryError = `Error communicating with the server: ${error}`;
                 } finally {
                     this.loadingState = 'idle';
+                    this.start_timestamp = new Date().toISOString(); // Reset for the next interaction
                 }
             },
 

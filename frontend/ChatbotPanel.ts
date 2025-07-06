@@ -18,26 +18,27 @@ export const ChatbotPanel = {
   },
   // language=HTML
   template: `
-    <div id="chatbot">
+    <div id="chatbot" ref="chatContainer">
+      <div class="chat-content">
+        <!-- First, we display the initial question of the exercise -->
+        <div v-if="initialQuestion"
+             v-html="initialQuestion"
+             ref="initialQuestionMessage"
+             class="box mb-3 assistant-message initial-question"></div>
 
-      <!-- First, we display the initial question of the exercise -->
-      <div v-if="initialQuestion"
-           v-html="initialQuestion"
-           ref="initialQuestionMessage"
-           class="box mb-3 assistant-message"></div>
-
-      <!-- Chatbot Content. A list of messages exchanged between the user and the assistant. -->
-      <div>
-        <template v-for="(message, index) in messages">
-          <div v-if="message.role === 'user' && message.content"
-               v-html="renderMarkdown(formatUserMessage(message))"
-               class="box mb-3 user-message"
-               :key="'user-' + index"></div>
-          <div v-if="message.role === 'assistant' && message.content"
-               v-html="renderMarkdown(message.content)"
-               class="box mb-3 assistant-message"
-               :key="'assistant-' + index"></div>
-        </template>
+        <!-- Chatbot Content. A list of messages exchanged between the user and the assistant. -->
+        <div>
+          <template v-for="(message, index) in messages">
+            <div v-if="message.role === 'user' && message.content"
+                 v-html="renderMarkdown(formatUserMessage(message))"
+                 class="box mb-3 user-message"
+                 :key="'user-' + index"></div>
+            <div v-if="message.role === 'assistant' && message.content"
+                 v-html="renderMarkdown(message.content)"
+                 class="box mb-3 assistant-message"
+                 :key="'assistant-' + index"></div>
+          </template>
+        </div>
       </div>
 
       <!-- Text Input and Button for asking a question. -->
@@ -80,6 +81,20 @@ export const ChatbotPanel = {
       }, 4000); // Remove after 4 seconds (duration of animation)
     }
   },
+  watch: {
+    messages: {
+      handler(this: any) {
+        // Use nextTick to wait for the DOM to update
+        this.$nextTick(() => {
+          const container = this.$refs.chatContainer as HTMLElement;
+          if (container) {
+            container.scrollTop = container.scrollHeight;
+          }
+        });
+      },
+      deep: true // Watch for changes inside the array
+    }
+  },
   methods: {
     formatUserMessage(message: any) {
         if (!message.metadata || !message.metadata.action) {
@@ -107,7 +122,7 @@ export const ChatbotPanel = {
             }
 
             if (error_message) {
-                display += `<br/>_\`${error_message}\`_`;
+                display += `<br/>_${error_message}_`;
             }
 
             return display;
