@@ -15,132 +15,97 @@
 <div id="sql-exercise-app"
      data-static-prefix="{% get_static_prefix %}"
      data-asset-url="{% if exercise.exercise_data.db %}{% url 'exercises:serve_asset' exercise_id=exercise.id filename=exercise.exercise_data.db %}{% endif %}">
-    <div class="sql-exercise">
-      
-           
-        <div class="content">
-
-            <div class="question-section mb-5">
-                <h4 class="title is-4">[[ exercise.exercise_data.question ]]</h4>
-
-                <!-- Additional context -->
-                <div v-if="exercise.exercise_data.additional_context" class="notification is-info is-light">
-                    <p><strong>Context:</strong> [[ exercise.exercise_data.additional_context ]]</p>
-                </div>
-            </div>
-
-            <!-- SQL Editor -->
-            <div class="field">
-                <label class="label">Your SQL query:</label>
-                <div class="control">
-                    <code-mirror-editor
-                        language="sql"
-                        v-model="userQuery"
-                        :placeholder="'-- Write your SQL query here\\n-- Press Ctrl+Enter to run (coming soon)'"
-                        @run-query="runQuery">
-                    </code-mirror-editor>
-                </div>
-            </div>
-        </div>
-           
-        <div class="field is-grouped sql-exercise-controls">
-            <div class="control">
-                <button
-                    @click="runQuery"
-                    class="button is-primary"
-                    :class="{ 'is-loading': loadingState === 'querying' }"
-                    :disabled="!userQuery.trim() || loadingState !== 'idle'">
-                    <span class="icon">
-                        <i class="fas fa-play"></i>
-                    </span>
-                    <span>Run Query</span>
-                </button>
-            </div>
-
-            <div class="control">
-                <button
-                    @click="giveHint"
-                    class="button is-primary"
-                    :class="{ 'is-loading': loadingState === 'querying' }"
-                    :disabled="loadingState !== 'idle'">
-                    <span class="icon">
-                        <i class="fas fa-lightbulb"></i>
-                    </span>
-                    <span>Gimme a Hint</span>
-                </button>
-            </div>
-
-
-            <div class="control">
-                <button
-                    @click="clearQuery"
-                    class="button is-light">
-                    <span class="icon">
-                        <i class="fas fa-eraser"></i>
-                    </span>
-                    <span>Clear</span>
-                </button>
-            </div>
-        </div>
-
-        <div class="sql-exercise-output mt-4">
-            <!-- Query Error Display -->
-            <div v-if="queryError">
-                <div class="notification is-danger">
-                    <h6 class="title is-6">Error:</h6>
-                    <p>[[ queryError ]]</p>
-                </div>
-            </div>
-
-            <!-- Loading States -->
-            <div v-if="loadingState === 'db-loading'">
-                <div class="notification is-info">
-                    <p><em>Loading database...</em></p>
-                </div>
-            </div>
-            <div v-if="loadingState === 'querying'">
-                <div class="notification is-info">
-                    <p><em>Executing query...</em></p>
-                </div>
-            </div>
-
-            <!-- Query Result Area -->
-            <div v-if="queryResult && loadingState === 'idle'">
-                <h6 class="title is-6">Query Result:</h6>
-
-                <!-- SELECT Query Results -->
-                <div v-if="queryResult.type === 'select'" class="table-container">
-                    <div class="notification is-success is-light mb-3">
-                        <p><strong>[[ queryResult.rowCount ]] row(s) returned</strong></p>
+    <div class="exercise-container">
+        <div class="left-panel">
+            <div class="exercise">
+                <div class="content">
+                    <div class="field">
+                        <div class="control">
+                            <code-mirror-editor
+                                language="sql"
+                                v-model="userQuery"
+                                :placeholder="'-- Write your SQL query here'"
+                                @run-query="runQuery">
+                            </code-mirror-editor>
+                        </div>
                     </div>
-                    <table class="table is-striped is-fullwidth">
-                        <thead>
-                            <tr>
-                                <th v-for="column in queryResult.columns" :key="column">
-                                    [[ column ]]
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="row in queryResult.rows" :key="JSON.stringify(row)">
-                                <td v-for="column in queryResult.columns" :key="column">
-                                    [[ row[column] !== null ? row[column] : 'NULL' ]]
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
                 </div>
-
-                <!-- Modification Query Results -->
-                <div v-else-if="queryResult.type === 'modification'" class="notification is-success">
-                    <p><strong>[[ queryResult.message ]]</strong></p>
+                <div class="field is-grouped exercise-controls">
+                    <div class="control">
+                        <button
+                            @click="runQuery"
+                            class="button is-primary"
+                            :class="{ 'is-loading': loadingState === 'querying' }"
+                            :disabled="!userQuery.trim() || loadingState !== 'idle'">
+                            <span class="icon"><i class="fas fa-play"></i></span>
+                            <span>Run Query</span>
+                        </button>
+                    </div>
+                    <div class="control">
+                        <button
+                            @click="giveHint"
+                            class="button is-primary"
+                            :class="{ 'is-loading': loadingState === 'querying' }"
+                            :disabled="loadingState !== 'idle'">
+                            <span class="icon"><i class="fas fa-lightbulb"></i></span>
+                            <span>Gimme a Hint</span>
+                        </button>
+                    </div>
+                    <div class="control">
+                        <button
+                            @click="clearQuery"
+                            class="button is-light">
+                            <span class="icon"><i class="fas fa-eraser"></i></span>
+                            <span>Clear</span>
+                        </button>
+                    </div>
                 </div>
-
-                <!-- Other Query Results -->
-                <div v-else class="notification is-success">
-                    <p><strong>[[ queryResult.message ]]</strong></p>
+                <div class="exercise-output mt-4">
+                    <div v-if="queryError">
+                        <div class="notification is-danger">
+                            <h6 class="title is-6">Error:</h6>
+                            <p>[[ queryError ]]</p>
+                        </div>
+                    </div>
+                    <div v-if="loadingState === 'db-loading'">
+                        <div class="notification is-info"><p><em>Loading database...</em></p></div>
+                    </div>
+                    <div v-if="loadingState === 'querying'">
+                        <div class="notification is-info"><p><em>Executing query...</em></p></div>
+                    </div>
+                    <div v-if="queryResult && loadingState === 'idle'">
+                        <h6 class="title is-6">Query Result:</h6>
+                        <div v-if="queryResult.type === 'select'" class="table-container">
+                            <div class="notification is-success is-light mb-3">
+                                <p><strong>[[ queryResult.rowCount ]] row(s) returned</strong></p>
+                            </div>
+                            <table class="table is-striped is-fullwidth">
+                                <thead>
+                                    <tr>
+                                        <th v-for="column in queryResult.columns" :key="column">[[ column ]]</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="row in queryResult.rows" :key="JSON.stringify(row)">
+                                        <td v-for="column in queryResult.columns" :key="column">
+                                            [[ row[column] !== null ? row[column] : 'NULL' ]]
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div v-else-if="queryResult.type === 'modification'" class="notification is-success">
+                            <p><strong>[[ queryResult.message ]]</strong></p>
+                        </div>
+                        <div v-else class="notification is-success">
+                            <p><strong>[[ queryResult.message ]]</strong></p>
+                        </div>
+                    </div>
                 </div>
             </div>
+        </div>
+        <div class="right-panel">
+            <chatbot-panel :initial-question="exercise.exercise_data.question"></chatbot-panel>
         </div>
     </div>
 </div>
@@ -151,7 +116,11 @@
 <script type="importmap">
 {
   "imports": {
-    "@electric-sql/pglite": "{% static '@electric-sql/pglite/dist/index.js' %}"
+    "@electric-sql/pglite": "{% static '@electric-sql/pglite/dist/index.js' %}",
+    "./ChatbotPanel.js": "{% static 'js/dist/ChatbotPanel.js' %}",
+    "marked": "{% static 'marked/lib/marked.esm.js' %}",
+    "dompurify": "{% static 'dompurify/dist/purify.es.mjs' %}",
+    "./CodeMirrorEditor.js": "{% static 'js/dist/CodeMirrorEditor.js' %}"
   }
 }
 </script>
@@ -163,6 +132,7 @@
 <!-- CodeMirror JavaScript -->
 <script src="{% static 'codemirror/lib/codemirror.js' %}"></script>
 <script src="{% static 'codemirror/mode/sql/sql.js' %}"></script>
+<script src="{% static 'codemirror/addon/display/placeholder.js' %}"></script>
 
 <!-- SQL Exercise JavaScript -->
 <script type="module" src="{% static 'js/dist/sql.js' %}"></script>

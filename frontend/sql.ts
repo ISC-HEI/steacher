@@ -1,4 +1,6 @@
 import { PGlite } from '@electric-sql/pglite';
+import { ChatbotPanel } from './ChatbotPanel.js';
+import { CodeMirrorEditor } from './CodeMirrorEditor.js';
 
 // Declare global variables that are loaded via script tags in the HTML template
 declare const CodeMirror: any;
@@ -24,73 +26,6 @@ interface Exercise {
         correct_answers?: { answer: string; explanation: string }[];
     };
 }
-
-// CodeMirror Editor Component - using any for Vue component typing
-const CodeMirrorEditor: any = {
-    props: {
-        language: {
-            type: String,
-            default: 'text'
-        },
-        modelValue: {
-            type: String,
-            default: ''
-        },
-        placeholder: {
-            type: String,
-            default: '-- Write your code here'
-        }
-    },
-    emits: ['update:modelValue', 'run-query'],
-    template: `<div ref="editorContainer" class="code-editor"></div>`,
-    
-    data() {
-        return {
-            editor: null as any
-        }
-    },
-    
-    mounted() {
-        const container = (this as any).$refs.editorContainer as HTMLDivElement;
-        (this as any).editor = CodeMirror(container, {
-            mode: (this as any).language,
-            value: (this as any).modelValue,
-            lineNumbers: true,
-            theme: 'eclipse',
-            indentUnit: 2,
-            tabSize: 2,
-            lineWrapping: true,
-            extraKeys: {
-                'Ctrl-Space': 'autocomplete',
-                'Ctrl-Enter': () => {
-                    (this as any).$emit('run-query');
-                }
-            }
-        });
-        
-        (this as any).editor.on('change', (editor: any) => {
-            (this as any).$emit('update:modelValue', editor.getValue());
-        });
-    },
-    
-    watch: {
-        modelValue(newValue: string) {
-            const editor = (this as any).editor;
-            if (editor && editor.getValue() !== newValue) {
-                editor.setValue(newValue);
-            }
-        }
-    },
-    
-    beforeUnmount() {
-        const editor = (this as any).editor;
-        if (editor) {
-            // Clean up the editor instance
-            editor.getWrapperElement().remove();
-            (this as any).editor = null;
-        }
-    }
-};
 
 document.addEventListener('DOMContentLoaded', function() {
     const { createApp, markRaw } = window.Vue;
@@ -223,7 +158,8 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         
         components: {
-            'code-mirror-editor': CodeMirrorEditor
+            'code-mirror-editor': CodeMirrorEditor,
+            'chatbot-panel': ChatbotPanel
         }
     });
     

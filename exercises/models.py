@@ -3,8 +3,9 @@ from django.contrib.auth.models import User
 
 
 class Course(models.Model):
-    name = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
+    name = models.CharField(max_length=200, help_text="The name/title of the course that will be displayed to the user.")
+    description = models.TextField(blank=True, help_text="A short description of the course that will be displayed to the user.")
+    llm_prompts = models.JSONField(blank=True, default=dict, help_text="LLM prompts per exercise type, e.g. {'turtle': 'Your prompt for turtle exercises...'}")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -17,12 +18,12 @@ class Course(models.Model):
 
 class Exercise(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='exercises')
-    title = models.CharField(max_length=200)
-    description = models.TextField(blank=True)
-    exercise_type = models.CharField(max_length=50)  # 'multiple_choice', 'text', 'turtle', etc.
-    order = models.PositiveIntegerField(default=0)  # Order within the course
-    exercise_data = models.JSONField()  # Only question data (sent to frontend)
-    answer_data = models.JSONField(default=dict)  # Answer data (backend only)
+    title = models.CharField(max_length=200, help_text="Title of the exercice; not displayed to the user.")
+    description = models.TextField(blank=True, help_text="Description of the exercice; not displayed to the user.")
+    exercise_type = models.CharField(max_length=50, help_text="Type of the exercice, e.g. 'multiple_choice', 'text', 'turtle', etc.")
+    order = models.PositiveIntegerField(default=0, help_text="The order of the exercice within the course.")
+    exercise_data = models.JSONField(help_text="Contains fields like question, data-source, etc.")  # sent to frontend
+    answer_data = models.JSONField(default=dict, help_text="Contains fields like expected_result, hints, etc.")  # backend only
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -36,9 +37,9 @@ class Exercise(models.Model):
 
 class Answer(models.Model):
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='answers')
-    user_answer = models.JSONField()  # Flexible answer format
+    user_answer = models.JSONField(help_text="Flexible answer format.")
     submitted_at = models.DateTimeField(auto_now_add=True)
-    is_correct = models.BooleanField(null=True, blank=True)  # Can be calculated on frontend
+    is_correct = models.BooleanField(null=True, blank=True, help_text="Calculated on backend")
 
     def __str__(self):
         return f"Answer for {self.exercise.title} at {self.submitted_at}"
@@ -48,9 +49,9 @@ class Answer(models.Model):
 
 
 class ExerciceAsset(models.Model):
-    name = models.CharField(max_length=255)  # Filename like 'shop.sql', 'presentation.pptx'
-    description = models.TextField(null=True, blank=True) # optional description
-    content = models.BinaryField()  # Store any file type as binary
+    name = models.CharField(max_length=255, help_text="Filename like 'shop.sql', 'presentation.pptx'")
+    description = models.TextField(null=True, blank=True, help_text="Optional description.")
+    content = models.BinaryField(help_text="Store any file type as binary.")
     # LATER content_type = models.CharField(max_length=100, blank=True)  # MIME type
     # LATER file_size = models.PositiveIntegerField(null=True, blank=True)  # Size in bytes
     exercise = models.ForeignKey(
