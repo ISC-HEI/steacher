@@ -1,0 +1,21 @@
+{% extends "exercises/base.html" %}
+
+{% block title %}All Courses{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">All Courses</h1>
+    <div class="list-group">
+        {% for course in courses %}
+            <a href="{% url 'exercises:course_detail' pk=course.pk %}" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">{{ course.name }}</h5>
+                </div>
+                <p class="mb-1">{{ course.description|truncatewords:30 }}</p>
+            </a>
+        {% empty %}
+            <p>No courses available yet.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %} 

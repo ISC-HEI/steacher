@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from exercises.models import Exercise, ExerciceAsset
+from exercises.models import Exercise, ExerciceAsset, Course
 
 
 class Command(BaseCommand):
@@ -9,14 +9,23 @@ class Command(BaseCommand):
         # Clear existing exercises and assets
         Exercise.objects.all().delete()
         ExerciceAsset.objects.all().delete()
+        Course.objects.all().delete()
+        
+        # Create a course
+        sql_course = Course.objects.create(
+            name='SQL Class',
+            description='A course for learning SQL basics.'
+        )
         
         # SQL Exercise data
         sql_exercises_data = {
+            'course': sql_course,
             'title': 'Hello SQL',
             'description': 'Hello world with SQL using minimalisting students db',
             'exercise_type': 'sql',
+            'order': 1,
             'exercise_data': {
-                "question": "Write a query to list all students from the `students` table",
+                "question": "For this first exercise, write an SQL query to list all students from the `students` table",
                 "db": "students_v1.sql"
             },
             'answer_data': {
@@ -78,9 +87,11 @@ INSERT INTO students (first_name, last_name, age)
 
         # Multiple choice exercise
         Exercise.objects.create(
+            course=sql_course,
             title='Database Normalization',
             description='Understanding database design principles.',
             exercise_type='multiple_choice',
+            order=2,
             exercise_data={
                 'question': 'What is the main purpose of database normalization?',
                 'choices': [
@@ -117,6 +128,6 @@ INSERT INTO students (first_name, last_name, age)
 
         self.stdout.write(
             self.style.SUCCESS(
-                f'Successfully created sample exercises and assets'
+                f'Successfully created sample course, exercises and assets'
             )
         ) 

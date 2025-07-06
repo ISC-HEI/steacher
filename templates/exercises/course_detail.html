@@ -1,0 +1,27 @@
+{% extends "exercises/base.html" %}
+
+{% block title %}{{ course.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-3">{{ course.name }}</h1>
+    <p class="lead">{{ course.description }}</p>
+
+    <hr class="my-4">
+
+    <h3 class="mb-3">Exercises</h3>
+    <div class="list-group">
+        {% for exercise in exercises %}
+            <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1">{{ exercise.order }}. {{ exercise.title }}</h5>
+                    <small class="text-muted">{{ exercise.exercise_type }}</small>
+                </div>
+                <p class="mb-1">{{ exercise.description|truncatewords:20 }}</p>
+            </a>
+        {% empty %}
+            <p>This course does not have any exercises yet.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %} 

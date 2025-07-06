@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "@electric-sql/pglite": "0.3.4",
+    "@fortawesome/fontawesome-free": "^6.7.2",
     "bulma": "^1.0.4",
     "codemirror": "^5.65.2",
     "vue": "^3.5.17"
@@ -19,4 +20,4 @@
     "@types/codemirror": "^5.60.15",
     "typescript": "^5.4.5"
   }
-} 
+}

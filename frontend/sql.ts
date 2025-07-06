@@ -119,9 +119,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 showCorrectAnswers: false,
                 queryResult: null as any,
                 queryError: null as string | null,
-                isLoading: false,
-                database: null as any,
-                databaseLoaded: false
+                loadingState: 'idle', // 'idle', 'db-loading', 'querying'
+                database: null as any
             }
         },
         
@@ -135,7 +134,7 @@ document.addEventListener('DOMContentLoaded', function() {
         methods: {
             async loadDatabase() {
                 try {
-                    (this as any).isLoading = true;
+                    (this as any).loadingState = 'db-loading';
 
                     // When integrating a class-based library like PGlite with Vue,
                     // it's crucial to prevent Vue from making the library's instance
@@ -154,17 +153,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     await (this as any).database.exec(sql);
                     
-                    (this as any).databaseLoaded = true;
                 } catch (error) {
                     console.error('Error loading database:', error);
                     (this as any).queryError = 'Failed to load database: ' + String(error);
                 } finally {
-                    (this as any).isLoading = false;
+                    (this as any).loadingState = 'idle';
                 }
             },
             
             async runQuery() {
-                if (!(this as any).database || !(this as any).databaseLoaded) {
+                if (!(this as any).database) {
                     (this as any).queryError = 'Database not loaded yet. Please wait...';
                     return;
                 }
@@ -175,7 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 try {
-                    (this as any).isLoading = true;
+                    (this as any).loadingState = 'querying';
                     (this as any).queryError = null;
                     (this as any).queryResult = null;
                     
@@ -208,7 +206,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.error('Query error:', error);
                     (this as any).queryError = 'SQL Error: ' + String(error);
                 } finally {
-                    (this as any).isLoading = false;
+                    (this as any).loadingState = 'idle';
                 }
             },
             

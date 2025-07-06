@@ -84,9 +84,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 showCorrectAnswers: false,
                 queryResult: null,
                 queryError: null,
-                isLoading: false,
-                database: null,
-                databaseLoaded: false
+                loadingState: 'idle', // 'idle', 'db-loading', 'querying'
+                database: null
             };
         },
         async mounted() {
@@ -98,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function () {
         methods: {
             async loadDatabase() {
                 try {
-                    this.isLoading = true;
+                    this.loadingState = 'db-loading';
                     // When integrating a class-based library like PGlite with Vue,
                     // it's crucial to prevent Vue from making the library's instance
                     // reactive. Vue's reactivity system wraps objects in Proxies,
@@ -113,18 +112,17 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     const sql = await fetch(assetUrl).then(res => res.text());
                     await this.database.exec(sql);
-                    this.databaseLoaded = true;
                 }
                 catch (error) {
                     console.error('Error loading database:', error);
                     this.queryError = 'Failed to load database: ' + String(error);
                 }
                 finally {
-                    this.isLoading = false;
+                    this.loadingState = 'idle';
                 }
             },
             async runQuery() {
-                if (!this.database || !this.databaseLoaded) {
+                if (!this.database) {
                     this.queryError = 'Database not loaded yet. Please wait...';
                     return;
                 }
@@ -133,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     return;
                 }
                 try {
-                    this.isLoading = true;
+                    this.loadingState = 'querying';
                     this.queryError = null;
                     this.queryResult = null;
                     const result = await this.database.query(this.userQuery);
@@ -168,7 +166,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     this.queryError = 'SQL Error: ' + String(error);
                 }
                 finally {
-                    this.isLoading = false;
+                    this.loadingState = 'idle';
                 }
             },
             clearQuery() {

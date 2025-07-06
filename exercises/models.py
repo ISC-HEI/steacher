@@ -2,10 +2,25 @@ from django.db import models
 from django.contrib.auth.models import User
 
 
+class Course(models.Model):
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['name']
+
+
 class Exercise(models.Model):
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='exercises')
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     exercise_type = models.CharField(max_length=50)  # 'multiple_choice', 'text', 'turtle', etc.
+    order = models.PositiveIntegerField(default=0)  # Order within the course
     exercise_data = models.JSONField()  # Only question data (sent to frontend)
     answer_data = models.JSONField(default=dict)  # Answer data (backend only)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -15,7 +30,8 @@ class Exercise(models.Model):
         return f"{self.title} ({self.exercise_type})"
 
     class Meta:
-        ordering = ['created_at']
+        ordering = ['course', 'order']
+        unique_together = ('course', 'order')
 
 
 class Answer(models.Model):

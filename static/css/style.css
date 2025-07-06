@@ -221,3 +221,20 @@
         max-width: 150px;
     }
 } 
+
+/* Custom styles for the SQL exercise interface */
+.sql-exercise-controls .button:disabled {
+    background-color: #cccccc; /* A neutral gray color */
+    border-color: #cccccc;
+    color: #666666; /* Darker text for readability */
+    box-shadow: none;
+}
+
+.sql-exercise-controls .button:disabled .icon i {
+    color: #666666;
+}
+
+.sql-exercise-output .table-container {
+    max-height: 400px;
+    overflow-y: auto;
+} 
