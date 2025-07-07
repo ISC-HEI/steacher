@@ -1,5 +1,5 @@
 import { defineComponent } from 'vue';
-import { EditorView, basicSetup, EditorState, sql } from 'codemirror-bundle';
+import { EditorView, basicSetup, EditorState, sql, python, keymap, indentWithTab } from 'codemirror-bundle';
 import type { ViewUpdate } from '@codemirror/view';
 
 interface CodeMirrorEditorData {
@@ -44,6 +44,7 @@ export const CodeMirrorEditor = defineComponent({
                 doc: this.modelValue,
                 extensions: [
                     basicSetup,
+                    keymap.of([indentWithTab]),
                     languageExtension,
                     EditorView.updateListener.of((update: ViewUpdate) => {
                         if (update.docChanged) {
@@ -91,6 +92,8 @@ export const CodeMirrorEditor = defineComponent({
             switch (this.language) {
                 case 'sql':
                     return sql();
+                case 'python':
+                    return python();
                 default:
                     return [];
             }

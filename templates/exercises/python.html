@@ -1,0 +1,116 @@
+{% extends 'exercises/base.html' %}
+{% load static %}
+
+{% block title %}{{ exercise.title }} - Python{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="breadcrumbs">
+    <ul>
+        <li><a href="{% url 'exercises:course_list' %}">Home</a></li>
+        <li><a href="{% url 'exercises:course_detail' pk=exercise.course.pk %}">{{ exercise.course.name }}</a></li>
+        <li class="is-active"><a href="#" aria-current="page">{{ exercise.title }}</a></li>
+    </ul>
+</nav>
+
+<div id="python-exercise-app"
+     v-cloak
+     data-static-prefix="{% get_static_prefix %}">
+    {% csrf_token %}
+    <div class="exercise-container">
+        <div class="left-panel">
+            <div class="exercise">
+                <div class="content">
+                    <div class="field">
+                        <div class="control">
+                            <code-mirror-editor
+                                language="python"
+                                v-model="userCode"
+                                :placeholder="'# Write your Python code here'"
+                                @run-query="runCode">
+                            </code-mirror-editor>
+                        </div>
+                    </div>
+                </div>
+                <div class="field is-grouped exercise-controls">
+                    <div class="control">
+                        <button
+                            @click="runCode"
+                            class="button is-primary"
+                            :class="{ 'is-loading': loadingState !== 'idle' }"
+                            :disabled="!userCode.trim() || loadingState !== 'idle'">
+                            <span class="icon"><i class="fas fa-play"></i></span>
+                            <span>Run Code</span>
+                        </button>
+                    </div>
+                    <div class="control">
+                        <button
+                            @click="giveHint"
+                            class="button is-info"
+                            :class="{ 'is-loading': loadingState !== 'idle' }"
+                            :disabled="loadingState !== 'idle'">
+                            <span class="icon"><i class="fas fa-lightbulb"></i></span>
+                            <span>Gimme a Hint</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="exercise-output mt-4">
+                    <div v-if="executionError">
+                        <div class="notification is-danger">
+                            <h6 class="title is-6">Error:</h6>
+                            <pre>[[ executionError ]]</pre>
+                        </div>
+                    </div>
+                    <div v-if="loadingState === 'pyodide-loading'">
+                        <div class="notification"><p><em>Loading Python interpreter (Pyodide)... This may take a moment.</em></p></div>
+                    </div>
+                     <div v-if="loadingState === 'executing'">
+                        <div class="notification is-info"><p><em>Executing code...</em></p></div>
+                    </div>
+                    <div v-if="loadingState === 'getting-guidance'">
+                        <div class="notification is-info"><p><em>Analysing your code and creating guidance...</em></p></div>
+                    </div>
+                    <div v-if="executionOutput !== null && loadingState === 'idle'">
+                        <h6 class="title is-6 mt-6 mb-2">Console Output:</h6>
+                        <pre class="has-background-black has-text-white p-5 is-size-6">[[ executionOutput ]]</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="right-panel">
+            <chatbot-panel
+                :initial-question="exercise.exercise_data.question"
+                :messages="chatMessages"
+                :loading="loadingState !== 'idle'"
+                @question-asked="handleQuestion">
+            </chatbot-panel>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+
+<!-- Import Map for Bare Module Specifiers -->
+<script type="importmap">
+{
+  "imports": {
+    "vue": "{% static 'vue/dist/vue.esm-browser.js' %}",
+    "pyodide": "{% static 'pyodide/pyodide.mjs' %}",
+    "canvas-confetti": "{% static 'canvas-confetti/dist/confetti.module.mjs' %}",
+    "./ChatbotPanel.js": "{% static 'js/dist/ChatbotPanel.js' %}",
+    "marked": "{% static 'marked/lib/marked.esm.js' %}",
+    "dompurify": "{% static 'dompurify/dist/purify.es.mjs' %}",
+    "./CodeMirrorEditor.js": "{% static 'js/dist/CodeMirrorEditor.js' %}",
+    "codemirror-bundle": "{% static 'js/dist/codemirror-bundle.js' %}"
+  }
+}
+</script>
+
+<!-- Our JavaScript -->
+<script type="module" src="{% static 'js/dist/python.js' %}"></script>
+
+<!-- Pass exercise data safely using JSON script tag -->
+{{ exercise_json|json_script:"exercise-data" }}
+{{ guidance_logs|json_script:"guidance-logs-data" }}
+
+{% endblock %} 

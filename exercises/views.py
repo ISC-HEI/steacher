@@ -105,6 +105,8 @@ def exercise_detail(request, pk):
     # Choose template based on exercise type TODO make this dynamic
     if exercise.exercise_type == 'sql':
         template_name = 'exercises/sql.html'
+    elif exercise.exercise_type == 'python':
+        template_name = 'exercises/python.html'
     elif exercise.exercise_type == 'multiple_choice':
         template_name = 'exercises/multiple_choice.html'
     else:
@@ -184,6 +186,12 @@ def get_guidance(request, exercise_id):
                 user_prompt_content += f"But I got an error:\n```\n{data.get('error_message')}\n```"
             else:
                 user_prompt_content += f"And I got this result:\n```\n{data.get('query_result')}\n```"
+        elif action == 'run_code':
+            user_prompt_content = f"I ran this Python code:\n```python\n{data.get('code', '')}\n```\n"
+            if data.get('error_message'):
+                user_prompt_content += f"But I got an error:\n```\n{data.get('error_message')}\n```"
+            else:
+                user_prompt_content += f"And I got this result:\n```\n{data.get('output')}\n```"
         elif action == 'submit_answer' and exercise.exercise_type != 'multiple_choice':
             user_prompt_content = f"I chose the answer '{data.get('answer')}'."
             if data.get('justification'):

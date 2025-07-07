@@ -1,14 +1,22 @@
 // This file is the entry point for Rollup to build the CodeMirror bundle.
-// It imports all the necessary CodeMirror modules.
+// It imports the necessary CodeMirror modules and re-exports them so that
+// the browser only needs a single bundle.
 
-import { EditorView, basicSetup } from 'codemirror';
+import { EditorView, keymap } from '@codemirror/view';
+import { basicSetup } from 'codemirror';
 import { EditorState } from '@codemirror/state';
 import { sql } from '@codemirror/lang-sql';
+import { python as pythonLang } from '@codemirror/lang-python';
+import { indentWithTab as indentWithTabCmd } from '@codemirror/commands';
 
-// Export everything from a single point
+// Re-export under the canonical names expected by the rest of the codebase.
+export const python = pythonLang;
+export const indentWithTab = indentWithTabCmd;
+
 export {
-    EditorView,
-    basicSetup,
-    EditorState,
-    sql
+  EditorView,
+  keymap,
+  basicSetup,
+  EditorState,
+  sql
 }; 
