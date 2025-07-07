@@ -34,6 +34,38 @@ You will receive my work in a structured format:
 **Response Requirements**
 * When guiding me, reference the specific **line number** where I should make an edit.
 * You may suggest up to **two improvements** at a time, but better suggest one improvement at a time and be concise.
+''',
+                'multiple_choice': '''### Specialized Multiple Choice Tutor Prompt
+
+You will adopt the role and style defined in the **General Tutor Prompt**. As a tutor for **Certainty-Based Marking (CBM)** questions, you will follow these specific instructions:
+
+**CBM Scoring Rules**
+The student has been graded based on this matrix:
+*   **Right** on a **Correct** option: +2
+*   **Right** on an **Incorrect** option: -2
+*   **Wrong** on a **Correct** option: -1
+*   **Wrong** on an **Incorrect** option: +1
+*   **Not Sure**: 0
+
+**Interaction Input**
+The user's message will contain a pre-calculated breakdown of their score. It will look like this:
+```
+Here are my answers:
+- **Option A:** I chose 'notsure'; the correct answer is: wrong. **Score: 0**
+- **Option B:** I chose 'right'; the correct answer is: correct. **Score: 2**
+- **Option C:** I chose 'notsure'; the correct answer is: correct. **Score: 0**
+- **Option D:** I chose 'wrong'; the correct answer is: wrong. **Score: 1**
+**Total Score: 3 / 6 points.**
+```
+
+**Response Requirements**
+1.  **State the Total Score First:** Begin your response by clearly and encouragingly stating the student's total score. Example: "Great job trying this out! You scored 3 out of a possible 6 points."
+2.  **Provide a Socratic Breakdown:** Go through each option from the user's summary.
+    *   For **correct, confident answers** (e.g., +2 points): Briefly affirm them. "You correctly identified that B was right."
+    *   For **correctly identified wrong answers** (e.g., +1 point): Acknowledge their accurate assessment. "You were right to mark A as wrong."
+    *   For **confident mistakes** (e.g., -2 points): This is the most important teaching opportunity. Do not just give the answer. Ask a guiding question using the `choice_explanations`. Example: "On option D, you marked 'Right' but it's actually incorrect, which is why you lost 2 points. The key reason is [...]. Why do you think that might be the case?"
+    *   For **uncertainty** (e.g., 0 points): Encourage them to reflect. "For option C, you weren't sure. Let's think about it..."
+3.  **Maintain a Guiding Tone:** Your goal is to help the student understand *why* they got the score they did and to build their knowledge and confidence for next time. Never be judgmental.
 '''
             }
         )
@@ -122,11 +154,11 @@ INSERT INTO students (first_name, last_name, age)
                     },
                     {
                         'id': 'b',
-                        'text': 'To reduce data redundancy and improve data integrity'
+                        'text': 'To reduce data redundancy'
                     },
                     {
                         'id': 'c',
-                        'text': 'To make queries slower'
+                        'text': 'To improve data integrity'
                     },
                     {
                         'id': 'd',
@@ -135,14 +167,16 @@ INSERT INTO students (first_name, last_name, age)
                 ]
             },
             answer_data={
-                'correct_choice': 'b',
+                'correct_answers': ['b', 'c'],
                 'explanation': 'Database normalization is primarily used to reduce data redundancy and improve data integrity by organizing data efficiently.',
                 'choice_explanations': {
                     'a': 'Incorrect - Normalization typically reduces database size by eliminating redundancy',
                     'b': 'Correct - This is the main purpose of normalization',
-                    'c': 'Incorrect - Normalization can actually improve query performance in many cases',
+                    'c': 'Correct - Normalization improves data integrity by ensuring data consistency and reducing redundancy',
                     'd': 'Incorrect - Normalization reduces data duplication, not increases it'
-                }
+                },
+                'hints': [],
+                'additional_context': ''
             }
         )
 

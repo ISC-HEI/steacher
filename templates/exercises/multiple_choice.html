@@ -1,0 +1,151 @@
+{% extends 'exercises/base.html' %}
+{% load static %}
+
+{% block title %}{{ exercise.title }} - Multiple Choice{% endblock %}
+
+{% block content %}
+<nav class="breadcrumb" aria-label="breadcrumbs">
+    <ul>
+        <li><a href="{% url 'exercises:course_list' %}">Home</a></li>
+        <li><a href="{% url 'exercises:course_detail' pk=exercise.course.pk %}">{{ exercise.course.name }}</a></li>
+        <li class="is-active"><a href="#" aria-current="page">{{ exercise.title }}</a></li>
+    </ul>
+</nav>
+
+<div id="mc-exercise-app" v-cloak>
+    {% csrf_token %}
+    <div class="exercise-container">
+        <div class="left-panel">
+            <div class="exercise">
+                <div class="content">
+                    <div class="field">
+                        <label class="label">Question: [[ exercise.exercise_data.question ]]</label>
+                        <p class="mb-0 mt-5">For each option, please select whether you are confident it is <em>"right"</em>, <em>"wrong"</em>, or if you are <em>"not sure"</em>.</p>
+                        
+                        <!-- Scoring Table -->
+                        <div class="mb-5">
+                            <details>
+                                <summary class="is-clickable">How confidence-based scoring works</summary>
+                                <div class="notification">
+                                    <p>For each option, you must choose exactly one confidence level:</p>
+                                    <ul>
+                                        <li><strong>right</strong> = "I’m sure this statement is true."</li>
+                                        <li><strong>not sure</strong> = "I’m 50-50."</li>
+                                        <li><strong>wrong</strong> = "I’m sure this statement is false."</li>
+                                    </ul>
+                                    <p>The computer then scores each choice like this:</p>
+                                    <table class="table is-bordered is-narrow">
+                                        <thead>
+                                            <tr>
+                                                <th>Your mark</th>
+                                                <th>If the option is really...</th>
+                                                <th>Points</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr><td>right</td><td>correct</td><td class="has-text-centered">+2</td></tr>
+                                            <tr><td>right</td><td>incorrect</td><td class="has-text-centered has-text-danger-dark">−2</td></tr>
+                                            <tr><td>not sure</td><td>either</td><td class="has-text-centered">0</td></tr>
+                                            <tr><td>wrong</td><td>incorrect</td><td class="has-text-centered">+1</td></tr>
+                                            <tr><td>Wrong</td><td>correct</td><td class="has-text-centered has-text-danger-dark">−1</td></tr>
+                                        </tbody>
+                                    </table>
+                                    <p><strong>Why this system?</strong></p>
+                                    <ul>
+                                        <li>It <em>rewards</em> you (+2) for being confidently right.</li>
+                                        <li>It <em>penalises</em> you (−2) for confident mistakes—so guessing is risky.</li>
+                                        <li>You can play it safe with "Not sure" (0 points), but you won’t earn much.</li>
+                                    </ul>
+                                    <p><strong>Bottom line:</strong> You score highest by stating your true level of certainty.</p>
+                                    <p><a href="https://www.ucl.ac.uk/lapt/" target="_blank" rel="noopener noreferrer">More details here.</a></p>
+                                </div>
+                            </details>
+                        </div>
+                        
+                        <!-- CBM Choices -->
+                        <div v-for="choice in exercise.exercise_data.choices" :key="choice.id" class="mb-4 p-3 is-bordered-thin">
+                            <p class="mb-3">[[ choice.id.toUpperCase() ]]. <strong>[[ choice.text ]]</strong></p>
+                            <div class="radios ml-5">
+                                <label class="radio mr-3" :class="getChoiceClass(choice.id, 'right')">
+                                    <input type="radio" :name="'choice-' + choice.id" value="right" v-model="selections[choice.id]" :disabled="isSubmitted">
+                                    right
+                                </label>
+                                <label class="radio mr-3" :class="getChoiceClass(choice.id, 'notsure')">
+                                    <input type="radio" :name="'choice-' + choice.id" value="notsure" v-model="selections[choice.id]" :disabled="isSubmitted">
+                                    not sure
+                                </label>
+                                <label class="radio" :class="getChoiceClass(choice.id, 'wrong')">
+                                    <input type="radio" :name="'choice-' + choice.id" value="wrong" v-model="selections[choice.id]" :disabled="isSubmitted">
+                                    wrong
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field mt-6">
+                        <label class="label">Explain your reasoning (optional)</label>
+                        <div class="control">
+                            <textarea class="textarea" v-model="justification" placeholder="Why do you think this is the correct answer?" :disabled="isSubmitted"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="field is-grouped exercise-controls">
+                    <div class="control">
+                        <button
+                            @click="submitAnswer"
+                            class="button is-primary"
+                            :class="{ 'is-loading': loadingState === 'getting-guidance' }"
+                            :disabled="!allChoicesSelected || loadingState !== 'idle' || isSubmitted">
+                            <span class="icon"><i class="fas fa-check"></i></span>
+                            <span>Submit Answers</span>
+                        </button>
+                    </div>
+                </div>
+                 <div class="exercise-output mt-4">
+                    <div v-if="queryError">
+                        <div class="notification is-danger">
+                            <h6 class="title is-6">Error:</h6>
+                            <p>[[ queryError ]]</p>
+                        </div>
+                    </div>
+                     <div v-if="loadingState === 'getting-guidance'">
+                        <div class="notification is-info"><p><em>Analysing your answer and creating guidance...</em></p></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="right-panel">
+            <chatbot-panel
+                :initial-question="exercise.exercise_data.question"
+                :messages="chatMessages"
+                :loading="loadingState !== 'idle'"
+                @question-asked="handleQuestion">
+            </chatbot-panel>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+
+<!-- Import Map for Bare Module Specifiers -->
+<script type="importmap">
+{
+  "imports": {
+    "vue": "{% static 'vue/dist/vue.esm-browser.js' %}",
+    "canvas-confetti": "{% static 'canvas-confetti/dist/confetti.module.mjs' %}",
+    "./ChatbotPanel.js": "{% static 'js/dist/ChatbotPanel.js' %}",
+    "marked": "{% static 'marked/lib/marked.esm.js' %}",
+    "dompurify": "{% static 'dompurify/dist/purify.es.mjs' %}"
+  }
+}
+</script>
+
+<!-- Our JavaScript -->
+<script type="module" src="{% static 'js/dist/multiple_choice.js' %}"></script>
+
+<!-- Pass exercise data safely using JSON script tag -->
+{{ exercise_json|json_script:"exercise-data" }}
+{{ guidance_logs|json_script:"guidance-logs-data" }}
+
+{% endblock %} 
