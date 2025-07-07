@@ -1,5 +1,6 @@
 import { defineComponent } from 'vue';
-import { EditorView, basicSetup, EditorState, sql } from './codemirror-bundle.js';
+import { EditorView, basicSetup, EditorState, sql } from 'codemirror-bundle';
+import type { ViewUpdate } from '@codemirror/view';
 
 interface CodeMirrorEditorData {
     editor: EditorView | null;
@@ -44,14 +45,14 @@ export const CodeMirrorEditor = defineComponent({
                 extensions: [
                     basicSetup,
                     languageExtension,
-                    EditorView.updateListener.of((update) => {
+                    EditorView.updateListener.of((update: ViewUpdate) => {
                         if (update.docChanged) {
                             const newValue = update.state.doc.toString();
                             this.$emit('update:modelValue', newValue);
                         }
                     }),
                     EditorView.domEventHandlers({
-                        keydown: (event, view) => {
+                        keydown: (event: KeyboardEvent, view: EditorView) => {
                             if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
                                 this.$emit('run-query');
                                 return true;

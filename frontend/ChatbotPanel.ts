@@ -126,7 +126,7 @@ export const ChatbotPanel = {
             }
 
             if (error_message) {
-                display += `<br/>_${error_message}_`;
+                display += `<br/>\`${error_message.replace('SQL Error: ', '')}\``;
             }
 
             return display;
