@@ -1,7 +1,7 @@
 {% extends 'exercises/base.html' %}
 {% load static %}
 
-{% block title %}{{ exercise.title }} - SQL Exercise{% endblock %}
+{% block title %}{{ exercise.title }} - SQL{% endblock %}
 
 {% block content %}
 <nav class="breadcrumb" aria-label="breadcrumbs">
@@ -114,33 +114,28 @@
 {% endblock %}
 
 {% block scripts %}
+
 <!-- Import Map for Bare Module Specifiers -->
 <script type="importmap">
 {
   "imports": {
+    "vue": "{% static 'vue/dist/vue.esm-browser.js' %}",
     "@electric-sql/pglite": "{% static '@electric-sql/pglite/dist/index.js' %}",
     "canvas-confetti": "{% static 'canvas-confetti/dist/confetti.module.mjs' %}",
     "./ChatbotPanel.js": "{% static 'js/dist/ChatbotPanel.js' %}",
     "marked": "{% static 'marked/lib/marked.esm.js' %}",
     "dompurify": "{% static 'dompurify/dist/purify.es.mjs' %}",
-    "./CodeMirrorEditor.js": "{% static 'js/dist/CodeMirrorEditor.js' %}"
+    "./CodeMirrorEditor.js": "{% static 'js/dist/CodeMirrorEditor.js' %}",
+    "./codemirror-bundle.js": "{% static 'js/dist/codemirror-bundle.js' %}"
   }
 }
 </script>
 
-<!-- CodeMirror CSS -->
-<link rel="stylesheet" href="{% static 'codemirror/lib/codemirror.css' %}">
-<link rel="stylesheet" href="{% static 'codemirror/theme/eclipse.css' %}">
-
-<!-- CodeMirror JavaScript -->
-<script src="{% static 'codemirror/lib/codemirror.js' %}"></script>
-<script src="{% static 'codemirror/mode/sql/sql.js' %}"></script>
-<script src="{% static 'codemirror/addon/display/placeholder.js' %}"></script>
-
-<!-- SQL Exercise JavaScript -->
+<!-- Our JavaScript -->
 <script type="module" src="{% static 'js/dist/sql.js' %}"></script>
 
 <!-- Pass exercise data safely using JSON script tag -->
 {{ exercise_json|json_script:"exercise-data" }}
 {{ guidance_logs|json_script:"guidance-logs-data" }}
+
 {% endblock %}

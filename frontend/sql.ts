@@ -1,15 +1,8 @@
 import { PGlite } from '@electric-sql/pglite';
 import { ChatbotPanel } from './ChatbotPanel.js';
 import { CodeMirrorEditor } from './CodeMirrorEditor.js';
-import type { DefineComponent } from 'vue';
+import { createApp, markRaw, defineComponent } from 'vue';
 import confetti from 'canvas-confetti';
-
-// Extend the Window interface to declare Vue is available
-declare global {
-    interface Window {
-        Vue: any;
-    }
-}
 
 // Define the shape of our exercise data for type safety
 interface Exercise {
@@ -53,8 +46,6 @@ interface SqlDataContext {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    const { createApp, markRaw, defineComponent } = window.Vue as typeof import('vue');
-    
     // Get exercise data from JSON script tag
     const exerciseDataScript = document.getElementById('exercise-data');
     const appElement = document.getElementById('sql-exercise-app');
@@ -271,8 +262,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // When there's an error, also get guidance
                     await this.getGuidance('run_query', { error: errorMessage });
-                } finally {
-                    this.loadingState = 'idle';
                 }
             },
 

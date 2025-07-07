@@ -46,7 +46,7 @@ You will receive my work in a structured format:
             'exercise_type': 'sql',
             'order': 1,
             'exercise_data': {
-                "question": "For this first exercise, write an SQL query to _list all students from the `students` table_.",
+                "question": "For this first exercise, write an SQL query to _list all rows from the `students` table_.",
                 "db": "students_v1.sql"
             },
             'answer_data': {

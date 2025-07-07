@@ -1,14 +1,12 @@
-import type { DefineComponent } from 'vue';
-
-// Declare global variables that are loaded via script tags in the HTML template
-declare const CodeMirror: any;
+import { defineComponent } from 'vue';
+import { EditorView, basicSetup, EditorState, sql } from './codemirror-bundle.js';
 
 interface CodeMirrorEditorData {
-    editor: any | null; // CodeMirror.Editor is not easily typed here
+    editor: EditorView | null;
 }
 
-// CodeMirror Editor Component - using any for Vue component typing
-export const CodeMirrorEditor = (window.Vue as typeof import('vue')).defineComponent({
+// CodeMirror Editor Component
+export const CodeMirrorEditor = defineComponent({
     props: {
         language: {
             type: String,
@@ -37,49 +35,81 @@ export const CodeMirrorEditor = (window.Vue as typeof import('vue')).defineCompo
             const container = this.$refs.editorContainer as HTMLDivElement;
             if (!container) return;
 
-            const editor = CodeMirror(container, {
-                mode: this.language,
-                value: this.modelValue,
-                placeholder: this.placeholder,
-                lineNumbers: true,
-                theme: 'eclipse',
-                indentUnit: 2,
-                tabSize: 2,
-                lineWrapping: true,
-                extraKeys: {
-                    'Ctrl-Space': 'autocomplete',
-                    'Ctrl-Enter': () => {
-                        this.$emit('run-query');
-                    }
-                }
-            });
-            this.editor = editor;
+            // Get language extension based on prop
+            const languageExtension = this.getLanguageExtension();
 
-            editor.on('change', (editorInstance: any) => {
-                const currentValue = editorInstance.getValue();
-                this.$emit('update:modelValue', currentValue);
+            // Create editor state
+            const state = EditorState.create({
+                doc: this.modelValue,
+                extensions: [
+                    basicSetup,
+                    languageExtension,
+                    EditorView.updateListener.of((update) => {
+                        if (update.docChanged) {
+                            const newValue = update.state.doc.toString();
+                            this.$emit('update:modelValue', newValue);
+                        }
+                    }),
+                    EditorView.domEventHandlers({
+                        keydown: (event, view) => {
+                            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+                                this.$emit('run-query');
+                                return true;
+                            }
+                            return false;
+                        }
+                    }),
+                    EditorView.theme({
+                        "&": {
+                            maxHeight: "600px", // Approx. 30 lines
+                            fontSize: "14px"
+                        },
+                        ".cm-scroller": {
+                            overflow: "auto"
+                        },
+                        ".cm-content, .cm-gutter": {
+                            minHeight: "240px" // Approx. 10 lines
+                        },
+                        ".cm-focused": {
+                            outline: "none"
+                        }
+                    })
+                ]
             });
 
-            // Refresh the editor after the initial rendering to fix layout issues
-            setTimeout(() => {
-                editor.refresh();
-            }, 10); // A small delay can help ensure rendering is complete
+            // Create editor view
+            this.editor = new EditorView({
+                state,
+                parent: container
+            });
         });
+    },
+
+    methods: {
+        getLanguageExtension() {
+            switch (this.language) {
+                case 'sql':
+                    return sql();
+                default:
+                    return [];
+            }
+        }
     },
 
     watch: {
         modelValue(newValue: string) {
             const editor = this.editor;
-            if (editor && editor.getValue() !== newValue) {
-                editor.setValue(newValue);
+            if (editor && editor.state.doc.toString() !== newValue) {
+                editor.dispatch({
+                    changes: { from: 0, to: editor.state.doc.length, insert: newValue }
+                });
             }
         }
     },
 
     beforeUnmount() {
-        const editor = this.editor;
-        if (editor) {
-            editor.getWrapperElement().remove();
+        if (this.editor) {
+            this.editor.destroy();
             this.editor = null;
         }
     }

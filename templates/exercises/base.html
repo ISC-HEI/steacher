@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,12 +7,8 @@
     <title>{% block title %}Steacher{% endblock %}</title>
 
      <!-- Favicon -->
-     <link rel="shortcut icon" href="{% load static %}{% static 'images/favicon.ico' %}" type="image/x-icon">
-     <link rel="icon" href="{% load static %}{% static 'images/favicon.png' %}" type="image/png">
-    
-    
-    <!-- Vue.js 3 from node_modules -->
-    <script src="{% static 'vue/dist/vue.global.js' %}"></script>
+     <link rel="shortcut icon" href="{% static 'images/favicon.ico' %}" type="image/x-icon">
+     <link rel="icon" href="{% static 'images/favicon.png' %}" type="image/png">
     
     <!-- Bulma CSS from node_modules -->
     <link rel="stylesheet" href="{% static 'bulma/css/bulma.min.css' %}">
@@ -20,14 +17,51 @@
     <link rel="stylesheet" href="{% static '@fortawesome/fontawesome-free/css/all.min.css' %}">
 
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="{% load static %}{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
 </head>
 <body>
-    <nav class="navbar is-primary" role="navigation">
+    <nav class="navbar is-info" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
             <a class="navbar-item" href="{% url 'exercises:exercise_list' %}">
                 <strong>Steacher</strong>
             </a>
+        </div>
+
+        <div id="navbarBasicExample" class="navbar-menu">
+            <div class="navbar-end">
+                {% if user.is_authenticated %}
+                <div class="navbar-item has-dropdown is-hoverable">
+                    <a class="navbar-link">
+                        {{ user.email }}
+                    </a>
+
+                    <div class="navbar-dropdown is-right">
+                        <a href="#" class="navbar-item">
+                            Settings
+                        </a>
+                        <hr class="navbar-divider">
+                        {% if request.resolver_match.view_name == 'exercises:exercise_detail' and exercise %}
+                        <a href="{% url 'exercises:delete_user_answers' exercise.id %}" class="navbar-item">
+                            Delete all my answers for this question
+                        </a>
+                        <hr class="navbar-divider">
+                        {% endif %}
+                        <a href="{% url 'admin:logout' %}" class="navbar-item">
+                            Log out
+                        </a>
+                    </div>
+                </div>
+                {% else %}
+                <div class="navbar-item">
+                    <div class="buttons">
+                        <a href="{% url 'admin:login' %}" class="button is-light">
+                            Log in
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
         </div>
     </nav>
 

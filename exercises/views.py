@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 import json
 from openai import OpenAI
@@ -203,4 +203,14 @@ def get_guidance(request, exercise_id):
         # Log the exception for debugging
         print(f"An error occurred in get_guidance: {e}")
         return JsonResponse({'status': 'error', 'message': 'An internal error occurred.'}, status=500)
+
+
+@login_required
+def delete_user_answers(request, exercise_id):
+    """
+    Deletes all GuidanceLog entries for the current user for a specific exercise. Mostly useful for debugging.
+    """
+    exercise = get_object_or_404(Exercise, pk=exercise_id)
+    GuidanceLog.objects.filter(user=request.user, exercise=exercise).delete()
+    return redirect('exercises:exercise_detail', pk=exercise_id)
 

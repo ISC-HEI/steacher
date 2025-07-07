@@ -11,7 +11,7 @@ export const ChatbotPanel = {
       type: Array,
       default: () => []
     },
-    loading: {
+    loading: {  // used to disable the question input field while loading
       type: Boolean,
       default: false,
     }
@@ -20,6 +20,7 @@ export const ChatbotPanel = {
   template: `
     <div id="chatbot" ref="chatContainer">
       <div class="chat-content">
+
         <!-- First, we display the initial question of the exercise -->
         <div v-if="initialQuestion"
              v-html="initialQuestion"
@@ -54,6 +55,7 @@ export const ChatbotPanel = {
               :disabled="loading"
           />
         </p>
+
         <!-- Ask Question Button -->
         <p class="control">
           <button class="button is-info" @click="askQuestion" :disabled="loading">
@@ -63,8 +65,8 @@ export const ChatbotPanel = {
             <span>Ask Question</span>
           </button>
         </p>
-      </div>
 
+      </div>
     </div>
   `,
   data() {
@@ -73,6 +75,7 @@ export const ChatbotPanel = {
     };
   },
   mounted(this: any) {
+    // Highlight the initial question for 4 seconds
     if (this.initialQuestion && this.$refs.initialQuestionMessage) {
       const el = this.$refs.initialQuestionMessage as HTMLElement;
       el.classList.add('highlight-question');
@@ -97,6 +100,7 @@ export const ChatbotPanel = {
   },
   methods: {
     formatUserMessage(message: any) {
+        // Display the user messages differently depending on the action. Add icons to the messages.
         if (!message.metadata || !message.metadata.action) {
             return message.content;
         }
@@ -131,12 +135,12 @@ export const ChatbotPanel = {
         return message.content; // Fallback
     },
     askQuestion(this: any) {
+      // Emit an event to the parent component
       if (this.question.trim()) {
         const userQuestion = this.question.trim();
-        // Emit an event to the parent component
         this.$emit('question-asked', userQuestion);
 
-        // Clear the input field
+        // Clear the input field after asking the question
         this.question = '';
       }
     },

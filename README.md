@@ -126,3 +126,80 @@ Example: If your exercise_type is `'turtle'`, create a component named `turtle` 
 - **State Management**: Simple - state resets on each page load
 - **API Integration**: Uses fetch API for answer submission
 
+## CodeMirror v6 Bundling
+
+### Why Bundling?
+
+CodeMirror v6 has a complex dependency tree with many separate ES modules. Using import maps for all dependencies would require mapping 15+ packages individually, leading to:
+- Dependency hell with "bare specifier" errors
+- Multiple HTTP requests (slower loading)
+- Complex import map maintenance
+
+### Solution: Single Bundle
+
+We use Rollup to bundle all CodeMirror dependencies into a single file.
+
+### Setup
+
+**1. Install bundling dependencies:**
+```bash
+npm install --save-dev rollup @rollup/plugin-node-resolve @rollup/plugin-commonjs
+```
+
+**2. Bundle configuration:**
+- File: `rollup.codemirror.config.mjs`
+- Input: `frontend/codemirror-bundle.js` (exports all needed CodeMirror modules)
+- Output: `static/js/dist/codemirror-bundle.js`
+
+**3. Build the bundle:**
+```bash
+npx rollup -c rollup.codemirror.config.mjs
+```
+
+### Import Map Configuration
+
+Instead of mapping 15+ CodeMirror packages individually:
+```html
+<script type="importmap">
+{
+  "imports": {
+    "./codemirror-bundle.js": "{% static 'js/dist/codemirror-bundle.js' %}"
+  }
+}
+</script>
+```
+
+### Component Usage
+
+CodeMirrorEditor.ts imports everything from the bundle:
+```typescript
+import { EditorView, basicSetup, EditorState, sql } from './codemirror-bundle.js';
+```
+
+### Rebuilding the Bundle
+
+When updating CodeMirror or adding new language support:
+
+1. **Update the bundle source** (`frontend/codemirror-bundle.js`):
+   ```javascript
+   export { EditorView, basicSetup } from 'codemirror';
+   export { EditorState } from '@codemirror/state';
+   export { sql } from '@codemirror/lang-sql';
+   export { javascript } from '@codemirror/lang-javascript'; // New language
+   ```
+
+2. **Rebuild the bundle:**
+   ```bash
+   npx rollup -c rollup.codemirror.config.mjs
+   ```
+
+3. **No import map changes needed** - the bundle handles all dependencies internally.
+
+### Benefits
+
+- ✅ **Single HTTP request** instead of 15+ requests
+- ✅ **No dependency errors** - everything bundled together  
+- ✅ **Simple import map** - just one entry
+- ✅ **Production ready** - optimized bundle
+- ✅ **Easy maintenance** - update bundle source and rebuild
+
