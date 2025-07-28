@@ -35,14 +35,23 @@ class Exercise(models.Model):
         unique_together = ('course', 'order')
 
 
+class Trace(models.Model):
+    """
+    Represents an attempt from a user at an exercice.
+    Interactions will be stored in a list of GuidanceLog objects.
+    """
+    # Foreign keys to link the log to a user and exercise
+    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='traces')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='traces')
+    complete = models.BooleanField(default=False, help_text="True if the user has completed the exercise.")
+
+
 class GuidanceLog(models.Model):
     """
     Stores a single turn of interaction between a user and the AI tutor for a specific exercise.
-    Each log entry contains the user's action and the AI's corresponding guidance.
+    Each GuidanceLog entry references a Trace.
     """
-    # Foreign keys to link the log to a user and exercise
-    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='guidance_logs')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='guidance_logs')
+    trace = models.ForeignKey(Trace, on_delete=models.CASCADE, related_name='guidance_logs')
 
     # A single field to store the full interaction turn
     interaction = models.JSONField(
@@ -53,7 +62,7 @@ class GuidanceLog(models.Model):
     submitted_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Log for {self.exercise.title} by {self.user.username} at {self.submitted_at}"
+        return f"Log for {self.trace.exercise.title} by {self.trace.user.username} at {self.submitted_at}, trace id: {self.trace.id}"
 
     class Meta:
         # Ensures logs are always ordered correctly when fetched

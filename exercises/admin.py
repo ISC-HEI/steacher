@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Exercise, Course, ExerciceAsset, GuidanceLog
+from .models import Exercise, Course, ExerciceAsset, GuidanceLog, Trace
 
 
 @admin.register(Course)
@@ -38,7 +38,22 @@ class ExerciceAssetAdmin(admin.ModelAdmin):
 @admin.register(GuidanceLog)
 class GuidanceLogAdmin(admin.ModelAdmin):
     """Admin view for GuidanceLog"""
-    list_display = ('exercise', 'user', 'submitted_at')
-    list_filter = ('user', 'exercise')
+    list_display = ('get_exercise', 'get_user', 'submitted_at')
+    list_filter = ('trace__user', 'trace__exercise')
     date_hierarchy = 'submitted_at'
     ordering = ('-submitted_at',)
+
+    def get_exercise(self, obj):
+        return obj.trace.exercise
+    get_exercise.short_description = 'Exercise'
+
+    def get_user(self, obj):
+        return obj.trace.user
+    get_user.short_description = 'User'
+
+
+@admin.register(Trace)
+class TraceAdmin(admin.ModelAdmin):
+    list_display = ('exercise', 'user')
+    list_filter = ('exercise', 'user')
+    search_fields = ('exercise__title', 'user__username')

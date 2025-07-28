@@ -147,5 +147,6 @@
 <!-- Pass exercise data safely using JSON script tag -->
 {{ exercise_json|json_script:"exercise-data" }}
 {{ guidance_logs|json_script:"guidance-logs-data" }}
+{{ trace_id|json_script:"trace-id" }}
 
 {% endblock %} 

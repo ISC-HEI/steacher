@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
-from exercises.models import Exercise, ExerciceAsset, Course, GuidanceLog
+from exercises.models import Exercise, ExerciceAsset, Course, GuidanceLog, Trace
+from django.contrib.auth.models import User
 
 
 class Command(BaseCommand):
@@ -12,6 +13,11 @@ class Command(BaseCommand):
         ExerciceAsset.objects.all().delete()
         Course.objects.all().delete()
         GuidanceLog.objects.all().delete()
+        Trace.objects.all().delete()
+        User.objects.filter(username='sampleuser').delete()
+        
+        # Create a sample user
+        sample_user = User.objects.create_user(username='sampleuser', password='samplepass')
         
         # Create a SQL course
         sql_course = Course.objects.create(
@@ -117,6 +123,8 @@ Here are my answers:
            
         # Create SQL exercise
         sql_exercise = Exercise.objects.create(**sql_exercises_data)
+        # Create a Trace for the sample user and SQL exercise
+        sql_trace = Trace.objects.create(exercise=sql_exercise, user=sample_user, complete=False)
         
         # Create associated SQL asset
         sql_content = """CREATE TABLE students
@@ -141,7 +149,7 @@ INSERT INTO students (first_name, last_name, age)
         )
 
         # Multiple choice exercise
-        Exercise.objects.create(
+        mc_exercise = Exercise.objects.create(
             course=sql_course,
             title='Database Normalization',
             description='Understanding database design principles.',
@@ -181,6 +189,8 @@ INSERT INTO students (first_name, last_name, age)
                 'additional_context': ''
             }
         )
+        # Create a Trace for the sample user and MC exercise
+        mc_trace = Trace.objects.create(exercise=mc_exercise, user=sample_user, complete=False)
 
         # Python course with a single exercise
         python_course = Course.objects.create(
@@ -211,7 +221,7 @@ You will receive my work in a structured format:
         )
 
         # Python exercise
-        Exercise.objects.create(
+        py_exercise = Exercise.objects.create(
             course=python_course,
             title='Hello Python',
             description='Hello world with Python using minimalisting students db',
@@ -238,6 +248,8 @@ You will receive my work in a structured format:
                 'additional_context': ''
             }
         )
+        # Create a Trace for the sample user and Python exercise
+        py_trace = Trace.objects.create(exercise=py_exercise, user=sample_user, complete=False)
 
         self.style.SUCCESS(
                 f'Successfully created sample courses, exercises and assets'

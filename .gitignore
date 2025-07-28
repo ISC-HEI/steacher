@@ -4,3 +4,4 @@ node_modules
 
 # Compiled JS files
 static/js/dist/
+backend/static/js/dist

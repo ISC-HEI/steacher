@@ -47,6 +47,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     const exerciseData: Exercise = JSON.parse(exerciseDataScript.textContent || '{}');
 
+    // Get trace ID from script tag
+    const traceIdScript = document.getElementById('trace-id');
+    let traceId: number | null = null;
+    if (traceIdScript && traceIdScript.textContent) {
+        traceId = JSON.parse(traceIdScript.textContent);
+    }
+
     // Get guidance logs if they exist
     const guidanceLogsScript = document.getElementById('guidance-logs-data');
     let initialMessages: any[] = [];
@@ -161,7 +168,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     };
 
                     // 3. Make API call
-                    const response = await fetch(`/exercises/${this.exercise.id}/guidance/`, {
+                    const response = await fetch(`/exercises/${this.exercise.id}/traces/${traceId}/guidance/`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

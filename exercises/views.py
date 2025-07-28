@@ -6,7 +6,7 @@ from django.views.decorators.http import require_POST
 import json
 from openai import OpenAI
 
-from .models import Exercise, ExerciceAsset, Course, GuidanceLog
+from .models import Exercise, ExerciceAsset, Course, GuidanceLog, Trace
 from .serializers import ExerciseSerializer, ExerciseFrontendSerializer
 
 
@@ -96,10 +96,14 @@ def exercise_detail(request, pk):
     exercise_json = ExerciseFrontendSerializer(exercise).data
 
     # Fetch the full conversation history for the user on this exercise
+    trace_id = None
     guidance_logs = []
     if request.user.is_authenticated:
-        logs = GuidanceLog.objects.filter(exercise=exercise, user=request.user).order_by('submitted_at')
-        # We'll just pass the 'interaction' part of each log to the frontend
+        # Get or create a Trace for this user and exercise
+        trace, _ = Trace.objects.get_or_create(user=request.user, exercise=exercise)
+        trace_id = trace.id
+        # Fetch logs for this trace
+        logs = GuidanceLog.objects.filter(trace=trace).order_by('submitted_at')
         guidance_logs = [log.interaction for log in logs]
 
     # Choose template based on exercise type TODO make this dynamic
@@ -116,6 +120,7 @@ def exercise_detail(request, pk):
         'exercise': exercise,  # Pass the full exercise object for the template
         'exercise_json': exercise_json,  # Pass the JSON data for Vue/JS
         'guidance_logs': guidance_logs,
+        'trace_id': trace_id,
     })
 
 
@@ -135,7 +140,7 @@ def serve_asset(request, exercise_id, filename):
 
 @login_required
 @require_POST
-def get_guidance(request, exercise_id):
+def get_guidance(request, exercise_id, trace_id):
     """
     Handles a user's request for guidance, sends it to the LLM,
     and stores the interaction.
@@ -143,6 +148,7 @@ def get_guidance(request, exercise_id):
     try:
         data = json.loads(request.body)
         exercise = get_object_or_404(Exercise, pk=exercise_id)
+        trace = get_object_or_404(Trace, id=trace_id, exercise=exercise, user=request.user)
         
         # 1. Construct the user's message for the LLM
         user_prompt_content = ""
@@ -202,7 +208,7 @@ def get_guidance(request, exercise_id):
             return JsonResponse({'status': 'error', 'message': 'Invalid action'}, status=400)
 
         # 2. Fetch conversation history
-        guidance_logs = GuidanceLog.objects.filter(exercise=exercise, user=request.user)
+        guidance_logs = GuidanceLog.objects.filter(trace=trace)
         messages = []
 
         # 3. Add system prompt
@@ -284,8 +290,7 @@ def get_guidance(request, exercise_id):
             interaction_log['user_submission']['metadata']['cbm_result'] = cbm_result
 
         GuidanceLog.objects.create(
-            exercise=exercise,
-            user=request.user,
+            trace=trace,
             interaction=interaction_log
         )
 
