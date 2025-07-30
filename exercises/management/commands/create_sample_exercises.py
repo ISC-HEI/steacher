@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from exercises.models import Exercise, ExerciceAsset, Course, GuidanceLog, Trace
 from django.contrib.auth.models import User
-
+from django.db import IntegrityError
 
 class Command(BaseCommand):
     help = 'Create sample multiple choice exercises'
@@ -14,11 +14,15 @@ class Command(BaseCommand):
         Course.objects.all().delete()
         GuidanceLog.objects.all().delete()
         Trace.objects.all().delete()
-        User.objects.filter(username='sampleuser').delete()
         
-        # Create a sample user
-        sample_user = User.objects.create_user(username='sampleuser', password='samplepass')
-        
+        # Get or create the admin user
+        try:
+            admin_user = User.objects.create_superuser('admin', 'admin@example.com', 'adminpass')
+            self.stdout.write("Created admin user.")
+        except IntegrityError:
+            admin_user = User.objects.get(username='admin')
+            self.stdout.write("Admin user already exists.")
+
         # Create a SQL course
         sql_course = Course.objects.create(
             name='Introduction to Databases',
@@ -123,8 +127,6 @@ Here are my answers:
            
         # Create SQL exercise
         sql_exercise = Exercise.objects.create(**sql_exercises_data)
-        # Create a Trace for the sample user and SQL exercise
-        sql_trace = Trace.objects.create(exercise=sql_exercise, user=sample_user, complete=False)
         
         # Create associated SQL asset
         sql_content = """CREATE TABLE students
@@ -189,8 +191,6 @@ INSERT INTO students (first_name, last_name, age)
                 'additional_context': ''
             }
         )
-        # Create a Trace for the sample user and MC exercise
-        mc_trace = Trace.objects.create(exercise=mc_exercise, user=sample_user, complete=False)
 
         # Python course with a single exercise
         python_course = Course.objects.create(
@@ -237,7 +237,7 @@ You will receive my work in a structured format:
                         'explanation': 'This is the most straightforward answer'
                     }
                 ],
-                'expected_result': ['Hello, World!'],  # each element is a line of output
+                'expected_result': ['Hello, World!'],
                 'hints': [
                     "The console is the black box where the output is printed.", 
                     "Your code can print information in the console by using the `print` function.",
@@ -248,9 +248,96 @@ You will receive my work in a structured format:
                 'additional_context': ''
             }
         )
-        # Create a Trace for the sample user and Python exercise
-        py_trace = Trace.objects.create(exercise=py_exercise, user=sample_user, complete=False)
+
+        # --- Create a detailed Trace with full interaction history ---
+        self.stdout.write("Creating a sample trace with full interaction history for the admin user...")
+        
+        try:
+            exercise_for_trace = Exercise.objects.get(title='Hello Python')
+            
+            historical_trace = Trace.objects.create(exercise=exercise_for_trace, user=admin_user, complete=True)
+
+            # Define the historical interaction logs to simulate the frontend payload
+            interaction_logs = [
+                {
+                    "user_submission": {
+                        "role": "user",
+                        "content": "I have a specific question: what's the command for print?",
+                        "metadata": {
+                            "action": "ask_question",
+                            "code": "",
+                            "question": "what's the command for print?"
+                        }
+                    },
+                    "llm_response": {
+                        "role": "assistant",
+                        "content": "What function do you think is used to display output in Python? Can you recall any function name that might be related to printing?"
+                    }
+                },
+                {
+                    "user_submission": {
+                        "role": "user",
+                        "content": "I ran this Python code:\n```python\nprint(\"Hello World!\")\n```\nAnd I got this result:\n```\nHello World!\n```",
+                        "metadata": {
+                            "action": "run_code",
+                            "code": "print(\"Hello World!\")"
+                        }
+                    },
+                    "llm_response": {
+                        "role": "assistant",
+                        "content": "What do you notice about the output compared to the expected result? Is there a small detail that might need adjusting to match exactly?"
+                    }
+                },
+                {
+                    "user_submission": {
+                        "role": "user",
+                        "content": "I am explicitly asking for a hint.",
+                        "metadata": {
+                            "action": "ask_hint",
+                            "code": "print(\"Hello World!\")"
+                        }
+                    },
+                    "llm_response": {
+                        "role": "assistant",
+                        "content": "Remember, the exact expected result is `Hello, World!`. Do you notice any difference in punctuation or spacing between your output and the expected result?"
+                    }
+                },
+                {
+                    "user_submission": {
+                        "role": "user",
+                        "content": "I ran this Python code:\n```python\nprint(\"Hello, World!\")\n```\nAnd I got this result:\n```\nHello, World!\n```",
+                        "metadata": {
+                            "action": "run_code",
+                            "code": "print(\"Hello, World!\")"
+                        }
+                    },
+                    "llm_response": {
+                        "role": "assistant",
+                        "content": "Great job! Your output matches the expected result perfectly. <exercise_completed>"
+                    }
+                }
+            ]
+
+            for log_data in interaction_logs:
+                # Reconstruct the payload as if it came from the frontend
+                # The backend will then store this directly in the 'metadata' field
+                reconstructed_interaction = {
+                    "user_submission": {
+                        "role": "user",
+                        "content": log_data["user_submission"]["content"],
+                        "metadata": log_data["user_submission"]["metadata"]
+                    },
+                    "llm_response": log_data["llm_response"]
+                }
+                GuidanceLog.objects.create(trace=historical_trace, interaction=reconstructed_interaction)
+            
+            self.stdout.write(f"Successfully created historical trace for '{exercise_for_trace.title}'.")
+
+        except Exercise.DoesNotExist:
+            self.style.WARNING(f"Could not find exercise 'Hello Python' to create historical trace.")
+        # --- End of historical trace creation ---
+
 
         self.style.SUCCESS(
                 f'Successfully created sample courses, exercises and assets'
-        ) 
+        )

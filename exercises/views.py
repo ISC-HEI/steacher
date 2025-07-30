@@ -321,6 +321,5 @@ def delete_user_answers(request, exercise_id):
     Deletes all GuidanceLog entries for the current user for a specific exercise. Mostly useful for debugging.
     """
     exercise = get_object_or_404(Exercise, pk=exercise_id)
-    GuidanceLog.objects.filter(user=request.user, exercise=exercise).delete()
+    Trace.objects.filter(user=request.user, exercise=exercise).delete()
     return redirect('exercises:exercise_detail', pk=exercise_id)
-

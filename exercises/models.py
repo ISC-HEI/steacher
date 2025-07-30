@@ -45,6 +45,10 @@ class Trace(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='traces')
     complete = models.BooleanField(default=False, help_text="True if the user has completed the exercise.")
 
+    def __str__(self):
+        return f"Trace by {self.user.username} for '{self.exercise.title}'"
+
+
 
 class GuidanceLog(models.Model):
     """
@@ -105,3 +109,20 @@ class ExerciceAsset(models.Model):
             #     name='unique_standalone_asset_name'
             # )
         ]
+
+
+class TraceEval(models.Model):
+    """
+    Represents an evaluation of a user's trace for an exercise.
+    """
+    trace = models.ForeignKey(Trace, on_delete=models.CASCADE, related_name='trace_evals')
+    is_ok = models.BooleanField(null=True, help_text="Whether the trace is considered correct or not. Null means not evaluated.")
+    feedback = models.TextField(blank=True, help_text="Feedback provided for this evaluation.")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Evaluation for trace {self.trace.id} at {self.created_at}"
+
+    class Meta:
+        ordering = ['-created_at']
