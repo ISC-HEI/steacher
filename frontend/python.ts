@@ -105,7 +105,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         error_message: details.error || null,
                         start_timestamp: this.start_timestamp,
                         submission_timestamp: new Date().toISOString(),
-                        // trace_id removed
                     };
 
                     const response = await fetch(`/exercises/${this.exercise.id}/traces/${traceId}/guidance/`, {
