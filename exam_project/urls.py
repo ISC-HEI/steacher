@@ -22,6 +22,7 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('accounts/', include('django.contrib.auth.urls')),
     path('exercises/', include('exercises.urls', namespace='exercises')),
     path('', lambda request: redirect('exercises:exercise_list')),  # Redirect root to exercises
 ]

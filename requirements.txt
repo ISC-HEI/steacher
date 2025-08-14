@@ -2,3 +2,4 @@ Django~=5.0
 psycopg2-binary
 django-cors-headers
 openai 
+django-jsonform

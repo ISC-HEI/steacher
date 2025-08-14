@@ -13,7 +13,7 @@ from .serializers import ExerciseSerializer, ExerciseFrontendSerializer
 
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
-
+@login_required
 def course_list(request):
     """Display list of all courses"""
     courses = Course.objects.all()
@@ -21,7 +21,7 @@ def course_list(request):
         'courses': courses
     })
 
-
+@login_required
 def course_detail(request, pk):
     """Display individual course and its exercises"""
     course = get_object_or_404(Course, pk=pk)
@@ -31,7 +31,7 @@ def course_detail(request, pk):
         'exercises': exercises
     })
 
-
+@login_required
 def exercise_list(request):
     """Display list of all exercises"""
     exercises = Exercise.objects.all()
@@ -40,6 +40,7 @@ def exercise_list(request):
     })
 
 
+@login_required
 def exercise_detail(request, pk):
     """Display individual exercise"""
     exercise = get_object_or_404(Exercise, pk=pk)
@@ -67,7 +68,7 @@ def exercise_detail(request, pk):
         'trace_id': trace_id,
     })
 
-
+@login_required
 def serve_asset(request, exercise_id, filename):
     """Serve asset files for exercises."""
     exercise = get_object_or_404(Exercise, pk=exercise_id)

@@ -1,8 +1,12 @@
+import html
 from django import forms
 from django.contrib import admin
-from django.utils.html import format_html
+from django.urls import reverse
+from django.http import HttpResponseRedirect
+from django.utils.html import format_html, mark_safe
 from django.db.models import Count
 from .models import Exercise, Course, ExerciceAsset, GuidanceLog, Trace, TraceEval
+from django_jsonform.widgets import JSONFormWidget
 
 def format_guidance_logs(trace):
     """
@@ -11,16 +15,21 @@ def format_guidance_logs(trace):
     """
     logs = trace.guidance_logs.order_by('submitted_at')
     
-    html = f"<strong>User:</strong> {trace.user.username}, <strong>Exercise:</strong> {trace.exercise.title}<hr>"
+    # Escape all user-provided content first
+    username = html.escape(trace.user.username)
+    exercise_title = html.escape(trace.exercise.title)
+    exercise_question = html.escape(trace.exercise.exercise_data.get('question', 'No question provided.'))
+    
+    html_output = f"<strong>User:</strong> {username}, <strong>Exercise:</strong> {exercise_title}<hr>"
     
     # Main container for the chat dialogue
-    html += "<div style='padding: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9;'>"
+    html_output += "<div style='padding: 10px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9;'>"
 
     # add question text, looking like the llm response
-    html += f"""
+    html_output += f"""
         <div style="display: flex; justify-content: flex-start; margin-bottom: 10px;">
             <div style="max-width: 80%; padding: 10px; border-radius: 15px; background-color: #fff; border: 1px solid #ddd;">
-                <strong>Exercise Question:</strong> {trace.exercise.exercise_data.get('question', 'No question provided.')}
+                <strong>Exercise Question:</strong> {exercise_question}
             </div>
         </div>
     """
@@ -29,21 +38,25 @@ def format_guidance_logs(trace):
         interaction = log.interaction
         user_submission = interaction.get('user_submission', {})
         ai_response = interaction.get('llm_response', {})
+        ai_metadata = ai_response.get('metadata', {})
         metadata = user_submission.get('metadata', {})
 
         # --- Build User Submission HTML (Right-aligned) ---
         submission_html = ""
         question = metadata.get('question')
         if question:
-            submission_html += f"<div><strong>Student's Question:</strong> {question}</div>"
+            escaped_question = html.escape(question)
+            submission_html += f"<div><strong>Student's Question:</strong> {escaped_question}</div>"
         if metadata.get('action') == 'ask_hint':
             submission_html += "<div><em>Hint was requested.</em></div>"
         code = metadata.get('code')
         if code:
-            submission_html += f'<pre style="white-space: pre-wrap; word-wrap: break-word; background-color: #d9edf7; border: 1px solid #bce8f1; padding: 10px; border-radius: 4px; margin-top: 5px;">{code}</pre>'
+            language = html.escape(trace.exercise.exercise_type)
+            escaped_code = html.escape(code)
+            submission_html += f'<pre class="line-numbers"><code class="language-{language}">{escaped_code}</code></pre>'
         
         if submission_html:
-            html += f"""
+            html_output += f"""
                 <div style="display: flex; justify-content: flex-end; margin-bottom: 10px;">
                     <div style="max-width: 80%; padding: 10px; border-radius: 15px; background-color: #dcf8c6;">
                         {submission_html}
@@ -54,25 +67,58 @@ def format_guidance_logs(trace):
         # --- Build AI Feedback HTML (Left-aligned) ---
         feedback = ai_response.get('content', '')
         if feedback:
-            html += f"""
+            escaped_feedback = html.escape(feedback)
+            ambiguity = ai_metadata.get('ambiguity')
+            ambiguity_html = ""
+            if ambiguity:
+                ambiguity_items = "".join([f"<li>{html.escape(str(item))}</li>" for item in ambiguity])
+                ambiguity_html = f"""
+                    <div style="margin-top: 10px; padding: 10px; border: 1px solid #f0ad4e; border-radius: 5px; background-color: #fcf8e3;">
+                        <strong>LLM Ambiguity:</strong>
+                        <ul>{ambiguity_items}</ul>
+                    </div>
+                """
+            html_output += f"""
                 <div style="display: flex; justify-content: flex-start; margin-bottom: 10px;">
                     <div style="max-width: 80%; padding: 10px; border-radius: 15px; background-color: #fff; border: 1px solid #ddd;">
-                        {feedback}
+                        {escaped_feedback}
+                        {ambiguity_html}
                     </div>
                 </div>
             """
             if '<exercise_completed>' in feedback:
-                html += "<div><em>Exercise marked as completed by the LLM.</em></div>"
+                html_output += "<div><em>Exercise marked as completed by the LLM.</em></div>"
 
     if not logs.exists():
-        html += "<p>No guidance logs found for this trace.</p>"
+        html_output += "<p>No guidance logs found for this trace.</p>"
         
-    html += "</div>" # Close main container
+    html_output += "</div>" # Close main container
         
-    return format_html(html)
+    # Use mark_safe instead of format_html since we've already escaped all user content
+    return mark_safe(html_output)
+
+LLM_PROMPTS_SCHEMA = {
+    'type': 'object',
+    'keys': {},
+    'additionalProperties': {
+        'type': 'string',
+        'widget': 'textarea',
+        'widget_attrs': {'rows': 20},
+    }
+}
+
+
+class CourseAdminForm(forms.ModelForm):
+    class Meta:
+        model = Course
+        fields = '__all__'
+        widgets = {
+            'llm_prompts': JSONFormWidget(schema=LLM_PROMPTS_SCHEMA),
+        }
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
+    form = CourseAdminForm
     list_display = ('name', 'created_at', 'updated_at')
     search_fields = ('name',)
     readonly_fields = ('created_at', 'updated_at')
@@ -139,20 +185,27 @@ class HasEvaluationFilter(admin.SimpleListFilter):
 
 @admin.register(Trace)
 class TraceAdmin(admin.ModelAdmin):
-    list_display = ('exercise', 'user', 'complete', 'has_evaluation')
-    list_filter = ('exercise', 'user', 'complete', HasEvaluationFilter)
+    list_display = ('id', 'version', 'exercise', 'user', 'complete', 'has_evaluation')
+    list_filter = (('exercise', admin.RelatedOnlyFieldListFilter), ('user', admin.RelatedOnlyFieldListFilter), 'complete', 'version', HasEvaluationFilter)
     search_fields = ('exercise__title', 'user__username')
     inlines = [TraceEvalInline]
-    readonly_fields = ('display_interactions',)
+    readonly_fields = ('id', 'version', 'display_interactions', 'display_full_prompt')
+    ordering = ['id']
 
     fieldsets = (
         (None, {
-            'fields': ('exercise', 'user', 'complete')
+            'fields': ('id', 'version', 'exercise', 'user', 'complete')
         }),
         ('Interactions', {
             'fields': ('display_interactions',),
         }),
+        ('Full Prompt', {
+            'fields': ('display_full_prompt',),
+            'classes': ('collapse',)
+        }),
     )
+
+    change_form_template = "admin/exercises/trace/change_form.html"
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
@@ -160,6 +213,39 @@ class TraceAdmin(admin.ModelAdmin):
             eval_count=Count('trace_evals')
         )
         return queryset
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        '''
+        Add navigation arrows to the previous and next trace.
+        '''
+        extra_context = extra_context or {}
+        
+        # Get the current trace object
+        obj = self.get_object(request, object_id)
+        
+        # Get the previous and next trace objects by id
+        prev_obj = Trace.objects.filter(id__lt=obj.id).order_by('-id').first()
+        next_obj = Trace.objects.filter(id__gt=obj.id).order_by('id').first()
+        
+        extra_context['prev_obj'] = prev_obj
+        extra_context['next_obj'] = next_obj
+        
+        return super().change_view(
+            request, object_id, form_url, extra_context=extra_context,
+        )
+
+    def response_change(self, request, obj):
+        '''
+        Adds navigation arrow to the next unevaluated trace.
+        '''
+        if "_save_and_next" in request.POST:
+            next_trace = Trace.objects.filter(trace_evals__isnull=True, id__gt=obj.id).order_by('id').first()
+            if next_trace:
+                return HttpResponseRedirect(reverse("admin:exercises_trace_change", args=(next_trace.id,)))
+            else:
+                self.message_user(request, "No more unevaluated traces found.")
+                return HttpResponseRedirect(reverse("admin:exercises_trace_changelist"))
+        return super().response_change(request, obj)
 
     def has_evaluation(self, obj):
         return obj.eval_count > 0
@@ -170,6 +256,26 @@ class TraceAdmin(admin.ModelAdmin):
     def display_interactions(self, obj):
         return format_guidance_logs(obj)
     display_interactions.short_description = "Guidance Logs"
+
+    def display_full_prompt(self, obj):
+        if not obj.system_prompt:
+            return "No system prompt was saved for this trace (debug mode was likely off)."
+
+        full_prompt_str = f"----------------\n| ROLE:: SYSTEM | \n----------------\n{obj.system_prompt}\n\n"
+        
+        guidance_logs = obj.guidance_logs.order_by('submitted_at')
+        for log in guidance_logs:
+            user_submission = log.interaction.get('user_submission')
+            if user_submission:
+                full_prompt_str += f"----------------\n| ROLE:: {user_submission.get('role', 'user')}  | \n----------------\n{user_submission.get('content', '')}\n\n"
+
+            llm_response = log.interaction.get('llm_response')
+            if llm_response:
+                full_prompt_str += f"----------------\n| ROLE:: {llm_response.get('role', 'assistant')}| \n----------------\n{llm_response.get('content', '')}\n\n"
+        
+        return format_html("<pre>{}</pre>", full_prompt_str)
+    display_full_prompt.short_description = "Full LLM Prompt"
+
 
 @admin.register(TraceEval)
 class TraceEvalAdmin(admin.ModelAdmin):

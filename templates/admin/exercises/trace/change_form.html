@@ -1,0 +1,48 @@
+<!-- custom template with the navigation arrows to the previous and next trace  -->
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <!-- Prism.js CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" rel="stylesheet" />
+{% endblock %}
+
+
+{% block object-tools-items %}
+    {% if prev_obj %}
+        <li>
+            <a href="{% url 'admin:exercises_trace_change' prev_obj.pk %}">
+                &larr; {% trans "Previous" %}
+            </a>
+        </li>
+    {% endif %}
+    {% if next_obj %}
+        <li>
+            <a href="{% url 'admin:exercises_trace_change' next_obj.pk %}">
+                {% trans "Next" %} &rarr;
+            </a>
+        </li>
+    {% endif %}
+    {{ block.super }}
+{% endblock %}
+
+{% block submit_buttons_bottom %}
+    {{ block.super }}
+    <input type="submit" value="{% trans 'Save and go to next unevaluated trace' %}" name="_save_and_next">
+{% endblock %}
+
+{% block admin_change_form_document_ready %}
+    {{ block.super }}
+    <!-- Prism.js JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            Prism.highlightAll();
+        });
+    </script>
+{% endblock %}

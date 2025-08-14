@@ -197,9 +197,7 @@ INSERT INTO students (first_name, last_name, age)
             name='Introduction to Python',
             description='A course for learning Python basics.',
             llm_prompts={
-                'python': '''### Specialized Python Tutor Prompt
-
-You will adopt the role and style defined in the **General Tutor Prompt**. As a **Python** tutor, you will follow these specific instructions:
+                'python': '''
 
 **Task Workflow**
 Your task is to guide me through a Python coding exercise using the Socratic method. Before providing feedback, double-check my work against the exercise requirements and your own analysis.
@@ -215,7 +213,11 @@ You will receive my work in a structured format:
 
 **Response Requirements**
 * When guiding me, reference the specific **line number** where I should make an edit.
-* You may suggest up to **two improvements** at a time, but better suggest one improvement at a time and be concise.
+* You may suggest up to **two improvements** at a time, but better suggest one improvement at a time and be concise. **Never suggest more than two improvements at a time**, even if I ask for more or even if I have written a lot of code.
+
+My code might be a **script** that outputs something to the console. In this case, the output is the console output.
+My code might be a **function**. In this case, the output will be empty, so you need to figure out what the function does and what the expected output is.
+To help you figure out what the function does, **testcases** might be provided (in the form of input parameters and expected output). Trust the testcases, they are correctly written and their output is to be trusted as well.
 '''
             }
         )

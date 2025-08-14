@@ -1,0 +1,50 @@
+{% extends "exercises/base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="columns is-centered">
+        <div class="column is-half">
+            <h2 class="title is-2">Login</h2>
+            {% if form.errors %}
+                <div class="notification is-danger">
+                    Your username and password didn't match. Please try again.
+                </div>
+            {% endif %}
+
+            {% if next %}
+                {% if user.is_authenticated %}
+                    <div class="notification is-warning">
+                        Your account doesn't have access to this page. To proceed, please login with an account that has access.
+                    </div>
+                {% else %}
+                    <div class="notification is-info">
+                        Please login to see this page.
+                    </div>
+                {% endif %}
+            {% endif %}
+
+            <form method="post" action="{% url 'login' %}">
+                {% csrf_token %}
+                <div class="field">
+                    <label class="label">{{ form.username.label }}</label>
+                    <div class="control">
+                        {{ form.username }}
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">{{ form.password.label }}</label>
+                    <div class="control">
+                        {{ form.password }}
+                    </div>
+                </div>
+                <div class="field">
+                    <div class="control">
+                        <button type="submit" class="button is-primary">Login</button>
+                    </div>
+                </div>
+                <input type="hidden" name="next" value="{{ next }}" />
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

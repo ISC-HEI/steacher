@@ -9,7 +9,8 @@
 - [ ] Backend: Add endpoints and logic for annotating GuidanceLog and Trace objects for evaluation purposes.
 - [ ] Backend: Add admin and UI for annotating/labeling traces and logs.
 
-
+# LATER
+- [] Frontend: style login page at templates/registration/login.html
 
 Fix this interaction
 

@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.conf import settings
 
 
 class Course(models.Model):
@@ -42,11 +43,18 @@ class Trace(models.Model):
     """
     # Foreign keys to link the log to a user and exercise
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='traces')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='traces')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='traces')
     complete = models.BooleanField(default=False, help_text="True if the user has completed the exercise.")
+    version = models.IntegerField(default=1, help_text="Version of the trace, can be used to track changes in the trace logic or prompt or eval version.")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    system_prompt = models.TextField(null=True, blank=True, help_text="The system prompt sent to the LLM for this trace, if debugging is enabled.")
 
     def __str__(self):
         return f"Trace by {self.user.username} for '{self.exercise.title}'"
+
+    class Meta:
+        unique_together = ('user', 'exercise', 'version')
 
 
 

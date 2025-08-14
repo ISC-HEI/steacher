@@ -45,15 +45,23 @@ python manage.py createsuperuser --username admin --email admin@example.com --no
 python set_admin_password.py  # Sets password to 'admin123'
 ```
 
+### 6.1 Create sample data
+```bash
+python manage.py create_sample_exercises
+python manage.py create_students_from_autograder
+python manage.py import_questions
+# setup exercice id in mgmt script
+python manage.py populate_traces
+```
+
+
 ### 7. Start Development Server
 
 ```bash
 # Terminal 1: Django
-cd test_django
 python manage.py runserver
 
 # Terminal 2: TypeScript compiler
-cd test_django  
 npm run watch
 ```
 
