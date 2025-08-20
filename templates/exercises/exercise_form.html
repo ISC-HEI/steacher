@@ -13,74 +13,148 @@
     <form @submit.prevent="saveExercise">
         {% csrf_token %}
 
-        <div class="field">
-            <label for="title" class="label">Title</label>
-            <div class="control">
-                <input type="text" id="title" class="input" v-model="exercise.title" required>
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label for="title" class="label">Title</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control">
+                        <input type="text" id="title" class="input" v-model="exercise.title" required>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="field">
-            <label for="order" class="label">Order</label>
-            <div class="control">
-                <input type="number" id="order" class="input" v-model.number="exercise.order" required>
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label class="label" for="id_exercise_type">Exercise Type</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control">
+                        <div class="select">
+                            <select id="id_exercise_type" v-model="exercise.exercise_type">
+                                <option value="python">Python</option>
+                                <option value="multiple_choice">Multiple Choice</option>
+                                <option value="sql">SQL</option>
+                                <option value="turtle">Turtle</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="field">
-            <label for="description" class="label">Description</label>
-            <div class="control">
-                <textarea id="description" class="textarea" v-model="exercise.description"></textarea>
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label for="order" class="label">Order</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control">
+                        <input type="number" id="order" class="input" v-model.number="exercise.order" required>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label for="description" class="label">Description</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control">
+                        <textarea id="description" class="textarea" v-model="exercise.description"></textarea>
+                    </div>
+                </div>
             </div>
         </div>
 
         <hr>
-        <h3 class="mb-3 title is-4">Python Exercise Details</h3>
+        <h3 class="mb-3 title is-4">Exercise Details</h3>
 
-        <div class="field">
-            <label for="question" class="label">Question (Markdown supported)</label>
-            <div class="control">
-                <textarea id="question" class="textarea" v-model="exercise.exercise_data.question" rows="10"></textarea>
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label for="question" class="label">Question (Markdown supported)</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control">
+                        <textarea id="question" class="textarea" v-model="exercise.exercise_data.question" rows="10"></textarea>
+                    </div>
+                </div>
             </div>
         </div>
         
         <hr>
         <h3 class="mb-3 title is-4">Answer Details</h3>
 
-        <div class="field">
-            <label for="expected_result" class="label">Expected Result</label>
-            <div class="control">
-                <input type="text" id="expected_result" class="input" v-model="exercise.answer_data.expected_result">
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label for="expected_result" class="label">Expected Result</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control">
+                        <input type="text" id="expected_result" class="input" v-model="exercise.answer_data.expected_result">
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="field">
-            <label for="hints" class="label">Hints (one per line)</label>
-            <div class="control">
-                <textarea id="hints" class="textarea" v-model="exercise.answer_data.hints_text" rows="3"></textarea>
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label for="hints" class="label">Hints (one per line)</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control">
+                        <textarea id="hints" class="textarea" v-model="hints_text" rows="3"></textarea>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="field">
-            <label for="additional_context" class="label">Additional Context</label>
-            <div class="control">
-                <textarea id="additional_context" class="textarea" v-model="exercise.answer_data.additional_context" rows="3"></textarea>
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label for="additional_context" class="label">Additional Context</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control">
+                        <textarea id="additional_context" class="textarea" v-model="exercise.answer_data.additional_context" rows="3"></textarea>
+                    </div>
+                </div>
             </div>
         </div>
         
         <h4 class="title is-5 mt-4">Correct Answers</h4>
         <div class="mb-4" v-for="(answer, index) in exercise.answer_data.correct_answers" :key="index">
             <div class="box">
-                <div class="field">
-                    <label :for="'answer-' + index" class="label">Answer</label>
-                    <div class="control">
-                        <textarea :id="'answer-' + index" class="textarea" v-model="answer.answer" rows="10"></textarea>
+                <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                        <label :for="'answer-' + index" class="label">Answer</label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <textarea :id="'answer-' + index" class="textarea" v-model="answer.answer" rows="10"></textarea>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="field">
-                    <label :for="'explanation-' + index" class="label">Explanation</label>
-                    <div class="control">
-                        <textarea :id="'explanation-' + index" class="textarea" v-model="answer.explanation" rows="2"></textarea>
+                <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                        <label :for="'explanation-' + index" class="label">Explanation</label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <textarea :id="'explanation-' + index" class="textarea" v-model="answer.explanation" rows="2"></textarea>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <button type="button" @click="removeCorrectAnswer(index)" class="button is-danger is-small">Remove</button>
@@ -91,39 +165,69 @@
         <hr>
         <h3 class="mb-3 title is-4">Unit Tests</h3>
 
-        <div class="field">
-            <label for="setup-code" class="label">Setup Code</label>
-            <div class="control">
-                <textarea id="setup-code" class="textarea" v-model="exercise.answer_data.unit_tests.setup_code" rows="5"></textarea>
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label for="setup-code" class="label">Setup Code</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control">
+                        <textarea id="setup-code" class="textarea" v-model="exercise.answer_data.unit_tests.setup_code" rows="5"></textarea>
+                    </div>
+                </div>
             </div>
         </div>
         
-        <div class="field">
-            <label for="timeout" class="label">Timeout (seconds)</label>
-            <div class="control">
-                <input type="number" id="timeout" class="input" v-model.number="exercise.answer_data.unit_tests.timeout_seconds">
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label for="timeout" class="label">Timeout (seconds)</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control">
+                        <input type="number" id="timeout" class="input" v-model.number="exercise.answer_data.unit_tests.timeout_seconds">
+                    </div>
+                </div>
             </div>
         </div>
 
         <div class="mb-4" v-for="(testCase, index) in exercise.answer_data.unit_tests.test_cases" :key="index">
             <div class="box">
                 <h4 class="title is-5">Test Case [[ index + 1 ]]</h4>
-                <div class="field">
-                    <label :for="'desc-' + index" class="label">Description</label>
-                    <div class="control">
-                        <input :id="'desc-' + index" type="text" class="input" v-model="testCase.description">
+                <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                        <label :for="'desc-' + index" class="label">Description</label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <input :id="'desc-' + index" type="text" class="input" v-model="testCase.description">
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="field">
-                    <label :for="'code-' + index" class="label">Test Code</label>
-                    <div class="control">
-                        <textarea :id="'code-' + index" class="textarea" v-model="testCase.test_code" rows="2"></textarea>
+                <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                        <label :for="'code-' + index" class="label">Test Code</label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <textarea :id="'code-' + index" class="textarea" v-model="testCase.test_code" rows="2"></textarea>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="field">
-                    <label :for="'output-' + index" class="label">Expected Output</label>
-                    <div class="control">
-                        <textarea :id="'output-' + index" class="textarea" v-model="testCase.expected_output" rows="1"></textarea>
+                <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                        <label :for="'output-' + index" class="label">Expected Output</label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <textarea :id="'output-' + index" class="textarea" v-model="testCase.expected_output" rows="1"></textarea>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <button type="button" @click="removeTestCase(index)" class="button is-danger is-small">Remove Test Case</button>

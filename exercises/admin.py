@@ -125,10 +125,10 @@ class CourseAdmin(admin.ModelAdmin):
 
 @admin.register(Exercise)
 class ExerciseAdmin(admin.ModelAdmin):
-    list_display = ['title', 'course', 'exercise_type', 'order', 'created_at']
-    list_filter = ['course', 'exercise_type', 'created_at']
-    search_fields = ['title', 'description']
-    readonly_fields = ['created_at', 'updated_at']
+    list_display = ('course', 'order', 'title', 'exercise_type', 'updated_at')
+    list_filter = ('course', 'exercise_type')
+    search_fields = ('title', 'description')
+    ordering = ('course', 'order')
 
 @admin.register(ExerciceAsset)
 class ExerciceAssetAdmin(admin.ModelAdmin):

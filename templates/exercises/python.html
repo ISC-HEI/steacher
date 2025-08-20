@@ -81,7 +81,8 @@
                 :initial-question="exercise.exercise_data.question"
                 :messages="chatMessages"
                 :loading="loadingState !== 'idle'"
-                @question-asked="handleQuestion">
+                @question-asked="handleQuestion"
+                @option-selected="handleOptionSelected">
             </chatbot-panel>
         </div>
     </div>

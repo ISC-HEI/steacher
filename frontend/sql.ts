@@ -45,6 +45,13 @@ interface SqlDataContext {
     start_timestamp: string;
 }
 
+interface OptionButton {
+    id: string;
+    title: string;
+    comment?: string;
+    to?: string;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Get exercise data from JSON script tag
     const exerciseDataScript = document.getElementById('exercise-data');
@@ -108,18 +115,14 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         
         async mounted() {
-            // Initialize database if db file is specified
-            if (this.exercise.exercise_data.db) {
-                await this.loadDatabase();
-            }
+            // Initialize database
+            await this.loadDatabase();
         },
         
         methods: {
-            async getGuidance(action: 'run_query' | 'ask_hint' | 'ask_question', details: { question?: string | null, error?: string | null } = {}) {
+            async getGuidance(action: 'run_query' | 'ask_hint' | 'ask_question' | 'option_selected', details: { question?: string | null, error?: string | null, selected_option?: OptionButton } = {}) {
                 this.loadingState = 'getting-guidance';
                 try {
-                    console.log(`Getting guidance for action: ${action}`);
-
                     // 1. Get CSRF token
                     const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
                     if (!csrfTokenElement) {
@@ -137,7 +140,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         question: details.question || null,
                         error_message: details.error || null,
                         start_timestamp: this.start_timestamp,
-                        submission_timestamp: new Date().toISOString()
+                        submission_timestamp: new Date().toISOString(),
+                        selected_option: details.selected_option || null
                     };
 
                     // 3. Make API call
@@ -155,7 +159,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     const result = await response.json();
-                    console.log('Guidance received:', result);
                     this.guidance = result.guidance; // Store the guidance
 
                     // Add the user submission to the chat history
@@ -176,7 +179,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             // Remove the tag from the message
                             guidanceText = guidanceText.replace('<exercise_completed>', '').trim();
                         }
-                        this.chatMessages.push({ role: 'assistant', content: guidanceText });
+                        const assistantMessage = { role: 'assistant', content: guidanceText };
+                        this.chatMessages.push(assistantMessage);
                     }
 
                 } catch (error) {
@@ -201,13 +205,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     // non-reactive object, preserving its internal integrity.
                     this.database = markRaw(await PGlite.create());
 
-                    // Fetch and execute the SQL file from the asset endpoint
-                    if (!assetUrl) {
-                        throw new Error('Asset URL not provided in the template.');
+                    // If a database file is provided, fetch and execute it. Else, use the default database.
+                    if (this.exercise.exercise_data.db) {
+                        // Fetch and execute the SQL file from the asset endpoint
+                        if (!assetUrl) {
+                            throw new Error('Asset URL not provided in the template.');
+                        }
+                        const sql = await fetch(assetUrl).then(res => res.text());
+                        
+                        await this.database.exec(sql);
                     }
-                    const sql = await fetch(assetUrl).then(res => res.text());
-                    
-                    await this.database.exec(sql);
                     
                 } catch (error) {
                     console.error('Error loading database:', error);
@@ -278,6 +285,31 @@ document.addEventListener('DOMContentLoaded', function() {
             
             handleQuestion(question: string) {
                 this.getGuidance('ask_question', { question: question });
+            },
+
+            handleOptionSelected(option: OptionButton) {
+                console.log('[SqlExerciseApp] Option selected event received:', option);
+                if (option.to) {
+                    if (/^\d+$/.test(option.to)) {
+                        window.location.href = `/exercises/${option.to}/`;
+                    } else if (option.to === 'next_exercise') {
+                        const nextExerciseUrl = (document.getElementById('sql-exercise-app') as HTMLElement).dataset.nextExerciseUrl;
+                        if (nextExerciseUrl) {
+                            window.location.href = nextExerciseUrl;
+                        } else {
+                            // a fallback to the course page if no next exercise is available
+                            const courseUrl = (document.getElementById('sql-exercise-app') as HTMLElement).dataset.courseUrl;
+                            if (courseUrl) {
+                                window.location.href = courseUrl;
+                            }
+                        }
+                    }
+                    else {
+                        console.warn(`Redirect target '${option.to}' is not a valid exercise ID.`);
+                    }
+                } else {
+                    this.getGuidance('option_selected', { question: null, error: null, selected_option: option });
+                }
             },
 
             getResultColumns(resultArray: Record<string, any>[] | undefined): string[] {

@@ -1,6 +1,19 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
+interface OptionButton {
+    id: string;
+    title: string;
+    comment?: string;
+    to?: string;
+}
+
+interface ProcessedMessage {
+    cleanedContent: string;
+    buttons: OptionButton[];
+    [key: string]: any;
+}
+
 export const ChatbotPanel = {
   props: {
     initialQuestion: {
@@ -22,22 +35,45 @@ export const ChatbotPanel = {
       <div class="chat-content">
 
         <!-- First, we display the initial question of the exercise -->
-        <div v-if="initialQuestion"
-             v-html="initialQuestion"
-             ref="initialQuestionMessage"
-             class="box mb-3 assistant-message initial-question"></div>
+        <div v-if="initialQuestion" class="initial-question-container">
+            <div v-if="processedInitialQuestion.cleanedContent"
+                 v-html="renderMarkdown(processedInitialQuestion.cleanedContent)"
+                 ref="initialQuestionMessage"
+                 class="box content mb-3 assistant-message initial-question">
+            </div>
+            <div v-if="processedInitialQuestion.buttons.length > 0" class="mb-3">
+                <div v-for="button in processedInitialQuestion.buttons" :key="button.id" class="mb-2">
+                    <button @click="selectOption(button)" class="button is-info">
+                        {{ button.title }}
+                    </button>
+                    <p class="help" v-if="button.comment">{{ button.comment }}</p>
+                </div>
+            </div>
+        </div>
 
         <!-- Chatbot Content. A list of messages exchanged between the user and the assistant. -->
         <div>
-          <template v-for="(message, index) in messages">
+          <template v-for="(message, index) in processedMessages">
             <div v-if="message.role === 'user' && message.content"
                  v-html="renderMarkdown(formatUserMessage(message))"
-                 class="box mb-3 user-message"
+                 class="box content mb-3 user-message"
                  :key="'user-' + index"></div>
-            <div v-if="message.role === 'assistant' && message.content"
-                 v-html="renderMarkdown(message.content)"
-                 class="box mb-3 assistant-message"
-                 :key="'assistant-' + index"></div>
+
+            <template v-if="message.role === 'assistant'">
+                <div v-if="message.cleanedContent"
+                     v-html="renderMarkdown(message.cleanedContent)"
+                     class="box content mb-3 assistant-message"
+                     :key="'assistant-content-' + index">
+                </div>
+                <div v-if="message.buttons.length > 0" class="mb-3" :key="'assistant-buttons-' + index">
+                    <div v-for="button in message.buttons" :key="button.id" class="mb-2">
+                        <button @click="selectOption(button)" class="button is-info is-fullwidth">
+                            {{ button.title }}
+                        </button>
+                        <p class="help has-text-centered" v-if="button.comment">{{ button.comment }}</p>
+                    </div>
+                </div>
+            </template>
           </template>
         </div>
       </div>
@@ -74,8 +110,26 @@ export const ChatbotPanel = {
       question: '',
     };
   },
+  computed: {
+    processedInitialQuestion(): ProcessedMessage {
+        // @ts-ignore
+        return this.parseMessageContent({ content: this.initialQuestion });
+    },
+    processedMessages(): ProcessedMessage[] {
+      // Parse the message content for buttons, using a regex.
+      // @ts-ignore
+      return this.messages.map(message => {
+        if (message.role === 'assistant') {
+          // @ts-ignore
+          const processed = this.parseMessageContent(message);
+          return processed;
+        }
+        return { ...message, cleanedContent: message.content, buttons: [] };
+      });
+    }
+  },
   mounted(this: any) {
-    // Highlight the initial question for 4 seconds
+    // Highlight the initial question for 4 seconds in yellow, so the user's attention is drawn to it.
     if (this.initialQuestion && this.$refs.initialQuestionMessage) {
       const el = this.$refs.initialQuestionMessage as HTMLElement;
       el.classList.add('highlight-question');
@@ -99,6 +153,43 @@ export const ChatbotPanel = {
     }
   },
   methods: {
+    parseMessageContent(message: any): ProcessedMessage {
+        // Parse the message content for buttons, using a regex.
+        // The regex is a bit complex, but it's the only way to parse the message content for buttons.
+        // It's a bit of a hack, but it works.
+        const content = message.content || '';
+        const buttonRegex = /<button\s+id="([^"]+)"\s+title="([^"]+)"(?:\s+comment="([^"]*)")?(?:\s+to="([^"]*)")?\s*\/>/g;
+        const buttons: OptionButton[] = [];
+        let match;
+
+        while ((match = buttonRegex.exec(content)) !== null) {
+            // TS compiler correctly identifies that these can be undefined.
+            // Even though our regex makes them mandatory, it's safer to check.
+            const id = match[1];
+            const title = match[2];
+
+            if (id && title) {
+                console.log('[ChatbotPanel] Found button:', id, title, match[3], match[4]);
+                buttons.push({
+                    id,
+                    title,
+                    comment: match[3] || '',
+                    to: match[4] || '',
+                });
+            }
+        }
+
+        const cleanedContent = content.replace(buttonRegex, '').trim();
+
+        return { ...message, cleanedContent, buttons };
+    },
+
+    selectOption(button: OptionButton) {
+        console.log('[ChatbotPanel] Option selected:', button);
+        // @ts-ignore
+        this.$emit('option-selected', button);
+    },
+
     formatUserMessage(message: any) {
         // Display the user messages differently depending on the action. Add icons to the messages.
         if (!message.metadata || !message.metadata.action) {
@@ -111,11 +202,11 @@ export const ChatbotPanel = {
             return '<span class="icon"><i class="fas fa-lightbulb"></i></span> _Hint requested_';
         }
 
-        if (action === 'ask_question') {
+        else if (action === 'ask_question') {
             return '<span class="icon"><i class="fas fa-question-circle"></i></span> ' + (question || 'Question asked');
         }
 
-        if (action === 'run_query' && code) {
+        else if (action === 'run_query' && code) {
             let display = '';
 
             const lines = code.split('\n');
@@ -130,6 +221,10 @@ export const ChatbotPanel = {
             }
 
             return display;
+        }
+
+        else if (action === 'option_selected') {
+            return '<span class="icon"><i class="fas fa-check-circle"></i></span> ' + (message.metadata.selected_option.title || 'Option selected');
         }
 
         return message.content; // Fallback

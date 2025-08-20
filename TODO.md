@@ -1,6 +1,10 @@
 
 # TODO
 
+- [ ] Codemirror: set right syntax suggestions for SQL and Python.
+- [ ] add rewards, gamification, etc.
+
+- [ ] Frontend: List exercises in course detail page: make sure non-staff users can't add new exercises or edit existing ones.
 - [ ] Frontend: Display completion status for exercises and courses using Trace.complete.
 - [ ] Frontend: Mark trace as complete when user finishes an exercise.
 - [ ] Frontend: Disable further editing or submissions for completed traces.

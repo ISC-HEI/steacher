@@ -172,3 +172,6 @@ LOGGING = {
         },
     },
 }
+
+# Auth redirects
+LOGOUT_REDIRECT_URL = '/'

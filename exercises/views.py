@@ -92,7 +92,7 @@ def get_guidance(request, exercise_id, trace_id):
         exercise = get_object_or_404(Exercise, pk=exercise_id)
         trace = get_object_or_404(Trace, id=trace_id, exercise=exercise, user=request.user)
 
-        response_data = fetch_ai_guidance(data, exercise, trace)
+        response_data = fetch_ai_guidance(data, exercise, trace, debug=True)
         
         return JsonResponse({'status': 'success', **response_data})
 
@@ -123,16 +123,16 @@ def exercise_form(request, course_pk, exercise_pk=None):
     if exercise_pk:
         exercise = get_object_or_404(Exercise, pk=exercise_pk, course=course)
     else:
-        # Provide a default structure for a new Python exercise
+        # Provide a default structure for a new exercise
         exercise = Exercise(
             course=course,
             exercise_type='python',
             exercise_data={
-                "question": "## New Python Exercise\n\nWrite your question here using Markdown.",
+                "question": "",
             },
             answer_data={
                 "unit_tests": {
-                    "setup_code": "# Setup code (e.g., imports) runs before student's code.",
+                    "setup_code": "",
                     "test_cases": [],
                     "timeout_seconds": 5
                 }
@@ -145,6 +145,7 @@ def exercise_form(request, course_pk, exercise_pk=None):
             exercise.title = data.get('title', 'New Exercise')
             exercise.order = data.get('order', 1)
             exercise.description = data.get('description', '')
+            exercise.exercise_type = data.get('exercise_type', 'python')
             exercise.exercise_data = data.get('exercise_data', {})
             
             answer_data = data.get('answer_data', {})

@@ -47,15 +47,18 @@
                         </a>
                         <hr class="navbar-divider">
                         {% endif %}
-                        <a href="{% url 'admin:logout' %}" class="navbar-item">
-                            Log out
-                        </a>
+                        <form method="post" action="{% url 'logout' %}">
+                            {% csrf_token %}
+                            <button type="submit" class="navbar-item">
+                                Log out
+                            </button>
+                        </form>
                     </div>
                 </div>
                 {% else %}
                 <div class="navbar-item">
                     <div class="buttons">
-                        <a href="{% url 'admin:login' %}" class="button is-light">
+                        <a href="{% url 'login' %}" class="button is-light">
                             Log in
                         </a>
                     </div>

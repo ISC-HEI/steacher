@@ -90,7 +90,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
     - 'cbm_result': the CBM result, if any, as a dict, to help the student understand the score breakdown.
     """
 
-    logger.info(f"fetch_ai_guidance: {exercise.id}, trace: {trace.id}, debug: {debug}")
+    logger.info(f"fetch_ai_guidance: exercise {exercise.id}, trace {trace.id}, data {data}")
     overall_start_time = time.time()
 
     # 1. Construct the user's message for the LLM from the incoming data
@@ -100,9 +100,14 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
     cbm_result = None
 
     if action == 'ask_question':
-        user_prompt_content = f"I have a specific question: {data.get('question', '')}"
+        user_prompt_content += f"I have a specific question: {data.get('question', '')}"
     elif action == 'ask_hint':
-        user_prompt_content = "I am explicitly asking for a hint."
+        user_prompt_content += "I am explicitly asking for a hint."
+    elif action == 'option_selected':
+        selected_option = data.get('selected_option', {})
+        option_id = selected_option.get('id', '')
+        option_title = selected_option.get('title', '')
+        user_prompt_content += f"I have chosen an option on how to solve the exercise. My choice is '{option_id}': {option_title}. Please provide instructions based on this choice."
     elif action == 'submit_answer' and exercise.exercise_type == 'multiple_choice':
         selections = data.get('selections', {})
         justification = data.get('justification', '')
@@ -118,7 +123,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
             ]
         )
         
-        user_prompt_content = (
+        user_prompt_content += (
             f"Here are my answers:\n"
             f"{score_breakdown}\n\n"
             f"**Total Score: {cbm_result['total_score']} / {cbm_result['max_score']} points.**"
@@ -132,7 +137,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
 
     # add code, error message, output
     if 'code' in data:
-        user_prompt_content = f"## Student code:\n```python\n{data.get('code', '')}\n```\n"
+        user_prompt_content += f"## Student code:\n```python\n{data.get('code', '')}\n```\n"
 
         # NEW: Run unit tests if available
         if exercise.exercise_type == 'python':
@@ -293,6 +298,15 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
     else:        
         # just return the text of the response
         answer = (llm_response.choices[0].message.content or "").strip()
+
+    # 7.a. Detect completion tag and mark the trace as complete if present
+    try:
+        if "<exercise_completed>" in answer and not trace.complete:
+            trace.complete = True
+            trace.save(update_fields=['complete'])
+            logger.info(f"Trace {trace.id} marked as complete based on LLM output tag.")
+    except Exception as e:
+        logger.warning(f"Failed to set trace {trace.id} as complete: {e}")
 
     # 7. Create the log entry
     interaction_log = {

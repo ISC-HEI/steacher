@@ -103,10 +103,11 @@
         </div>
         <div class="right-panel">
             <chatbot-panel
-                :initial-question="exercise.exercise_data.question"
+                :initial-question="'{{ exercise.exercise_data.question|escapejs }}'"
                 :messages="chatMessages"
                 :loading="loadingState !== 'idle'"
-                @question-asked="handleQuestion">
+                @question-asked="handleQuestion"
+                @option-selected="handleOptionSelected">
             </chatbot-panel>
         </div>
     </div>

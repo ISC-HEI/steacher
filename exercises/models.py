@@ -18,10 +18,23 @@ class Course(models.Model):
 
 
 class Exercise(models.Model):
+
+    EXERCISE_TYPE_CHOICES = [
+        ('python', 'Python'),
+        ('multiple_choice', 'Multiple Choice'),
+        ('sql', 'SQL'),
+        ('turtle', 'Turtle'),
+    ]
+
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='exercises')
     title = models.CharField(max_length=200, help_text="Title of the exercice; not displayed to the user.")
     description = models.TextField(blank=True, help_text="Description of the exercice; not displayed to the user.")
-    exercise_type = models.CharField(max_length=50, help_text="Type of the exercice, e.g. 'multiple_choice', 'text', 'turtle', etc.")
+    exercise_type = models.CharField(
+        max_length=50,
+        choices=EXERCISE_TYPE_CHOICES,
+        default='python',
+        help_text="Type of the exercice, e.g. 'multiple_choice', 'text', 'turtle', etc."
+    )
     order = models.PositiveIntegerField(default=0, help_text="The order of the exercice within the course.")
     exercise_data = models.JSONField(help_text="Contains fields like question, data-source, etc.")  # sent to frontend
     answer_data = models.JSONField(default=dict, help_text="Contains fields like expected_result, hints, etc.")  # backend only

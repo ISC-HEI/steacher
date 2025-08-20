@@ -174,10 +174,6 @@
     font-size: 16px;
 } 
 
-.initial-question { /* make the initial question stand out */
-    font-weight: bold;
-}
-
 /* highlight (flash) for new questions */
 .highlight-question {
   animation: highlight-animation 4s ease-in-out;
@@ -210,4 +206,9 @@
 .is-bordered-thin {
     border: 1px solid #dbdbdb;
     border-radius: 4px;
+} 
+
+.initial-question {
+    width: 100%;
+    max-width: 100%;
 } 
