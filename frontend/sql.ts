@@ -30,6 +30,22 @@ interface QueryResult {
     message?: string;
 }
 
+interface TableColumn {
+    column_name: string;
+    data_type: string;
+}
+
+interface DatabaseSchema {
+    [tableName: string]: TableColumn[];
+}
+
+interface ForeignKeyInfo {
+    constraint_name: string;
+    column_name: string;
+    referenced_table: string;
+    referenced_column: string;
+}
+
 interface SqlDataContext {
     exercise: Exercise;
     userQuery: string;
@@ -40,9 +56,12 @@ interface SqlDataContext {
     queryError: string | null;
     loadingState: 'idle' | 'db-loading' | 'querying' | 'getting-guidance';
     database: any | null; // PGlite instance
+    databaseSchema: DatabaseSchema | null;
+    schemaError: string | null;
     guidance: string | null;
     chatMessages: any[];
     start_timestamp: string;
+    foreignKeysByTable?: Record<string, ForeignKeyInfo[]>;
 }
 
 interface OptionButton {
@@ -108,9 +127,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 queryError: null as string | null,
                 loadingState: 'idle', // 'idle', 'db-loading', 'querying', 'getting-guidance'
                 database: null,
+                databaseSchema: null,
+                schemaError: null,
                 guidance: null,
                 chatMessages: initialMessages,
-                start_timestamp: new Date().toISOString()
+                start_timestamp: new Date().toISOString(),
+                foreignKeysByTable: {}
             }
         },
         
@@ -211,19 +233,105 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (!assetUrl) {
                             throw new Error('Asset URL not provided in the template.');
                         }
-                        const sql = await fetch(assetUrl).then(res => res.text());
-                        
+                        const response = await fetch(assetUrl);
+                        if (!response.ok) {
+                            if (response.status === 404) {
+                                throw new Error('Database file not found (404). This exercise might be misconfigured.');
+                            }
+                            throw new Error(`Failed to load database file (${response.status} ${response.statusText}).`);
+                        }
+                        const sql = await response.text();
                         await this.database.exec(sql);
                     }
                     
+                    await this.loadSchema();
+                    
                 } catch (error) {
                     console.error('Error loading database:', error);
-                    this.queryError = 'Failed to load database: ' + String(error);
+                    const message = 'Failed to load database: ' + String(error);
+                    // Surface the error in both panels so it is clearly visible
+                    this.schemaError = message;
+                    this.queryError = message;
                 } finally {
                     this.loadingState = 'idle';
                 }
             },
             
+            async loadSchema() {
+                if (!this.database) {
+                    this.schemaError = "Database not available to load schema.";
+                    return;
+                }
+                try {
+                    const tablesResult = await this.database.query(`
+                        SELECT tablename 
+                        FROM pg_tables 
+                        WHERE schemaname = 'public'
+                        ORDER BY tablename
+                    `);
+                    const tables: string[] = tablesResult.rows.map((row: any) => row.tablename);
+
+                    const schema: DatabaseSchema = {};
+                    for (const tableName of tables) {
+                        const columnsResult = await this.database.query(
+                           `SELECT column_name, data_type 
+                            FROM information_schema.columns 
+                            WHERE table_name = $1
+                            ORDER BY ordinal_position;
+                        `, [tableName]);
+                        schema[tableName] = columnsResult.rows;
+                    }
+                    this.databaseSchema = schema;
+
+                    // Load foreign keys after columns are ready
+                    await this.loadForeignKeys();
+
+                } catch (error) {
+                    console.error('Error loading schema:', error);
+                    this.schemaError = 'Failed to load database schema: ' + String(error);
+                }
+            },
+
+            async loadForeignKeys() {
+                if (!this.database) return;
+                try {
+                    const fkResult = await this.database.query(`
+                        SELECT
+                          tc.table_name,
+                          kcu.column_name,
+                          ccu.table_name AS referenced_table,
+                          ccu.column_name AS referenced_column,
+                          tc.constraint_name
+                        FROM information_schema.table_constraints tc
+                        JOIN information_schema.key_column_usage kcu
+                          ON tc.constraint_name = kcu.constraint_name
+                          AND tc.table_schema = kcu.table_schema
+                        JOIN information_schema.constraint_column_usage ccu
+                          ON ccu.constraint_name = tc.constraint_name
+                          AND ccu.table_schema = tc.table_schema
+                        WHERE tc.constraint_type = 'FOREIGN KEY'
+                          AND tc.table_schema = 'public'
+                        ORDER BY tc.table_name, kcu.ordinal_position;
+                    `);
+
+                    const mapping: Record<string, ForeignKeyInfo[]> = {};
+                    for (const row of fkResult.rows as any[]) {
+                        const tableName: string = row.table_name;
+                        if (!mapping[tableName]) mapping[tableName] = [];
+                        mapping[tableName].push({
+                            constraint_name: row.constraint_name,
+                            column_name: row.column_name,
+                            referenced_table: row.referenced_table,
+                            referenced_column: row.referenced_column
+                        });
+                    }
+                    this.foreignKeysByTable = mapping;
+                } catch (error) {
+                    console.warn('Failed to load foreign keys:', error);
+                    // Non-fatal; skip FK display if query fails
+                }
+            },
+
             async runQuery() {
                 if (!this.database) {
                     this.queryError = 'Database not loaded yet. Please wait...';

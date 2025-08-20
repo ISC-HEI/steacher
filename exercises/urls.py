@@ -19,4 +19,6 @@ urlpatterns = [
     # Teacher URLs for exercise management
     path('courses/<int:course_pk>/add_exercise/', views.exercise_form, name='exercise_add'),
     path('courses/<int:course_pk>/edit_exercise/<int:exercise_pk>/', views.exercise_form, name='exercise_edit'),
+    # Authoring assistant (stateless)
+    path('ai/authoring_assistant/', views.exercise_authoring_assistant, name='authoring_assistant'),
 ] 

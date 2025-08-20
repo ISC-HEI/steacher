@@ -6,7 +6,7 @@ from django.views.decorators.http import require_POST
 import json
 from openai import OpenAI
 
-from .logic import fetch_ai_guidance
+from .logic import fetch_ai_guidance, generate_authoring_update
 from .models import Exercise, ExerciceAsset, Course, GuidanceLog, Trace
 from .serializers import ExerciseSerializer, ExerciseFrontendSerializer
 from .decorators import teacher_required
@@ -74,7 +74,7 @@ def exercise_detail(request, pk):
 def serve_asset(request, exercise_id, filename):
     """Serve asset files for exercises."""
     exercise = get_object_or_404(Exercise, pk=exercise_id)
-    asset = get_object_or_404(ExerciceAsset, exercise=exercise, name=filename)
+    asset = get_object_or_404(ExerciceAsset, course=exercise.course, name=filename)
     content = bytes(asset.content).decode('utf-8')
     response = HttpResponse(content, content_type='text/plain')
     response['Content-Disposition'] = f'inline; filename="{filename}"'
@@ -159,6 +159,20 @@ def exercise_form(request, course_pk, exercise_pk=None):
                 }
             exercise.answer_data = answer_data
 
+            # Validate SQL DB asset selection when relevant
+            if exercise.exercise_type == 'sql':
+                db_name = (exercise.exercise_data or {}).get('db')
+                if db_name:
+                    valid_assets = set(
+                        ExerciceAsset.objects.filter(course=course, name__iendswith='.sql')
+                        .values_list('name', flat=True)
+                    )
+                    if db_name not in valid_assets:
+                        return JsonResponse({
+                            'status': 'error',
+                            'message': f"Selected database '{db_name}' is not an available SQL asset for this course."
+                        }, status=400)
+
             # Validate correct answers against unit tests
             if exercise.exercise_type == 'python' and 'unit_tests' in answer_data:
                 unit_tests = answer_data.get('unit_tests', {})
@@ -179,6 +193,12 @@ def exercise_form(request, course_pk, exercise_pk=None):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
     # Serialize the exercise data to pass to the Vue app
+    # Compute available SQL assets for this course
+    available_sql_assets = list(
+        ExerciceAsset.objects.filter(course=course, name__iendswith='.sql')
+        .values_list('name', flat=True)
+    )
+
     exercise_json = {
         "pk": exercise.pk,
         "title": exercise.title,
@@ -186,7 +206,9 @@ def exercise_form(request, course_pk, exercise_pk=None):
         "description": exercise.description,
         "exercise_type": exercise.exercise_type,
         "exercise_data": exercise.exercise_data,
-        "answer_data": exercise.answer_data
+        "answer_data": exercise.answer_data,
+        "available_sql_assets": available_sql_assets,
+        "course_pk": course.pk,
     }
 
     return render(request, 'exercises/exercise_form.html', {
@@ -194,3 +216,36 @@ def exercise_form(request, course_pk, exercise_pk=None):
         'exercise': exercise,
         'exercise_json': exercise_json
     })
+
+
+@login_required
+@teacher_required
+@require_POST
+def exercise_authoring_assistant(request):
+    """
+    Stateless endpoint used by the in-page authoring assistant.
+    Does not persist conversation; returns assistant text and updated exercise DTO.
+    """
+    try:
+        body = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+    exercise_payload = body.get('exercise') or {}
+    messages = body.get('messages') or []
+    context = body.get('context') or {}
+    course_pk = context.get('course_pk')
+
+    if not isinstance(messages, list):
+        return JsonResponse({'status': 'error', 'message': 'messages must be a list'}, status=400)
+
+    if not course_pk:
+        return JsonResponse({'status': 'error', 'message': 'Missing course_pk in context'}, status=400)
+
+    course = get_object_or_404(Course, pk=course_pk)
+
+    try:
+        result = generate_authoring_update(exercise_payload=exercise_payload, messages=messages, course=course)
+        return JsonResponse({'status': 'success', **result})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)

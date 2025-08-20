@@ -14,8 +14,11 @@ interface ExerciseFormData {
     exercise_type: string;
     exercise_data: {
         question: string;
+        db?: string;
     };
     answer_data: {
+        expected_result?: string;
+        additional_context?: string;
         unit_tests: {
             setup_code: string;
             test_cases: TestCase[];
@@ -35,7 +38,10 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    const initialData: ExerciseFormData = JSON.parse(exerciseDataScript.textContent || '{}');
+    const rawData: any = JSON.parse(exerciseDataScript.textContent || '{}');
+    const initialData: ExerciseFormData = rawData as ExerciseFormData;
+    const availableSqlAssets: string[] = Array.isArray(rawData.available_sql_assets) ? rawData.available_sql_assets : [];
+    const coursePk: number | null = typeof rawData.course_pk === 'number' ? rawData.course_pk : null;
 
     // Ensure the nested structure for unit tests exists, especially for new exercises.
     if (!initialData.answer_data) {
@@ -53,15 +59,38 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!initialData.answer_data.hints) {
         initialData.answer_data.hints = [];
     }
+    if (!initialData.exercise_data) {
+        initialData.exercise_data = { question: '' };
+    }
     
 
     const ExerciseFormApp = defineComponent({
         data() {
             return {
                 exercise: initialData,
+                available_sql_assets: availableSqlAssets,
                 loading: false,
-                error: null as string | null
+                error: null as string | null,
+                // Assistant state (ephemeral, desktop only)
+                messages: [] as { role: 'user' | 'assistant'; content: string }[],
+                draftMessage: '',
+                sending: false,
+                assistantError: null as string | null,
+                lastAppliedSnapshot: null as ExerciseFormData | null,
+                course_pk: coursePk,
             };
+        },
+        watch: {
+            'exercise.exercise_type'(newType, oldType) {
+                // When switching to SQL, ensure the db property exists.
+                if (newType === 'sql') {
+                    if (!this.exercise.exercise_data) {
+                        this.exercise.exercise_data = { question: '', db: '' };
+                    } else if (this.exercise.exercise_data.db === undefined) {
+                        this.exercise.exercise_data.db = '';
+                    }
+                }
+            }
         },
         computed: {
             pageTitle(): string {
@@ -77,6 +106,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         },
         methods: {
+            deepClone<T>(obj: T): T {
+                return JSON.parse(JSON.stringify(obj));
+            },
             addTestCase() {
                 this.exercise.answer_data.unit_tests.test_cases.push({
                     description: '',
@@ -92,6 +124,61 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             removeCorrectAnswer(index: number) {
                 this.exercise.answer_data.correct_answers.splice(index, 1);
+            },
+            async sendAssistantMessage() {
+                if (!this.draftMessage.trim() || this.sending) return;
+                this.assistantError = null;
+                this.sending = true;
+
+                const userMsg = { role: 'user' as const, content: this.draftMessage };
+                this.messages.push(userMsg);
+                this.draftMessage = '';
+
+                const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
+                if (!csrfTokenElement) {
+                    this.assistantError = 'CSRF token not found!';
+                    this.sending = false;
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/exercises/ai/authoring_assistant/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfTokenElement.value,
+                        },
+                        body: JSON.stringify({
+                            exercise: this.exercise,
+                            messages: this.messages,
+                            context: { course_pk: this.course_pk },
+                        }),
+                    });
+
+                    const result = await response.json();
+                    if (!response.ok || result.status !== 'success') {
+                        throw new Error(result.message || `Server error: ${response.status}`);
+                    }
+
+                    const assistant_message: string = result.assistant_message || '';
+                    const updated_exercise: ExerciseFormData = result.updated_exercise || this.exercise;
+
+                    this.lastAppliedSnapshot = this.deepClone(this.exercise);
+                    this.exercise = this.deepClone(updated_exercise);
+
+                    if (assistant_message) {
+                        this.messages.push({ role: 'assistant', content: assistant_message });
+                    }
+                } catch (err: any) {
+                    this.assistantError = err.message || String(err);
+                } finally {
+                    this.sending = false;
+                }
+            },
+            undoLastAIEdit() {
+                if (!this.lastAppliedSnapshot) return;
+                this.exercise = this.deepClone(this.lastAppliedSnapshot);
+                this.lastAppliedSnapshot = null;
             },
             async saveExercise() {
                 this.loading = true;

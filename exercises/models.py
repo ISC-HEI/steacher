@@ -100,35 +100,24 @@ class ExerciceAsset(models.Model):
     content = models.BinaryField(help_text="Store any file type as binary.")
     # LATER content_type = models.CharField(max_length=100, blank=True)  # MIME type
     # LATER file_size = models.PositiveIntegerField(null=True, blank=True)  # Size in bytes
-    exercise = models.ForeignKey(
-        Exercise, 
-        # TODO check later how to handle this (cascade?)
-        on_delete=models.SET_NULL, 
-        related_name='assets',
-        null=True, 
-        blank=True
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name='assets'
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     def __str__(self):
-        if self.exercise:
-            return f"{self.name} for {self.exercise.title}"
-        return f"{self.name} (standalone)"
-    
+        return f"{self.name} for course {self.course.name}"
+
     class Meta:
         ordering = ['name']
         constraints = [
             models.UniqueConstraint(
-                fields=['name', 'exercise'],
-                name='unique_name_per_exercise'
+                fields=['name', 'course'],
+                name='unique_name_per_course'
             ),
-            # TODO make unique on a Course
-            # models.UniqueConstraint(
-            #     fields=['name'],
-            #     condition=models.Q(exercise__isnull=True),
-            #     name='unique_standalone_asset_name'
-            # )
         ]
 
 

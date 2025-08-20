@@ -130,12 +130,51 @@ class ExerciseAdmin(admin.ModelAdmin):
     search_fields = ('title', 'description')
     ordering = ('course', 'order')
 
+class ExerciceAssetUploadForm(forms.ModelForm):
+    upload_file = forms.FileField(
+        label='Upload file',
+        required=False,
+        help_text='Upload a file to replace the stored content. Leave empty to keep current content.'
+    )
+
+    class Meta:
+        model = ExerciceAsset
+        fields = ('name', 'course', 'description')
+
+
 @admin.register(ExerciceAsset)
 class ExerciceAssetAdmin(admin.ModelAdmin):
-    list_display = ('name', 'exercise', 'description', 'created_at')
-    list_filter = ('exercise__course', 'exercise')
+    form = ExerciceAssetUploadForm
+    list_display = ('name', 'course', 'description', 'created_at')
+    list_filter = ('course',)
     search_fields = ('name', 'description')
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at', 'content_size')
+
+    def get_fieldsets(self, request, obj=None):
+        return (
+            (None, {
+                'fields': ('name', 'course', 'description', 'upload_file', 'content_size')
+            }),
+            ('Timestamps', {
+                'fields': ('created_at', 'updated_at'),
+                'classes': ('collapse',)
+            }),
+        )
+
+    def save_model(self, request, obj, form, change):
+        uploaded = form.cleaned_data.get('upload_file')
+        if uploaded:
+            obj.content = uploaded.read()
+        super().save_model(request, obj, form, change)
+
+    def content_size(self, obj):
+        if not obj or obj.content is None:
+            return '0 bytes'
+        try:
+            return f"{len(obj.content)} bytes"
+        except Exception:
+            return 'Unknown'
+    content_size.short_description = 'Content size'
 
 @admin.register(GuidanceLog)
 class GuidanceLogAdmin(admin.ModelAdmin):

@@ -212,3 +212,40 @@
     width: 100%;
     max-width: 100%;
 } 
+
+/* Three-panel layout for SQL exercises */
+.exercise-container-sql {
+    display: grid;
+    grid-template-columns: 250px 1fr 350px; /* Schema | Editor/Results | Chatbot */
+    gap: 1.5rem;
+    height: calc(100vh - 120px); /* Adjust height based on header/footer */
+}
+
+.schema-panel, .editor-panel, .chatbot-panel-sql {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 1rem;
+    background-color: #ffffff;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.editor-panel {
+    overflow: hidden; /* Prevent editor from overflowing */
+}
+
+.chatbot-panel-sql {
+    max-height: calc(100vh - 120px);
+}
+
+/* Ensure the chatbot panel inside the grid fills the container */
+.chatbot-panel-sql .chatbot-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+} 
+
+.schema-summary {
+    cursor: pointer;
+}

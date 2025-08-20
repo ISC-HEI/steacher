@@ -147,7 +147,7 @@ INSERT INTO students (first_name, last_name, age)
             name="students_v1.sql",
             description="Sample students table with initial data",
             content=sql_content.encode('utf-8'),
-            exercise=sql_exercise
+            course=sql_course
         )
 
         # Multiple choice exercise

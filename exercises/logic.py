@@ -2,7 +2,7 @@ import json
 import openai
 import time
 from django.conf import settings
-from .models import GuidanceLog, Exercise, Trace
+from .models import GuidanceLog, Exercise, Trace, Course
 import logging
 
 client = openai.OpenAI(api_key=settings.GEMINI_API_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
@@ -352,3 +352,145 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
     overall_duration = time.time() - overall_start_time
     logger.info(f"Total fetch_ai_guidance for exercise {exercise.id} took {overall_duration:.2f} seconds.")
     return response_data
+
+
+def generate_authoring_update(*, exercise_payload: dict, messages: list, course: Course) -> dict:
+    """
+    Stateless helper for the teacher-facing authoring assistant.
+
+    Input:
+    - exercise_payload: current exercise DTO as seen by the form (dict)
+    - messages: list of {role: 'user'|'assistant', content: str}
+    - course: Course instance (for course-level prompts if any)
+
+    Output dict:
+    - 'assistant_message': str (short assistant reply)
+    - 'updated_exercise': dict (complete DTO to apply on the form)
+    """
+
+    # 1) Build system prompt specialized for authoring
+    system_prompt = (
+        "You are an AI exercise authoring assistant. Your response MUST be a single JSON object with two keys: "
+        "'assistant_message' (a string explaining your changes) and "
+        "'updated_exercise' (the complete, modified exercise JSON object). "
+        "Do not use markdown or code fences. The exercise object MUST be the value of the 'updated_exercise' key."
+    )
+
+    # 2) Build a single, consolidated system prompt
+    system_prompt_parts = [system_prompt]
+    course_prompt = None
+    try:
+        # course.llm_prompts may or may not exist with keys per exercise type. Be defensive.
+        exercise_type = (exercise_payload or {}).get('exercise_type')
+        course_prompt = (course.llm_prompts or {}).get(exercise_type) if hasattr(course, 'llm_prompts') else None
+        if course_prompt:
+            system_prompt_parts.append(f"\n\n## Course-specific Instructions\n{str(course_prompt)}")
+    except Exception:
+        course_prompt = None
+
+    # Provide the current exercise as a separate assistant context message to avoid user truncation
+    try:
+        exercise_json_str = json.dumps(exercise_payload, ensure_ascii=False, indent=2)
+    except Exception:
+        exercise_json_str = json.dumps({"error": "failed to serialize exercise"})
+    system_prompt_parts.append(
+        f"\n\n## Current Exercise Context\n"
+        f"Here is the current state of the exercise you are helping the teacher with:\n"
+        f"```json\n{exercise_json_str}\n```"
+    )
+
+    full_system_prompt = "\n".join(system_prompt_parts)
+    messages_for_llm = [{"role": "system", "content": full_system_prompt}]
+
+
+    # Append the short-lived in-page messages (user/assistant conversation)
+    for m in messages:
+        role = m.get('role', 'user')
+        content = m.get('content', '')
+        if not isinstance(content, str):
+            content = str(content)
+        messages_for_llm.append({"role": role, "content": content})
+
+    # 3) Ask for a JSON object in the response, without a strict schema
+    try:
+        completion = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=messages_for_llm,
+            temperature=0.2,
+            response_format={"type": "json_object"},
+        )
+    except Exception as e:
+        logger.error(f"Failed to create completion for authoring assistant: {e}, messages: {messages_for_llm}")
+        # Return a response that indicates failure but doesn't crash the frontend
+        return {
+            'assistant_message': f"Error contacting AI assistant: {e}",
+            'updated_exercise': exercise_payload,
+        }
+
+    content = (completion.choices[0].message.content or '').strip()
+    # Strip accidental Markdown code fencing if any
+    if content.startswith("```"):
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.endswith("```"):
+            content = content[:-3]
+        content = content.strip()
+
+    # 4) Parse JSON response
+    def _looks_like_exercise(obj: dict) -> bool:
+        if not isinstance(obj, dict):
+            return False
+        keys = set(obj.keys())
+        if 'exercise_type' in keys and 'exercise_data' in keys:
+            return True
+        if 'title' in keys and ('answer_data' in keys or 'exercise_data' in keys):
+            return True
+        return False
+
+    parsed: dict
+    try:
+        parsed = json.loads(content)
+    except Exception:
+        parsed = {}
+
+    assistant_message = ''
+    updated_exercise = None
+
+    if isinstance(parsed, dict):
+        # Handle common deviations gracefully
+        if 'assistant_message' in parsed:
+            assistant_message = parsed.get('assistant_message') or ''
+        elif 'message' in parsed:
+            assistant_message = parsed.get('message') or ''
+
+        if 'updated_exercise' in parsed and isinstance(parsed['updated_exercise'], dict):
+            updated_exercise = parsed['updated_exercise']
+        elif 'exercise' in parsed and isinstance(parsed['exercise'], dict):
+            updated_exercise = parsed['exercise']
+        elif _looks_like_exercise(parsed):
+            # Model returned the exercise object at top-level; adopt it
+            updated_exercise = parsed
+
+    if updated_exercise is None:
+        updated_exercise = exercise_payload
+    if not assistant_message:
+        # As a last resort, show a generic note or echo raw content if short
+        assistant_message = "Proposed changes applied." if parsed else content[:300]
+
+    # Ensure updated_exercise remains a dict
+    if not isinstance(updated_exercise, dict):
+        updated_exercise = exercise_payload
+
+    # Normalize hints to be string[] for the form, as the AI might return objects
+    if 'answer_data' in updated_exercise and 'hints' in updated_exercise.get('answer_data', {}):
+        hints = updated_exercise['answer_data']['hints']
+        if isinstance(hints, list) and hints and isinstance(hints[0], dict):
+            # It's a list of objects, flatten it to a list of strings
+            updated_exercise['answer_data']['hints'] = [
+                str(h.get('hint', h)) for h in hints
+            ]
+
+    return {
+        'assistant_message': assistant_message,
+        'updated_exercise': updated_exercise,
+    }

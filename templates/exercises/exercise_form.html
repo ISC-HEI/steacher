@@ -7,13 +7,15 @@
 <div class="container mt-4" id="exercise-form-app">
     <h1 class="title is-3 mb-3">{% if exercise.pk %}Edit Exercise: {{ exercise.title }}{% else %}Create New Exercise{% endif %}</h1>
 
-    <div v-if="loading" class="notification is-info">Saving...</div>
-    <div v-if="error" class="notification is-danger">[[ error ]]</div>
-    
-    <form @submit.prevent="saveExercise">
-        {% csrf_token %}
+    <div class="columns">
+        <div class="column is-two-thirds">
+            <div v-if="loading" class="notification is-info">Saving...</div>
+            <div v-if="error" class="notification is-danger">[[ error ]]</div>
+            
+            <form @submit.prevent="saveExercise">
+                {% csrf_token %}
 
-        <div class="field is-horizontal">
+                <div class="field is-horizontal">
             <div class="field-label is-normal">
                 <label for="title" class="label">Title</label>
             </div>
@@ -24,9 +26,9 @@
                     </div>
                 </div>
             </div>
-        </div>
+                </div>
 
-        <div class="field is-horizontal">
+                <div class="field is-horizontal">
             <div class="field-label is-normal">
                 <label class="label" for="id_exercise_type">Exercise Type</label>
             </div>
@@ -44,9 +46,9 @@
                     </div>
                 </div>
             </div>
-        </div>
+                </div>
 
-        <div class="field is-horizontal">
+                <div class="field is-horizontal">
             <div class="field-label is-normal">
                 <label for="order" class="label">Order</label>
             </div>
@@ -57,9 +59,9 @@
                     </div>
                 </div>
             </div>
-        </div>
+                </div>
 
-        <div class="field is-horizontal">
+                <div class="field is-horizontal">
             <div class="field-label is-normal">
                 <label for="description" class="label">Description</label>
             </div>
@@ -70,12 +72,12 @@
                     </div>
                 </div>
             </div>
-        </div>
+                </div>
 
-        <hr>
-        <h3 class="mb-3 title is-4">Exercise Details</h3>
+                <hr>
+                <h3 class="mb-3 title is-4">Exercise Details</h3>
 
-        <div class="field is-horizontal">
+                <div class="field is-horizontal">
             <div class="field-label is-normal">
                 <label for="question" class="label">Question (Markdown supported)</label>
             </div>
@@ -86,12 +88,31 @@
                     </div>
                 </div>
             </div>
-        </div>
-        
-        <hr>
-        <h3 class="mb-3 title is-4">Answer Details</h3>
+                </div>
 
-        <div class="field is-horizontal">
+                <div class="field is-horizontal" v-if="exercise.exercise_type === 'sql'">
+            <div class="field-label is-normal">
+                <label for="db" class="label">Database File</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select id="db" v-model="exercise.exercise_data.db">
+                                <option disabled value="">Select a database asset</option>
+                                <option v-for="asset in available_sql_assets" :key="asset" :value="asset">[[ asset ]]</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="help" v-if="available_sql_assets.length === 0">No .sql assets are available for this course. Upload an asset first.</p>
+                </div>
+            </div>
+                </div>
+        
+                <hr>
+                <h3 class="mb-3 title is-4">Answer Details</h3>
+
+                <div class="field is-horizontal">
             <div class="field-label is-normal">
                 <label for="expected_result" class="label">Expected Result</label>
             </div>
@@ -102,9 +123,9 @@
                     </div>
                 </div>
             </div>
-        </div>
+                </div>
 
-        <div class="field is-horizontal">
+                <div class="field is-horizontal">
             <div class="field-label is-normal">
                 <label for="hints" class="label">Hints (one per line)</label>
             </div>
@@ -115,9 +136,9 @@
                     </div>
                 </div>
             </div>
-        </div>
+                </div>
 
-        <div class="field is-horizontal">
+                <div class="field is-horizontal">
             <div class="field-label is-normal">
                 <label for="additional_context" class="label">Additional Context</label>
             </div>
@@ -128,10 +149,10 @@
                     </div>
                 </div>
             </div>
-        </div>
+                </div>
         
-        <h4 class="title is-5 mt-4">Correct Answers</h4>
-        <div class="mb-4" v-for="(answer, index) in exercise.answer_data.correct_answers" :key="index">
+                <h4 class="title is-5 mt-4">Correct Answers</h4>
+                <div class="mb-4" v-for="(answer, index) in exercise.answer_data.correct_answers" :key="index">
             <div class="box">
                 <div class="field is-horizontal">
                     <div class="field-label is-normal">
@@ -159,13 +180,13 @@
                 </div>
                 <button type="button" @click="removeCorrectAnswer(index)" class="button is-danger is-small">Remove</button>
             </div>
-        </div>
-        <button type="button" @click="addCorrectAnswer" class="button is-link mb-4">Add Correct Answer</button>
+                </div>
+                <button type="button" @click="addCorrectAnswer" class="button is-link mb-4">Add Correct Answer</button>
 
-        <hr>
-        <h3 class="mb-3 title is-4">Unit Tests</h3>
+                <hr>
+                <h3 class="mb-3 title is-4">Unit Tests</h3>
 
-        <div class="field is-horizontal">
+                <div class="field is-horizontal">
             <div class="field-label is-normal">
                 <label for="setup-code" class="label">Setup Code</label>
             </div>
@@ -176,9 +197,9 @@
                     </div>
                 </div>
             </div>
-        </div>
+                </div>
         
-        <div class="field is-horizontal">
+                <div class="field is-horizontal">
             <div class="field-label is-normal">
                 <label for="timeout" class="label">Timeout (seconds)</label>
             </div>
@@ -189,9 +210,9 @@
                     </div>
                 </div>
             </div>
-        </div>
+                </div>
 
-        <div class="mb-4" v-for="(testCase, index) in exercise.answer_data.unit_tests.test_cases" :key="index">
+                <div class="mb-4" v-for="(testCase, index) in exercise.answer_data.unit_tests.test_cases" :key="index">
             <div class="box">
                 <h4 class="title is-5">Test Case [[ index + 1 ]]</h4>
                 <div class="field is-horizontal">
@@ -232,20 +253,46 @@
                 </div>
                 <button type="button" @click="removeTestCase(index)" class="button is-danger is-small">Remove Test Case</button>
             </div>
+                </div>
+
+                <button type="button" @click="addTestCase" class="button is-link mb-4">Add Test Case</button>
+
+                <hr>
+                <div class="field is-grouped">
+                    <div class="control">
+                        <button type="submit" class="button is-primary">Save Exercise</button>
+                    </div>
+                    <div class="control">
+                        <a href="{% url 'exercises:course_detail' pk=course.pk %}" class="button is-light">Cancel</a>
+                    </div>
+                </div>
+            </form>
         </div>
 
-        <button type="button" @click="addTestCase" class="button is-link mb-4">Add Test Case</button>
-
-        <hr>
-        <div class="field is-grouped">
-            <div class="control">
-                <button type="submit" class="button is-primary">Save Exercise</button>
-            </div>
-            <div class="control">
-                <a href="{% url 'exercises:course_detail' pk=course.pk %}" class="button is-light">Cancel</a>
+        <div class="column is-one-third">
+            <div class="box" style="height: calc(100vh - 180px); display: flex; flex-direction: column;">
+                <h3 class="title is-5">AI Exercise Assistant</h3>
+                <div style="flex: 1; overflow: auto; border: 1px solid #eee; padding: 0.75rem; margin-bottom: 0.75rem;">
+                    <div v-if="assistantError" class="notification is-danger is-light">[[ assistantError ]]</div>
+                    <div v-if="messages.length === 0" class="has-text-grey">Start by describing what you want to change or paste content to improve…</div>
+                    <div v-for="(m, i) in messages" :key="i" style="margin-bottom: 0.75rem;">
+                        <p><strong>[[ m.role === 'user' ? 'You' : 'Assistant' ]]</strong></p>
+                        <div class="content" style="white-space: pre-wrap;">[[ m.content ]]</div>
+                        <hr v-if="i < messages.length - 1" style="margin: 0.5rem 0;">
+                    </div>
+                </div>
+                <div class="field" style="margin-bottom: 0.5rem;">
+                    <div class="control">
+                        <textarea class="textarea" v-model="draftMessage" @keydown.meta.enter.prevent="sendAssistantMessage" placeholder="Ask for improvements, provide constraints, paste draft content…" rows="4"></textarea>
+                    </div>
+                </div>
+                <div class="buttons">
+                    <button class="button is-link" :class="{ 'is-loading': sending }" :disabled="sending || !draftMessage.trim()" @click="sendAssistantMessage">Send</button>
+                    <button class="button" :disabled="!lastAppliedSnapshot" @click="undoLastAIEdit">Undo last AI edit</button>
+                </div>
             </div>
         </div>
-    </form>
+    </div>
 </div>
 
 {{ exercise_json|json_script:"exercise-form-data" }}
