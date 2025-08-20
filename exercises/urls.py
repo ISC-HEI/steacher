@@ -16,4 +16,7 @@ urlpatterns = [
     path('<int:exercise_id>/<str:filename>', views.serve_asset, name='serve_asset'),
     path('<int:exercise_id>/delete_answers/', views.delete_user_answers, name='delete_user_answers'),
 
+    # Teacher URLs for exercise management
+    path('courses/<int:course_pk>/add_exercise/', views.exercise_form, name='exercise_add'),
+    path('courses/<int:course_pk>/edit_exercise/<int:exercise_pk>/', views.exercise_form, name='exercise_edit'),
 ] 

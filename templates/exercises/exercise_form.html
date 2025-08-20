@@ -1,0 +1,161 @@
+{% extends "exercises/base.html" %}
+{% load static %}
+
+{% block title %}{% if exercise.pk %}Edit Exercise{% else %}Create Exercise{% endif %}{% endblock %}
+
+{% block content %}
+<div class="container mt-4" id="exercise-form-app">
+    <h1 class="title is-3 mb-3">{% if exercise.pk %}Edit Exercise: {{ exercise.title }}{% else %}Create New Exercise{% endif %}</h1>
+
+    <div v-if="loading" class="notification is-info">Saving...</div>
+    <div v-if="error" class="notification is-danger">[[ error ]]</div>
+    
+    <form @submit.prevent="saveExercise">
+        {% csrf_token %}
+
+        <div class="field">
+            <label for="title" class="label">Title</label>
+            <div class="control">
+                <input type="text" id="title" class="input" v-model="exercise.title" required>
+            </div>
+        </div>
+
+        <div class="field">
+            <label for="order" class="label">Order</label>
+            <div class="control">
+                <input type="number" id="order" class="input" v-model.number="exercise.order" required>
+            </div>
+        </div>
+
+        <div class="field">
+            <label for="description" class="label">Description</label>
+            <div class="control">
+                <textarea id="description" class="textarea" v-model="exercise.description"></textarea>
+            </div>
+        </div>
+
+        <hr>
+        <h3 class="mb-3 title is-4">Python Exercise Details</h3>
+
+        <div class="field">
+            <label for="question" class="label">Question (Markdown supported)</label>
+            <div class="control">
+                <textarea id="question" class="textarea" v-model="exercise.exercise_data.question" rows="10"></textarea>
+            </div>
+        </div>
+        
+        <hr>
+        <h3 class="mb-3 title is-4">Answer Details</h3>
+
+        <div class="field">
+            <label for="expected_result" class="label">Expected Result</label>
+            <div class="control">
+                <input type="text" id="expected_result" class="input" v-model="exercise.answer_data.expected_result">
+            </div>
+        </div>
+
+        <div class="field">
+            <label for="hints" class="label">Hints (one per line)</label>
+            <div class="control">
+                <textarea id="hints" class="textarea" v-model="exercise.answer_data.hints_text" rows="3"></textarea>
+            </div>
+        </div>
+
+        <div class="field">
+            <label for="additional_context" class="label">Additional Context</label>
+            <div class="control">
+                <textarea id="additional_context" class="textarea" v-model="exercise.answer_data.additional_context" rows="3"></textarea>
+            </div>
+        </div>
+        
+        <h4 class="title is-5 mt-4">Correct Answers</h4>
+        <div class="mb-4" v-for="(answer, index) in exercise.answer_data.correct_answers" :key="index">
+            <div class="box">
+                <div class="field">
+                    <label :for="'answer-' + index" class="label">Answer</label>
+                    <div class="control">
+                        <textarea :id="'answer-' + index" class="textarea" v-model="answer.answer" rows="10"></textarea>
+                    </div>
+                </div>
+                <div class="field">
+                    <label :for="'explanation-' + index" class="label">Explanation</label>
+                    <div class="control">
+                        <textarea :id="'explanation-' + index" class="textarea" v-model="answer.explanation" rows="2"></textarea>
+                    </div>
+                </div>
+                <button type="button" @click="removeCorrectAnswer(index)" class="button is-danger is-small">Remove</button>
+            </div>
+        </div>
+        <button type="button" @click="addCorrectAnswer" class="button is-link mb-4">Add Correct Answer</button>
+
+        <hr>
+        <h3 class="mb-3 title is-4">Unit Tests</h3>
+
+        <div class="field">
+            <label for="setup-code" class="label">Setup Code</label>
+            <div class="control">
+                <textarea id="setup-code" class="textarea" v-model="exercise.answer_data.unit_tests.setup_code" rows="5"></textarea>
+            </div>
+        </div>
+        
+        <div class="field">
+            <label for="timeout" class="label">Timeout (seconds)</label>
+            <div class="control">
+                <input type="number" id="timeout" class="input" v-model.number="exercise.answer_data.unit_tests.timeout_seconds">
+            </div>
+        </div>
+
+        <div class="mb-4" v-for="(testCase, index) in exercise.answer_data.unit_tests.test_cases" :key="index">
+            <div class="box">
+                <h4 class="title is-5">Test Case [[ index + 1 ]]</h4>
+                <div class="field">
+                    <label :for="'desc-' + index" class="label">Description</label>
+                    <div class="control">
+                        <input :id="'desc-' + index" type="text" class="input" v-model="testCase.description">
+                    </div>
+                </div>
+                <div class="field">
+                    <label :for="'code-' + index" class="label">Test Code</label>
+                    <div class="control">
+                        <textarea :id="'code-' + index" class="textarea" v-model="testCase.test_code" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="field">
+                    <label :for="'output-' + index" class="label">Expected Output</label>
+                    <div class="control">
+                        <textarea :id="'output-' + index" class="textarea" v-model="testCase.expected_output" rows="1"></textarea>
+                    </div>
+                </div>
+                <button type="button" @click="removeTestCase(index)" class="button is-danger is-small">Remove Test Case</button>
+            </div>
+        </div>
+
+        <button type="button" @click="addTestCase" class="button is-link mb-4">Add Test Case</button>
+
+        <hr>
+        <div class="field is-grouped">
+            <div class="control">
+                <button type="submit" class="button is-primary">Save Exercise</button>
+            </div>
+            <div class="control">
+                <a href="{% url 'exercises:course_detail' pk=course.pk %}" class="button is-light">Cancel</a>
+            </div>
+        </div>
+    </form>
+</div>
+
+{{ exercise_json|json_script:"exercise-form-data" }}
+{% endblock %}
+
+{% block scripts %}
+<!-- Import Map for Bare Module Specifiers -->
+<script type="importmap">
+{
+  "imports": {
+    "vue": "{% static 'vue/dist/vue.esm-browser.js' %}"
+  }
+}
+</script>
+
+<script type="module" src="{% static 'js/dist/exercise_form.js' %}"></script>
+{% endblock %}

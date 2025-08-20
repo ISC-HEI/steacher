@@ -24,7 +24,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('django.contrib.auth.urls')),
     path('exercises/', include('exercises.urls', namespace='exercises')),
-    path('', lambda request: redirect('exercises:exercise_list')),  # Redirect root to exercises
+    path('', lambda request: redirect('exercises:course_list')),  # Redirect root to course list
 ]
 
 # Serve static files during development FIXME make serving static files work in production

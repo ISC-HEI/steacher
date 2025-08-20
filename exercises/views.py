@@ -9,6 +9,8 @@ from openai import OpenAI
 from .logic import fetch_ai_guidance
 from .models import Exercise, ExerciceAsset, Course, GuidanceLog, Trace
 from .serializers import ExerciseSerializer, ExerciseFrontendSerializer
+from .decorators import teacher_required
+from .unit_testing import run_unit_tests
 
 
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -111,3 +113,83 @@ def delete_user_answers(request, exercise_id):
     exercise = get_object_or_404(Exercise, pk=exercise_id)
     Trace.objects.filter(user=request.user, exercise=exercise).delete()
     return redirect('exercises:exercise_detail', pk=exercise_id)
+
+
+@login_required
+@teacher_required
+def exercise_form(request, course_pk, exercise_pk=None):
+    course = get_object_or_404(Course, pk=course_pk)
+    
+    if exercise_pk:
+        exercise = get_object_or_404(Exercise, pk=exercise_pk, course=course)
+    else:
+        # Provide a default structure for a new Python exercise
+        exercise = Exercise(
+            course=course,
+            exercise_type='python',
+            exercise_data={
+                "question": "## New Python Exercise\n\nWrite your question here using Markdown.",
+            },
+            answer_data={
+                "unit_tests": {
+                    "setup_code": "# Setup code (e.g., imports) runs before student's code.",
+                    "test_cases": [],
+                    "timeout_seconds": 5
+                }
+            }
+        )
+
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            exercise.title = data.get('title', 'New Exercise')
+            exercise.order = data.get('order', 1)
+            exercise.description = data.get('description', '')
+            exercise.exercise_data = data.get('exercise_data', {})
+            
+            answer_data = data.get('answer_data', {})
+            if not answer_data:
+                 answer_data = {
+                    "unit_tests": {
+                        "setup_code": "# Setup code (e.g., imports) runs before student's code.",
+                        "test_cases": [],
+                        "timeout_seconds": 5
+                    }
+                }
+            exercise.answer_data = answer_data
+
+            # Validate correct answers against unit tests
+            if exercise.exercise_type == 'python' and 'unit_tests' in answer_data:
+                unit_tests = answer_data.get('unit_tests', {})
+                correct_answers = answer_data.get('correct_answers', [])
+                for i, correct_answer in enumerate(correct_answers):
+                    code_to_test = correct_answer.get('answer', '')
+                    test_results = run_unit_tests(code_to_test, unit_tests)
+                    if not test_results.get('all_passed'):
+                        failed_tests = [res for res in test_results['test_results'] if not res['passed']]
+                        error_message = f"Correct Answer #{i+1} failed {len(failed_tests)} unit test(s). Please fix the answer or the tests."
+                        return JsonResponse({'status': 'error', 'message': error_message, 'details': failed_tests}, status=400)
+
+            exercise.save()
+            return JsonResponse({'status': 'success', 'exercise_pk': exercise.pk})
+        except json.JSONDecodeError:
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+    # Serialize the exercise data to pass to the Vue app
+    exercise_json = {
+        "pk": exercise.pk,
+        "title": exercise.title,
+        "order": exercise.order,
+        "description": exercise.description,
+        "exercise_type": exercise.exercise_type,
+        "exercise_data": exercise.exercise_data,
+        "answer_data": exercise.answer_data
+    }
+
+    return render(request, 'exercises/exercise_form.html', {
+        'course': course,
+        'exercise': exercise,
+        'exercise_json': exercise_json
+    })

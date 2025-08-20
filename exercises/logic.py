@@ -1,5 +1,6 @@
 import json
 import openai
+import time
 from django.conf import settings
 from .models import GuidanceLog, Exercise, Trace
 import logging
@@ -90,6 +91,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
     """
 
     logger.info(f"fetch_ai_guidance: {exercise.id}, trace: {trace.id}, debug: {debug}")
+    overall_start_time = time.time()
 
     # 1. Construct the user's message for the LLM from the incoming data
     # FIXME: this is a mess, refactor it
@@ -131,6 +133,27 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
     # add code, error message, output
     if 'code' in data:
         user_prompt_content = f"## Student code:\n```python\n{data.get('code', '')}\n```\n"
+
+        # NEW: Run unit tests if available
+        if exercise.exercise_type == 'python':
+            unit_tests = exercise.answer_data.get('unit_tests', {})
+            if unit_tests and unit_tests.get('test_cases'):
+                from exercises.unit_testing import run_unit_tests, format_test_results_for_ai
+                
+                test_start_time = time.time()
+                test_results = run_unit_tests(data.get('code', ''), unit_tests)
+                test_duration = time.time() - test_start_time
+                logger.info(f"Unit testing for exercise {exercise.id} took {test_duration:.2f} seconds.")
+                
+                # Add test results to the prompt for the AI
+                user_prompt_content += f"\n## Unit Test Results:\n"
+                user_prompt_content += format_test_results_for_ai(test_results)
+                
+                # Store test results in data for later saving to GuidanceLog
+                data['test_results'] = test_results
+            else:
+                logger.warning(f"No unit tests defined for Python exercise {exercise.id}")
+
     if 'error_message' in data:
         user_prompt_content += f"Error:\n```\n{data.get('error_message')}\n```"
     if 'output' in data and data.get('output'):
@@ -237,6 +260,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
     
 
     # 7. Call the OpenAI API using JSON object response format
+    llm_start_time = time.time()
     llm_response = client.chat.completions.create(
         model=MODEL_NAME,
         messages=messages,
@@ -244,11 +268,14 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
         response_format={"type": "json_object"} if not debug else None,
         #max_tokens=500
     )
+    llm_duration = time.time() - llm_start_time
+    logger.info(f"LLM call for exercise {exercise.id} took {llm_duration:.2f} seconds.")
     logger.info(f"LLM response: model={llm_response.model}, usage={llm_response.usage}, choices={llm_response.choices}")    
 
     if debug:
         # parse the response as a JSON object, to obtain the answer and the *ambiguity*
-        assistant_content_raw = llm_response.choices[0].message.content.strip()
+        assistant_content_raw = llm_response.choices[0].message.content or ""
+        assistant_content_raw = assistant_content_raw.strip()
         if assistant_content_raw.startswith("```json"):
             assistant_content_raw = assistant_content_raw[7:].strip()
             if assistant_content_raw.endswith("```"):
@@ -265,7 +292,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
             ambiguity = [f"Failed to parse JSON: {str(e)}"]
     else:        
         # just return the text of the response
-        answer = llm_response.choices[0].message.content.strip()
+        answer = (llm_response.choices[0].message.content or "").strip()
 
     # 7. Create the log entry
     interaction_log = {
@@ -308,4 +335,6 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
     if cbm_result:
         response_data['cbm_result'] = cbm_result
         
+    overall_duration = time.time() - overall_start_time
+    logger.info(f"Total fetch_ai_guidance for exercise {exercise.id} took {overall_duration:.2f} seconds.")
     return response_data

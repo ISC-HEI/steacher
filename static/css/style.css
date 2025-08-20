@@ -87,6 +87,10 @@
     background-color: rgba(255, 255, 255, 0.2);
 }
 
+.notification.is-danger {
+    white-space: pre-wrap;
+}
+
 
 /* Custom styles for the SQL exercise interface */
 .exercise-controls .button:disabled {

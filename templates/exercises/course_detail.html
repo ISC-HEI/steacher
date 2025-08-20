@@ -4,21 +4,46 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h1 class="mb-3">{{ course.name }}</h1>
+    <h1 class="mb-3 title is-2">{{ course.name }}</h1>
     <p class="lead">{{ course.description }}</p>
 
     <hr class="my-4">
 
-    <h3 class="mb-3">Exercises</h3>
+    <div class="level">
+        <div class="level-left">
+            <h3 class="mb-3 subtitle is-3">Exercises:</h3>
+        </div>
+        <div class="level-right">
+            {% if user.is_staff %}
+                <a href="{% url 'exercises:exercise_add' course_pk=course.pk %}" class="button is-primary">Add New Exercise</a>
+            {% endif %}
+        </div>
+    </div>
+    
     <div class="list-group">
         {% for exercise in exercises %}
-            <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" class="list-group-item list-group-item-action">
-                <div class="d-flex w-100 justify-content-between">
-                    <h5 class="mb-1">{{ exercise.order }}. {{ exercise.title }}</h5>
-                    <small class="text-muted">{{ exercise.exercise_type }}</small>
+            <div class="list-group-item">
+                <div class="level">
+                    <div class="level-left">
+                        
+                            <div>
+                                <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" class="is-flex">
+                                    <h5 class="mb-1">{{ exercise.order }}. {{ exercise.title }}</h5>
+                                </a>
+                                <p class="mb-1">{{ exercise.description|truncatewords:20 }}</p>
+                            </div>
+                        
+                    </div>
+                    <div class="level-right">
+                        <div class="buttons">
+                            <small class="text-muted mr-3">{{ exercise.exercise_type }}</small>
+                            {% if user.is_staff %}
+                                <a href="{% url 'exercises:exercise_edit' course_pk=course.pk exercise_pk=exercise.pk %}" class="button is-small is-link">Edit</a>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
-                <p class="mb-1">{{ exercise.description|truncatewords:20 }}</p>
-            </a>
+            </div>
         {% empty %}
             <p>This course does not have any exercises yet.</p>
         {% endfor %}
