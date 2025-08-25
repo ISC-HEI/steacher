@@ -7,7 +7,7 @@
 <nav class="breadcrumb" aria-label="breadcrumbs">
     <ul>
         <li><a href="{% url 'exercises:course_list' %}">Home</a></li>
-        <li><a href="{% url 'exercises:course_detail' pk=exercise.course.pk %}">{{ exercise.course.name }}</a></li>
+        <li><a href="{% url 'exercises:course_detail' pk=exercise.module.course.pk %}">{{ exercise.module.course.name }}</a></li>
         <li class="is-active"><a href="#" aria-current="page">{{ exercise.title }}</a></li>
     </ul>
 </nav>

@@ -3,11 +3,12 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST
+from django.db import transaction, models
 import json
 from openai import OpenAI
 
 from .logic import fetch_ai_guidance, generate_authoring_update
-from .models import Exercise, ExerciceAsset, Course, GuidanceLog, Trace
+from .models import Exercise, ExerciceAsset, Course, GuidanceLog, Trace, Module
 from .serializers import ExerciseSerializer, ExerciseFrontendSerializer
 from .decorators import teacher_required
 from .unit_testing import run_unit_tests
@@ -26,11 +27,9 @@ def course_list(request):
 @login_required
 def course_detail(request, pk):
     """Display individual course and its exercises"""
-    course = get_object_or_404(Course, pk=pk)
-    exercises = course.exercises.all()
+    course = get_object_or_404(Course.objects.prefetch_related('modules__exercises'), pk=pk)
     return render(request, 'exercises/course_detail.html', {
         'course': course,
-        'exercises': exercises
     })
 
 @login_required
@@ -74,7 +73,7 @@ def exercise_detail(request, pk):
 def serve_asset(request, exercise_id, filename):
     """Serve asset files for exercises."""
     exercise = get_object_or_404(Exercise, pk=exercise_id)
-    asset = get_object_or_404(ExerciceAsset, course=exercise.course, name=filename)
+    asset = get_object_or_404(ExerciceAsset, course=exercise.module.course, name=filename)
     content = bytes(asset.content).decode('utf-8')
     response = HttpResponse(content, content_type='text/plain')
     response['Content-Disposition'] = f'inline; filename="{filename}"'
@@ -121,11 +120,20 @@ def exercise_form(request, course_pk, exercise_pk=None):
     course = get_object_or_404(Course, pk=course_pk)
     
     if exercise_pk:
-        exercise = get_object_or_404(Exercise, pk=exercise_pk, course=course)
+        exercise = get_object_or_404(Exercise, pk=exercise_pk, module__course=course)
     else:
         # Provide a default structure for a new exercise
+        # For now, assign it to the first module of the course.
+        # This could be improved with a module selector in the UI.
+        first_module = course.modules.first()
+        if not first_module:
+            # Handle case where a course has no modules yet
+            # You might want to create a default module or redirect with an error.
+            # For now, we'll just prevent creation.
+            return HttpResponse("Cannot add exercise: This course has no modules.", status=400)
+
         exercise = Exercise(
-            course=course,
+            module=first_module,
             exercise_type='python',
             exercise_data={
                 "question": "",
@@ -143,10 +151,18 @@ def exercise_form(request, course_pk, exercise_pk=None):
         try:
             data = json.loads(request.body)
             exercise.title = data.get('title', 'New Exercise')
-            exercise.order = data.get('order', 1)
+            
+            if not exercise.pk:  # This is a new exercise
+                max_order = exercise.module.exercises.aggregate(models.Max('order'))['order__max'] or 0
+                exercise.order = max_order + 1
+            else:
+                exercise.order = data.get('order', exercise.order) # Keep existing order on edit
+
             exercise.description = data.get('description', '')
             exercise.exercise_type = data.get('exercise_type', 'python')
             exercise.exercise_data = data.get('exercise_data', {})
+            
+            # TODO: Add logic to change module if needed from the form data
             
             answer_data = data.get('answer_data', {})
             if not answer_data:
@@ -247,5 +263,81 @@ def exercise_authoring_assistant(request):
     try:
         result = generate_authoring_update(exercise_payload=exercise_payload, messages=messages, course=course)
         return JsonResponse({'status': 'success', **result})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
+@teacher_required
+@require_POST
+@transaction.atomic
+def reorder_modules(request):
+    try:
+        data = json.loads(request.body)
+        module_ids = [int(mid) for mid in data.get('module_ids', [])]
+        if not module_ids:
+            return JsonResponse({'status': 'error', 'message': 'No module_ids provided'}, status=400)
+
+        # Determine the course these modules belong to.
+        # We must clear the default model ordering with .order_by() before calling .distinct()
+        # to prevent the ordering fields from making each row unique.
+        course_ids = list(Module.objects.filter(id__in=module_ids).order_by().values_list('course_id', flat=True).distinct())
+        if len(course_ids) != 1:
+            return JsonResponse({'status': 'error', 'message': f"Modules must belong to a single course. Found: {course_ids}"}, status=400)
+        course_id = course_ids[0]
+
+        # Reorder ALL modules in the course to avoid conflicts with untouched rows.
+        all_ids_in_course = list(Module.objects.filter(course_id=course_id).order_by('order').values_list('id', flat=True))
+        # Keep incoming order for provided ids, append any missing ids preserving relative order.
+        ordered_ids = module_ids + [mid for mid in all_ids_in_course if mid not in module_ids]
+
+        # Two-phase update to avoid unique (course, order) clashes mid-update.
+        # Phase 1: move to a high, disjoint range
+        big_offset = 1000000
+        temp_when = [models.When(id=mid, then=big_offset + idx) for idx, mid in enumerate(ordered_ids)]
+        Module.objects.filter(id__in=ordered_ids).update(order=models.Case(*temp_when))
+        # Phase 2: set to final contiguous order starting at 0
+        final_when = [models.When(id=mid, then=idx) for idx, mid in enumerate(ordered_ids)]
+        Module.objects.filter(id__in=ordered_ids).update(order=models.Case(*final_when))
+
+        return JsonResponse({'status': 'success'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
+@teacher_required
+@require_POST
+@transaction.atomic
+def reorder_exercises(request):
+    try:
+        data = json.loads(request.body)
+        exercise_ids = [int(eid) for eid in data.get('exercise_ids', [])]
+        if not exercise_ids:
+            return JsonResponse({'status': 'error', 'message': 'No exercise_ids provided'}, status=400)
+
+        # Determine the module these exercises belong to.
+        # We must clear the default model ordering with .order_by() before calling .distinct()
+        # to prevent the ordering fields from making each row unique.
+        module_ids = list(Exercise.objects.filter(id__in=exercise_ids).order_by().values_list('module_id', flat=True).distinct())
+        if len(module_ids) != 1:
+            return JsonResponse({'status': 'error', 'message': f"Exercises must belong to a single module. Found: {module_ids}"}, status=400)
+        module_id = module_ids[0]
+
+        # Reorder ALL exercises in the module to avoid conflicts with untouched rows.
+        all_ids_in_module = list(Exercise.objects.filter(module_id=module_id).order_by('order').values_list('id', flat=True))
+        # Keep incoming order for provided ids, append any missing ids preserving relative order.
+        ordered_ids = exercise_ids + [eid for eid in all_ids_in_module if eid not in exercise_ids]
+
+        # Two-phase update to avoid unique (module, order) clashes mid-update.
+        # Phase 1: move to a high, disjoint range
+        big_offset = 1000000
+        temp_when = [models.When(id=eid, then=big_offset + idx) for idx, eid in enumerate(ordered_ids)]
+        Exercise.objects.filter(id__in=ordered_ids).update(order=models.Case(*temp_when))
+        # Phase 2: set to final contiguous order starting at 0
+        final_when = [models.When(id=eid, then=idx) for idx, eid in enumerate(ordered_ids)]
+        Exercise.objects.filter(id__in=ordered_ids).update(order=models.Case(*final_when))
+
+        return JsonResponse({'status': 'success'})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)

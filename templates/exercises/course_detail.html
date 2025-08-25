@@ -11,42 +11,153 @@
 
     <div class="level">
         <div class="level-left">
-            <h3 class="mb-3 subtitle is-3">Exercises:</h3>
+            <h3 class="mb-3 subtitle is-3">Modules:</h3>
         </div>
         <div class="level-right">
             {% if user.is_staff %}
-                <a href="{% url 'exercises:exercise_add' course_pk=course.pk %}" class="button is-primary">Add New Exercise</a>
+                <a href="{% url 'admin:exercises_module_add' %}?course={{ course.pk }}" class="button is-primary">Add New Module</a>
             {% endif %}
         </div>
     </div>
-    
-    <div class="list-group">
-        {% for exercise in exercises %}
-            <div class="list-group-item">
-                <div class="level">
-                    <div class="level-left">
-                        
-                            <div>
-                                <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" class="is-flex">
-                                    <h5 class="mb-1">{{ exercise.order }}. {{ exercise.title }}</h5>
-                                </a>
-                                <p class="mb-1">{{ exercise.description|truncatewords:20 }}</p>
+
+    <div id="modules-list" class="sortable-list" data-course-id="{{ course.pk }}">
+        {% for module in course.modules.all %}
+        <div class="card mb-3 sortable-item" data-id="{{ module.pk }}">
+            <header class="card-header">
+                <p class="card-header-title">
+                    <span class="handle mr-2"><i class="fas fa-grip-vertical"></i></span>
+                    {{ module.name }}
+                </p>
+                <button class="card-header-icon" aria-label="more options" data-action="toggle-module">
+                    <span class="icon">
+                        <i class="fas fa-angle-down" aria-hidden="true"></i>
+                    </span>
+                </button>
+            </header>
+            <div class="card-content is-hidden">
+                <div class="content">
+                    <div class="exercise-list sortable-list" data-module-id="{{ module.pk }}">
+                        {% for exercise in module.exercises.all %}
+                        <div class="list-group-item sortable-item" data-id="{{ exercise.pk }}">
+                            <div class="level">
+                                <div class="level-left">
+                                    <div class="exercise-info">
+                                        <div class="exercise-title-line">
+                                            <span class="handle mr-1"><i class="fas fa-grip-vertical"></i></span>
+                                            <span class="order-number mr-1">{{ exercise.order }}.</span>
+                                            <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" class="mr-2">view</a>
+                                            {% if user.is_staff %}
+                                                <a href="{% url 'exercises:exercise_edit' course_pk=course.pk exercise_pk=exercise.pk %}" class="mr-2">edit</a>
+                                            {% endif %}
+                                            <span class="exercise-title">{{ exercise.title }}</span>
+                                            <span class="tag is-light ml-2">{{ exercise.exercise_type }}</span>
+                                        </div>
+                                        <div class="exercise-description ml-6">
+                                            {{ exercise.description|truncatewords:20 }}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        
-                    </div>
-                    <div class="level-right">
-                        <div class="buttons">
-                            <small class="text-muted mr-3">{{ exercise.exercise_type }}</small>
-                            {% if user.is_staff %}
-                                <a href="{% url 'exercises:exercise_edit' course_pk=course.pk exercise_pk=exercise.pk %}" class="button is-small is-link">Edit</a>
-                            {% endif %}
                         </div>
+                        {% empty %}
+                        <p>This module does not have any exercises yet.</p>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
+        </div>
         {% empty %}
-            <p>This course does not have any exercises yet.</p>
+            <p>This course does not have any modules yet.</p>
         {% endfor %}
     </div>
 </div>
+
+<style>
+.handle {
+    cursor: grab;
+}
+.sortable-ghost {
+    background: #f0f0f0;
+    opacity: 0.7;
+}
+.exercise-description {
+    margin-left: 60px; /* Align with title text */
+}
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    // --- Toggle Module Visibility ---
+    const modulesList = document.getElementById('modules-list');
+    modulesList.addEventListener('click', (event) => {
+        const toggleButton = event.target.closest('[data-action="toggle-module"]');
+        if (toggleButton) {
+            const card = toggleButton.closest('.card');
+            const content = card.querySelector('.card-content');
+            const icon = toggleButton.querySelector('i');
+
+            content.classList.toggle('is-hidden');
+            icon.classList.toggle('fa-angle-down');
+            icon.classList.toggle('fa-angle-up');
+        }
+    });
+
+    // --- Reordering Logic ---
+    const csrftoken = '{{ csrf_token }}';
+
+    // Helper function to send reorder requests
+    function sendReorderRequest(url, body) {
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify(body)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status !== 'success') {
+                console.error('Reorder failed:', data.message);
+                // Optionally, revert the changes in the UI
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+
+    // Initialize Sortable for modules
+    const modulesSortable = new Sortable(modulesList, {
+        animation: 150,
+        handle: '.handle',
+        ghostClass: 'sortable-ghost',
+        onEnd: function (evt) {
+            const moduleIds = Array.from(modulesList.querySelectorAll('.sortable-item')).map(el => el.dataset.id);
+            sendReorderRequest('{% url "exercises:reorder_modules" %}', { module_ids: moduleIds });
+        }
+    });
+
+    // Initialize Sortable for exercises in each module
+    document.querySelectorAll('.exercise-list').forEach(exerciseList => {
+        new Sortable(exerciseList, {
+            animation: 150,
+            handle: '.handle',
+            ghostClass: 'sortable-ghost',
+            onEnd: function (evt) {
+                const exerciseIds = Array.from(exerciseList.querySelectorAll('.sortable-item')).map(el => el.dataset.id);
+                sendReorderRequest('{% url "exercises:reorder_exercises" %}', { exercise_ids: exerciseIds });
+
+                // Update the order numbers in the UI
+                exerciseList.querySelectorAll('.order-number').forEach((el, index) => {
+                    el.textContent = `${index + 1}.`;
+                });
+            }
+        });
+    });
+});
+</script>
 {% endblock %} 

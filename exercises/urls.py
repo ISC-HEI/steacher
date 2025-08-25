@@ -21,4 +21,8 @@ urlpatterns = [
     path('courses/<int:course_pk>/edit_exercise/<int:exercise_pk>/', views.exercise_form, name='exercise_edit'),
     # Authoring assistant (stateless)
     path('ai/authoring_assistant/', views.exercise_authoring_assistant, name='authoring_assistant'),
+
+    # API endpoints for reordering
+    path('api/reorder_modules/', views.reorder_modules, name='reorder_modules'),
+    path('api/reorder_exercises/', views.reorder_exercises, name='reorder_exercises'),
 ] 

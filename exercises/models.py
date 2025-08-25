@@ -17,6 +17,22 @@ class Course(models.Model):
         ordering = ['name']
 
 
+class Module(models.Model):
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='modules')
+    name = models.CharField(max_length=200, help_text="The name/title of the module that will be displayed to the user.")
+    description = models.TextField(blank=True, help_text="A short description of the module that will be displayed to the user.")
+    order = models.PositiveIntegerField(default=0, help_text="The order of the module within the course.")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        ordering = ['course', 'order']
+        unique_together = ('course', 'order')
+
+
 class Exercise(models.Model):
 
     EXERCISE_TYPE_CHOICES = [
@@ -26,7 +42,7 @@ class Exercise(models.Model):
         ('turtle', 'Turtle'),
     ]
 
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='exercises')
+    module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='exercises')
     title = models.CharField(max_length=200, help_text="Title of the exercice; not displayed to the user.")
     description = models.TextField(blank=True, help_text="Description of the exercice; not displayed to the user.")
     exercise_type = models.CharField(
@@ -45,8 +61,8 @@ class Exercise(models.Model):
         return f"{self.title} ({self.exercise_type})"
 
     class Meta:
-        ordering = ['course', 'order']
-        unique_together = ('course', 'order')
+        ordering = ['module', 'order']
+        unique_together = ('module', 'order')
 
 
 class Trace(models.Model):

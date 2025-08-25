@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html, mark_safe
 from django.db.models import Count
-from .models import Exercise, Course, ExerciceAsset, GuidanceLog, Trace, TraceEval
+from .models import Exercise, Course, Module, ExerciceAsset, GuidanceLog, Trace, TraceEval
 from django_jsonform.widgets import JSONFormWidget
 
 def format_guidance_logs(trace):
@@ -108,6 +108,12 @@ LLM_PROMPTS_SCHEMA = {
 }
 
 
+class ModuleInline(admin.TabularInline):
+    model = Module
+    extra = 1
+    ordering = ('order',)
+    show_change_link = True
+
 class CourseAdminForm(forms.ModelForm):
     class Meta:
         model = Course
@@ -122,13 +128,29 @@ class CourseAdmin(admin.ModelAdmin):
     list_display = ('name', 'created_at', 'updated_at')
     search_fields = ('name',)
     readonly_fields = ('created_at', 'updated_at')
+    inlines = [ModuleInline]
+
+class ExerciseInline(admin.TabularInline):
+    model = Exercise
+    extra = 1
+    ordering = ('order',)
+    show_change_link = True
+
+@admin.register(Module)
+class ModuleAdmin(admin.ModelAdmin):
+    list_display = ('name', 'course', 'order', 'created_at', 'updated_at')
+    list_filter = ('course',)
+    search_fields = ('name', 'description')
+    ordering = ('course', 'order',)
+    inlines = [ExerciseInline]
+
 
 @admin.register(Exercise)
 class ExerciseAdmin(admin.ModelAdmin):
-    list_display = ('course', 'order', 'title', 'exercise_type', 'updated_at')
-    list_filter = ('course', 'exercise_type')
+    list_display = ('module', 'order', 'title', 'exercise_type', 'updated_at')
+    list_filter = ('module__course', 'exercise_type')
     search_fields = ('title', 'description')
-    ordering = ('course', 'order')
+    ordering = ('module', 'order')
 
 class ExerciceAssetUploadForm(forms.ModelForm):
     upload_file = forms.FileField(
