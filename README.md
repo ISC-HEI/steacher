@@ -211,3 +211,46 @@ When updating CodeMirror or adding new language support:
 - ✅ **Production ready** - optimized bundle
 - ✅ **Easy maintenance** - update bundle source and rebuild
 
+## End-to-End Testing (pytest + Playwright)
+
+### Install (browser binaries)
+
+   ```bash
+   pip install -r requirements.txt
+   python -m playwright install
+   ```
+
+### Configuration
+
+`pytest.ini` sets up Django and enables headed + slow motion by default:
+
+### Run tests
+
+```bash
+# Run all tests (headed + slowmo per pytest.ini)
+pytest
+
+# Run a single file
+pytest tests/e2e/test_smoke.py -q
+
+# Useful flags
+pytest --browser=chromium            # or: firefox, webkit
+pytest --video=on --screenshot=only-on-failure --tracing=on
+```
+
+### Watch the browser / debug
+
+- Step-through with Inspector:
+  - Add `page.pause()` in a test
+  - Run:
+    ```bash
+    PWDEBUG=1 pytest --headed
+    ```
+- Slow actions for visibility: `--slowmo=200`
+
+### Notes
+
+- Tests run against a temporary Django test database; data is isolated per run.
+- `live_server` serves the app during tests; you don’t need `runserver`.
+- TypeScript auto-recompiles via `npm run watch` if needed for UI behavior.
+

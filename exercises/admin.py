@@ -130,25 +130,28 @@ class CourseAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'updated_at')
     inlines = [ModuleInline]
 
-class ExerciseInline(admin.TabularInline):
-    model = Exercise
-    extra = 1
-    ordering = ('order',)
-    show_change_link = True
+ 
 
 @admin.register(Module)
 class ModuleAdmin(admin.ModelAdmin):
-    list_display = ('name', 'course', 'order', 'created_at', 'updated_at')
+    list_display = ('name', 'course', 'order', 'view_exercises', 'created_at', 'updated_at')
     list_filter = ('course',)
     search_fields = ('name', 'description')
     ordering = ('course', 'order',)
-    inlines = [ExerciseInline]
+
+    def view_exercises(self, obj):
+        url = (
+            reverse('admin:exercises_exercise_changelist')
+            + f"?module__id__exact={obj.id}"
+        )
+        return format_html('<a href="{}">View</a>', url)
+    view_exercises.short_description = 'View exercises'
 
 
 @admin.register(Exercise)
 class ExerciseAdmin(admin.ModelAdmin):
     list_display = ('module', 'order', 'title', 'exercise_type', 'updated_at')
-    list_filter = ('module__course', 'exercise_type')
+    list_filter = (('module', admin.RelatedOnlyFieldListFilter), 'module__course', 'exercise_type')
     search_fields = ('title', 'description')
     ordering = ('module', 'order')
 

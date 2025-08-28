@@ -3,3 +3,7 @@ psycopg2-binary
 django-cors-headers
 openai 
 django-jsonform
+pytest
+pytest-django
+playwright
+pytest-playwright

@@ -123,17 +123,22 @@ def exercise_form(request, course_pk, exercise_pk=None):
         exercise = get_object_or_404(Exercise, pk=exercise_pk, module__course=course)
     else:
         # Provide a default structure for a new exercise
-        # For now, assign it to the first module of the course.
-        # This could be improved with a module selector in the UI.
-        first_module = course.modules.first()
-        if not first_module:
+        # Prefer module provided via query string, else fall back to first module
+        selected_module = None
+        module_id = request.GET.get('module')
+        if module_id is not None:
+            try:
+                selected_module = Module.objects.get(pk=int(module_id), course=course)
+            except (ValueError, Module.DoesNotExist):
+                selected_module = None
+        if selected_module is None:
+            selected_module = course.modules.first()
+        if not selected_module:
             # Handle case where a course has no modules yet
-            # You might want to create a default module or redirect with an error.
-            # For now, we'll just prevent creation.
             return HttpResponse("Cannot add exercise: This course has no modules.", status=400)
 
         exercise = Exercise(
-            module=first_module,
+            module=selected_module,
             exercise_type='python',
             exercise_data={
                 "question": "",
@@ -153,10 +158,20 @@ def exercise_form(request, course_pk, exercise_pk=None):
             exercise.title = data.get('title', 'New Exercise')
             
             if not exercise.pk:  # This is a new exercise
-                max_order = exercise.module.exercises.aggregate(models.Max('order'))['order__max'] or 0
-                exercise.order = max_order + 1
+                # assign next order within the module atomically with a row lock on Module
+                with transaction.atomic():
+                    Module.objects.select_for_update().get(pk=exercise.module_id)
+                    max_order = (
+                        Exercise.objects
+                        .filter(module_id=exercise.module_id)
+                        .aggregate(order__max=models.Max('order'))
+                        .get('order__max')
+                        or 0
+                    )
+                    exercise.order = max_order + 1
             else:
-                exercise.order = data.get('order', exercise.order) # Keep existing order on edit
+                # Keep existing order on edit; no longer accepting manual edits from form
+                pass
 
             exercise.description = data.get('description', '')
             exercise.exercise_type = data.get('exercise_type', 'python')

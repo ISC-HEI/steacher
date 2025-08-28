@@ -185,7 +185,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
     if debug:
         prompt += f"\n\n{DEBUG_TEXT}"
     
-    course_prompt = exercise.course.llm_prompts.get(exercise.exercise_type)
+    course_prompt = exercise.module.course.llm_prompts.get(exercise.exercise_type)
     if course_prompt:
         prompt += f"\n\n{course_prompt}"
 
