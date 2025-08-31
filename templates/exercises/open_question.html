@@ -1,0 +1,92 @@
+{% extends 'exercises/exercise.html' %}
+{% load static %}
+
+{% block title %}{{ exercise.title }} - Open Question{% endblock %}
+
+{% block exercise_content %}
+<div id="openq-exercise-app" v-cloak>
+    {% csrf_token %}
+    <div class="exercise-container">
+        <div class="left-panel">
+            <div class="exercise">
+                <div class="content">
+                    <div class="field">
+                        <label class="label">Your Answer</label>
+                        <div class="control">
+                            <textarea class="textarea" v-model="userAnswer" placeholder="Write your answer here..." rows="10"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="field is-grouped exercise-controls">
+                    <div class="control">
+                        <button
+                            @click="submitAnswer"
+                            class="button is-primary"
+                            :class="{ 'is-loading': loadingState === 'getting-guidance' }"
+                            :disabled="!userAnswer.trim() || loadingState !== 'idle'">
+                            <span class="icon"><i class="fas fa-paper-plane"></i></span>
+                            <span>Submit Answer</span>
+                        </button>
+                    </div>
+                    <div class="control">
+                        <button
+                            @click="giveHint"
+                            class="button is-info"
+                            :class="{ 'is-loading': loadingState === 'getting-guidance' }"
+                            :disabled="loadingState !== 'idle'">
+                            <span class="icon"><i class="fas fa-lightbulb"></i></span>
+                            <span>Gimme a Hint</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="exercise-output mt-4">
+                    <div v-if="queryError">
+                        <div class="notification is-danger">
+                            <h6 class="title is-6">Error:</h6>
+                            <p>[[ queryError ]]</p>
+                        </div>
+                    </div>
+                    <div v-if="loadingState === 'getting-guidance'">
+                        <div class="notification is-info"><p><em>Analysing your answer and creating guidance...</em></p></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="right-panel">
+            <chatbot-panel
+                :initial-question="exercise.exercise_data.question"
+                :messages="chatMessages"
+                :loading="loadingState !== 'idle'"
+                @question-asked="handleQuestion">
+            </chatbot-panel>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+
+<!-- Import Map for Bare Module Specifiers -->
+<script type="importmap">
+{
+  "imports": {
+    "vue": "{% static 'vue/dist/vue.esm-browser.js' %}",
+    "canvas-confetti": "{% static 'canvas-confetti/dist/confetti.module.mjs' %}",
+    "./ChatbotPanel.js": "{% static 'js/dist/ChatbotPanel.js' %}",
+    "marked": "{% static 'marked/lib/marked.esm.js' %}",
+    "dompurify": "{% static 'dompurify/dist/purify.es.mjs' %}"
+  }
+}
+ </script>
+
+<!-- Our JavaScript -->
+<script type="module" src="{% static 'js/dist/open_question.js' %}"></script>
+
+<!-- Pass exercise data safely using JSON script tag -->
+{{ exercise_json|json_script:"exercise-data" }}
+{{ guidance_logs|json_script:"guidance-logs-data" }}
+{{ trace_id|json_script:"trace-id" }}
+
+{% endblock %}
+
+

@@ -41,6 +41,7 @@
                                 <option value="multiple_choice">Multiple Choice</option>
                                 <option value="sql">SQL</option>
                                 <option value="turtle">Turtle</option>
+                                <option value="open_question">Open Question</option>
                             </select>
                         </div>
                     </div>
@@ -248,6 +249,9 @@
                 <div class="field is-grouped">
                     <div class="control">
                         <button type="submit" class="button is-primary">Save Exercise</button>
+                    </div>
+                    <div class="control">
+                        <button type="button" class="button is-info" @click="saveAndContinue">Save & Continue Editing</button>
                     </div>
                     <div class="control">
                         <a href="{% url 'exercises:course_detail' pk=course.pk %}" class="button is-light">Cancel</a>

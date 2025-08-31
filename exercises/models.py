@@ -40,6 +40,7 @@ class Exercise(models.Model):
         ('multiple_choice', 'Multiple Choice'),
         ('sql', 'SQL'),
         ('turtle', 'Turtle'),
+        ('open_question', 'Open Question'),
     ]
 
     module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='exercises')

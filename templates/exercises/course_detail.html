@@ -48,13 +48,18 @@
                                 <div class="level-left">
                                     <div class="exercise-info">
                                         <div class="exercise-title-line">
-                                            <span class="handle mr-1"><i class="fas fa-grip-vertical"></i></span>
-                                            <span class="order-number mr-1">{{ exercise.order }}.</span>
-                                            <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" class="mr-2">view</a>
                                             {% if user.is_staff %}
-                                                <a href="{% url 'exercises:exercise_edit' course_pk=course.pk exercise_pk=exercise.pk %}" class="mr-2">edit</a>
+                                                <span class="handle mr-1"><i class="fas fa-grip-vertical"></i></span>
                                             {% endif %}
-                                            <span class="exercise-title">{{ exercise.title }}</span>
+                                            <span class="order-number mr-1">{{ exercise.order }}.</span>
+                                            {% if user.is_staff %}
+                                                <a href="{% url 'exercises:exercise_edit' course_pk=course.pk exercise_pk=exercise.pk %}" class="mr-2">
+                                                    <span class="icon"><i class="fas fa-pencil-alt"></i></span>
+                                                </a>
+                                            {% endif %}
+                                            <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" class="mr-2">
+                                              <span class="exercise-title">{{ exercise.title }}</span>
+                                            </a>
                                             <span class="tag is-light ml-2">{{ exercise.exercise_type }}</span>
                                         </div>
                                         <div class="exercise-description ml-6">

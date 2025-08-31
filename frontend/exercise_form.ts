@@ -109,6 +109,69 @@ document.addEventListener('DOMContentLoaded', function() {
             deepClone<T>(obj: T): T {
                 return JSON.parse(JSON.stringify(obj));
             },
+            getCsrfToken(): string | null {
+                const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
+                return csrfTokenElement ? csrfTokenElement.value : null;
+            },
+            buildErrorMessage(result: any, status: number): string {
+                let errorMessage = result?.message || `Server error: ${status}`;
+                if (result?.details) {
+                    errorMessage += '\n\nDetails:\n';
+                    result.details.forEach((detail: any) => {
+                        errorMessage += `- ${detail.description}\n`;
+                        errorMessage += `  - Expected: ${detail.expected_output}\n`;
+                        errorMessage += `  - Got: ${detail.actual_output}\n`;
+                    });
+                }
+                return errorMessage;
+            },
+            async performSave(redirectOnSuccess: boolean) {
+                this.loading = true;
+                this.error = null;
+
+                const csrfToken = this.getCsrfToken();
+                if (!csrfToken) {
+                    this.error = 'CSRF token not found!';
+                    this.loading = false;
+                    return;
+                }
+
+                try {
+                    const response = await fetch(window.location.pathname, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken,
+                        },
+                        body: JSON.stringify(this.exercise),
+                    });
+
+                    const result = await response.json();
+                    if (!response.ok || result.status !== 'success') {
+                        throw new Error(this.buildErrorMessage(result, response.status));
+                    }
+
+                    const savedPk: number | null = result.exercise_pk ?? null;
+                    if (!this.exercise.pk && savedPk) {
+                        this.exercise.pk = savedPk;
+                        if (this.course_pk != null) {
+                            const newPath = `/exercises/courses/${this.course_pk}/edit_exercise/${savedPk}/`;
+                            window.history.replaceState(null, '', newPath);
+                        }
+                    }
+
+                    if (redirectOnSuccess) {
+                        const backHref = (document.querySelector('#exercise-form-app a.is-light') as HTMLAnchorElement)?.href;
+                        if (backHref) {
+                            window.location.href = backHref;
+                        }
+                    }
+                } catch (err: any) {
+                    this.error = err.message || String(err);
+                } finally {
+                    this.loading = false;
+                }
+            },
             addTestCase() {
                 this.exercise.answer_data.unit_tests.test_cases.push({
                     description: '',
@@ -180,53 +243,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.exercise = this.deepClone(this.lastAppliedSnapshot);
                 this.lastAppliedSnapshot = null;
             },
-            async saveExercise() {
-                this.loading = true;
-                this.error = null;
-
-                const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
-                if (!csrfTokenElement) {
-                    this.error = 'CSRF token not found!';
-                    this.loading = false;
-                    return;
-                }
-
-                try {
-                    const response = await fetch(window.location.pathname, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfTokenElement.value,
-                        },
-                        body: JSON.stringify(this.exercise),
-                    });
-
-                    if (!response.ok) {
-                        const result = await response.json();
-                        let errorMessage = result.message || `Server error: ${response.status}`;
-                        if (result.details) {
-                            errorMessage += '\\n\\nDetails:\\n';
-                            result.details.forEach((detail: any) => {
-                                errorMessage += `- ${detail.description}\\n`;
-                                errorMessage += `  - Expected: ${detail.expected_output}\\n`;
-                                errorMessage += `  - Got: ${detail.actual_output}\\n`;
-                            });
-                        }
-                        throw new Error(errorMessage);
-                    }
-
-                    const result = await response.json();
-                    if (result.status === 'success') {
-                        window.location.href = (appElement.querySelector('a.is-light') as HTMLAnchorElement).href;
-                    } else {
-                        throw new Error(result.message || 'Failed to save the exercise.');
-                    }
-                } catch (err: any) {
-                    this.error = err.message;
-                } finally {
-                    this.loading = false;
-                }
-            }
+            async saveExercise() { return this.performSave(true); },
+            async saveAndContinue() { return this.performSave(false); }
         }
     });
 

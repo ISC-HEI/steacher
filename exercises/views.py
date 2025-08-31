@@ -72,7 +72,8 @@ def exercise_detail(request, pk):
     template_map = {
         'sql': 'exercises/sql.html',
         'python': 'exercises/python.html',
-        'multiple_choice': 'exercises/multiple_choice.html'
+        'multiple_choice': 'exercises/multiple_choice.html',
+        'open_question': 'exercises/open_question.html',
     }
     template_name = template_map.get(exercise.exercise_type)
     if not template_name:
