@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, Http404
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 from django.db import transaction, models
@@ -55,18 +55,36 @@ def exercise_detail(request, pk):
         logs = GuidanceLog.objects.filter(trace=trace).order_by('submitted_at')
         guidance_logs = [log.interaction for log in logs]
 
+    # Determine neighbors within the same module by order
+    previous_exercise = (
+        Exercise.objects
+        .filter(module=exercise.module, order__lt=exercise.order)
+        .order_by('-order')
+        .first()
+    )
+    next_exercise = (
+        Exercise.objects
+        .filter(module=exercise.module, order__gt=exercise.order)
+        .order_by('order')
+        .first()
+    )
+
     template_map = {
         'sql': 'exercises/sql.html',
         'python': 'exercises/python.html',
         'multiple_choice': 'exercises/multiple_choice.html'
     }
-    template_name = template_map.get(exercise.exercise_type, 'exercises/detail.html')
+    template_name = template_map.get(exercise.exercise_type)
+    if not template_name:
+        raise Http404(f"Unsupported exercise type: {exercise.exercise_type}")
 
     return render(request, template_name, {
         'exercise': exercise,
         'exercise_json': exercise_json,
         'guidance_logs': guidance_logs,
         'trace_id': trace_id,
+        'previous_exercise': previous_exercise,
+        'next_exercise': next_exercise,
     })
 
 @login_required
