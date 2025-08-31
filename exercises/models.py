@@ -1,9 +1,14 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.conf import settings
+from django.utils import timezone
+from django.contrib.auth import get_user_model
 
 
 class Course(models.Model):
+    """
+    A course that you teach, e.g. 'Intro to Python'.
+    """
     name = models.CharField(max_length=200, help_text="The name/title of the course that will be displayed to the user.")
     description = models.TextField(blank=True, help_text="A short description of the course that will be displayed to the user.")
     llm_prompts = models.JSONField(blank=True, default=dict, help_text="LLM prompts per exercise type, e.g. {'turtle': 'Your prompt for turtle exercises...'}")
@@ -19,6 +24,9 @@ class Course(models.Model):
 
 
 class Module(models.Model):
+    """
+    A collection of @Exercise within a @Course.
+    """
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='modules')
     name = models.CharField(max_length=200, help_text="The name/title of the module that will be displayed to the user.")
     description = models.TextField(blank=True, help_text="A short description of the module that will be displayed to the user.")
@@ -36,6 +44,10 @@ class Module(models.Model):
 
 
 class Exercise(models.Model):
+    """
+    A single exercise within a @Module. Has different types (e.g. SQL, Python, multiple choice, etc.). 
+    Inculdes metadata for the AI tutor to help the student, unit tests.
+    """
 
     EXERCISE_TYPE_CHOICES = [
         ('python', 'Python'),
@@ -71,8 +83,8 @@ class Exercise(models.Model):
 
 class Trace(models.Model):
     """
-    Represents an attempt from a user at an exercice.
-    Interactions will be stored in a list of GuidanceLog objects.
+    Represents an attempt from a user at an @Exercise.
+    Interactions will be stored in a list of @GuidanceLog objects.
     """
     # Foreign keys to link the log to a user and exercise
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='traces')
@@ -94,7 +106,7 @@ class Trace(models.Model):
 class GuidanceLog(models.Model):
     """
     Stores a single turn of interaction between a user and the AI tutor for a specific exercise.
-    Each GuidanceLog entry references a Trace.
+    Each GuidanceLog entry references a @Trace.
     """
     trace = models.ForeignKey(Trace, on_delete=models.CASCADE, related_name='guidance_logs')
 
@@ -115,6 +127,9 @@ class GuidanceLog(models.Model):
 
 
 class ExerciceAsset(models.Model):
+    """
+    A file associated with a course, e.g. a database file for an SQL exercise.
+    """
     name = models.CharField(max_length=255, help_text="Filename like 'shop.sql', 'presentation.pptx'")
     description = models.TextField(null=True, blank=True, help_text="Optional description.")
     content = models.BinaryField(help_text="Store any file type as binary.")
@@ -143,7 +158,7 @@ class ExerciceAsset(models.Model):
 
 class TraceEval(models.Model):
     """
-    Represents an evaluation of a user's trace for an exercise.
+    Represents an evaluation of a user's trace for an exercise. Bound to a @Trace. Used to evaluate how the AI tutor is doing. 
     """
     trace = models.ForeignKey(Trace, on_delete=models.CASCADE, related_name='trace_evals')
     is_ok = models.BooleanField(null=True, help_text="Whether the trace is considered correct or not. Null means not evaluated.")
@@ -156,3 +171,24 @@ class TraceEval(models.Model):
 
     class Meta:
         ordering = ['-created_at']
+
+
+class StudentInvite(models.Model):
+    """
+    A student invite is an email address that has been invited to register as a student.
+    """
+    email = models.EmailField(unique=True, help_text="Lowercased")
+    used = models.BooleanField(default=False)
+    user = models.ForeignKey(get_user_model(), null=True, blank=True, on_delete=models.SET_NULL, related_name='student_invite')
+    note = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    registered_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.email} ({'used' if self.used else 'unused'})"
+
+    def mark_used(self, user):
+        self.used = True
+        self.user = user
+        self.registered_at = timezone.now()
+        self.save(update_fields=['used', 'user', 'registered_at'])

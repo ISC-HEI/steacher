@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html, mark_safe
 from django.db.models import Count
-from .models import Exercise, Course, Module, ExerciceAsset, GuidanceLog, Trace, TraceEval
+from .models import Exercise, Course, Module, ExerciceAsset, GuidanceLog, Trace, TraceEval, StudentInvite
 from django_jsonform.widgets import JSONFormWidget
 
 def format_guidance_logs(trace):
@@ -372,3 +372,11 @@ class TraceEvalAdmin(admin.ModelAdmin):
         return format_guidance_logs(obj.trace)
     
     trace_details_display.short_description = "Full Trace History"
+
+
+@admin.register(StudentInvite)
+class StudentInviteAdmin(admin.ModelAdmin):
+    list_display = ('email', 'used', 'user', 'created_at', 'registered_at')
+    search_fields = ('email', 'user__username')
+    list_filter = ('used',)
+    readonly_fields = ('created_at', 'registered_at')

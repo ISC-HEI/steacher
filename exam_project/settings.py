@@ -175,3 +175,27 @@ LOGGING = {
 
 # Auth redirects
 LOGOUT_REDIRECT_URL = '/'
+LOGIN_REDIRECT_URL = '/'
+
+# Email configuration (console by default; Mailgun via env in dev/prod)
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'steacher@example.com')
+
+MAILGUN_SMTP_LOGIN = os.getenv('MAILGUN_SMTP_LOGIN')
+MAILGUN_SMTP_PASSWORD = os.getenv('MAILGUN_SMTP_PASSWORD')
+MAILGUN_DOMAIN = os.getenv('MAILGUN_DOMAIN')
+
+if MAILGUN_SMTP_LOGIN and MAILGUN_SMTP_PASSWORD:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = 'smtp.mailgun.org'
+    EMAIL_PORT = 587
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = MAILGUN_SMTP_LOGIN
+    EMAIL_HOST_PASSWORD = MAILGUN_SMTP_PASSWORD
+    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', f"no-reply@{MAILGUN_DOMAIN or 'example.com'}")
+
+# Allow login by email or username
+AUTHENTICATION_BACKENDS = [
+    'exercises.auth_backends.EmailOrUsernameModelBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]

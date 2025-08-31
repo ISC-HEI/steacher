@@ -257,3 +257,17 @@
 .teacher-course .is-greyed { color: #9a9a9a; }
 .teacher-course .is-greyed a, .teacher-course .is-greyed .tag { color: #b5b5b5; }
 .teacher-course .is-greyed .exercise-title { text-decoration: line-through; }
+
+/* Password reset form styles */
+.password-reset-form label {
+    font-weight: bold;
+}
+.password-reset-form input {
+    margin-bottom: 1em;
+    margin-top: 1em;
+}
+.password-reset-form .errorlist {
+    margin-top: 1em;
+    color: #f14668;
+    font-weight: bold;
+}

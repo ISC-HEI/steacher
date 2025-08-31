@@ -5,6 +5,7 @@ app_name = 'exercises'
 
 # Students' URL patterns
 students_urlpatterns = [
+    path('dashboard/', views_students.dashboard, name='dashboard'),
     path('courses/', views_students.course_list, name='course_list'),
     path('courses/<int:pk>/', views_students.course_detail, name='course_detail'),
     path('', views_students.exercise_list, name='exercise_list'),

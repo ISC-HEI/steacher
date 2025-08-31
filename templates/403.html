@@ -1,0 +1,14 @@
+{% extends "exercises/base.html" %}
+
+{% block content %}
+<meta http-equiv="refresh" content="0; url={% url 'exercises:dashboard' %}">
+<section class="section">
+  <div class="container has-text-centered">
+    <h1 class="title">Permission denied</h1>
+    <p class="subtitle">Redirecting you to your dashboard…</p>
+    <p><a class="button is-primary" href="{% url 'exercises:dashboard' %}">Go to dashboard</a></p>
+  </div>
+</section>
+{% endblock %}
+
+

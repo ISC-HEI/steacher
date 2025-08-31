@@ -1,5 +1,8 @@
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth import login
+from django.contrib.auth.models import User
+from django.views.decorators.csrf import csrf_protect
 from django.http import JsonResponse, HttpResponse, Http404
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST
@@ -7,8 +10,42 @@ from django.db import models
 from django.db.models import Prefetch
 import json
 
-from .models import Exercise, ExerciceAsset, Course, GuidanceLog, Trace, Module
+from .models import Exercise, ExerciceAsset, Course, GuidanceLog, Trace, Module, StudentInvite
 from .serializers import ExerciseFrontendSerializer
+
+
+@login_required
+def dashboard(request):
+    """Student dashboard showing progress per course."""
+    courses = Course.objects.filter(visible=True).prefetch_related('modules')
+
+    course_progress = []
+    for course in courses:
+        total_exercises = Exercise.objects.filter(module__course=course, visible=True).count()
+        completed_count = (
+            Trace.objects.filter(
+                user=request.user,
+                complete=True,
+                exercise__module__course=course,
+                exercise__visible=True,
+            )
+            .values('exercise_id')
+            .distinct()
+            .count()
+        )
+        percent = 0
+        if total_exercises > 0:
+            percent = int(round((completed_count / total_exercises) * 100))
+        course_progress.append({
+            'course': course,
+            'completed': completed_count,
+            'total': total_exercises,
+            'percent': percent,
+        })
+
+    return render(request, 'exercises/students/dashboard.html', {
+        'course_progress': course_progress,
+    })
 
 
 @login_required
@@ -18,6 +55,47 @@ def course_list(request):
     return render(request, 'exercises/students/students_course_list.html', {
         'courses': courses
     })
+
+
+@csrf_protect
+def register(request):
+    if request.method == 'GET':
+        return render(request, 'registration/register.html')
+
+    email = (request.POST.get('email') or '').strip().lower()
+    p1 = (request.POST.get('password1') or '').strip()
+    p2 = (request.POST.get('password2') or '').strip()
+    errors = []
+
+    if not email:
+        errors.append("Email is required.")
+    if not p1 or not p2:
+        errors.append("Both password fields are required.")
+    if p1 != p2:
+        errors.append("Passwords do not match.")
+
+    invite = StudentInvite.objects.filter(email=email).first() if email else None
+    if not invite:
+        errors.append("This email is not authorized to register.")
+    elif invite.used:
+        errors.append("This invite has already been used. Try logging in or resetting your password.")
+
+    if errors:
+        return render(request, 'registration/register.html', {'errors': errors, 'email': email})
+
+    if User.objects.filter(username=email).exists():
+        return render(request, 'registration/register.html', {
+            'errors': ["An account with this email already exists. Use password reset if needed."], 'email': email
+        })
+
+    user = User.objects.create_user(username=email, email=email, password=p1)
+    user.is_staff = False
+    user.save()
+
+    invite.mark_used(user)
+
+    login(request, user)
+    return redirect('exercises:course_list')
 
 
 @login_required

@@ -17,16 +17,20 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from exercises import urls as exercises_urls
+from exercises.views_students import register
 from django.shortcuts import redirect
+from django.contrib.auth.decorators import login_required
+from exercises.views_students import dashboard
 from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('accounts/register/', register, name='register'),
     path('accounts/', include('django.contrib.auth.urls')),
     path('exercises/', include((exercises_urls.students_urlpatterns, 'exercises'), namespace='exercises')),
     path('teachers/', include((exercises_urls.teachers_urlpatterns, 'teachers'), namespace='teachers')),
-    path('', lambda request: redirect('exercises:course_list')),  # Redirect root to course list
+    path('', login_required(dashboard), name='dashboard_root'),  # Root shows student dashboard (requires login)
 ]
 
 # Serve static files during development FIXME make serving static files work in production
