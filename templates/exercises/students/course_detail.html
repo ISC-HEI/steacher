@@ -1,0 +1,54 @@
+{% extends "exercises/base.html" %}
+
+{% block title %}{{ course.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-3 title is-2">{{ course.name }}</h1>
+    <p class="lead">{{ course.description }}</p>
+
+
+    <div id="modules-list" class="mt-5">
+        {% for module in course.modules.all %}
+        <div class="card mb-3">
+            <header class="card-header">
+                <p class="card-header-title">
+                    {{ module.name }}
+                </p>
+            </header>
+            <div class="card-content">
+                <div class="content">
+                    <div class="exercise-list">
+                        {% for exercise in module.exercises.all %}
+                        <div class="list-group-item mb-3">
+                            <div class="level">
+                                <div class="level-left">
+                                    <div class="exercise-info">
+                                        <div class="exercise-title-line">
+                                            <span class="order-number mr-1">{{ exercise.order }}.</span>
+                                            <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" class="mr-2">
+                                              <span class="exercise-title">{{ exercise.title }}</span>
+                                            </a>
+                                            <span class="tag is-light ml-2">{{ exercise.exercise_type }}</span>
+                                        </div>
+                                        <div class="exercise-description ml-5">
+                                            {{ exercise.description|truncatewords:20 }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <p>This module does not have any exercises yet.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+            <p>This course does not have any modules yet.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+

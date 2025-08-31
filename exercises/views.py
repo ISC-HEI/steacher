@@ -20,7 +20,8 @@ client = OpenAI(api_key=settings.OPENAI_API_KEY)
 def course_list(request):
     """Display list of all courses"""
     courses = Course.objects.all()
-    return render(request, 'exercises/course_list.html', {
+    template = 'exercises/teacher/course_list.html' if request.user.is_staff else 'exercises/students/course_list.html'
+    return render(request, template, {
         'courses': courses
     })
 
@@ -28,7 +29,8 @@ def course_list(request):
 def course_detail(request, pk):
     """Display individual course and its exercises"""
     course = get_object_or_404(Course.objects.prefetch_related('modules__exercises'), pk=pk)
-    return render(request, 'exercises/course_detail.html', {
+    template = 'exercises/teacher/course_detail.html' if request.user.is_staff else 'exercises/students/course_detail.html'
+    return render(request, template, {
         'course': course,
     })
 
@@ -70,10 +72,10 @@ def exercise_detail(request, pk):
     )
 
     template_map = {
-        'sql': 'exercises/sql.html',
-        'python': 'exercises/python.html',
-        'multiple_choice': 'exercises/multiple_choice.html',
-        'open_question': 'exercises/open_question.html',
+        'sql': 'exercises/students/sql.html',
+        'python': 'exercises/students/python.html',
+        'multiple_choice': 'exercises/students/multiple_choice.html',
+        'open_question': 'exercises/students/open_question.html',
     }
     template_name = template_map.get(exercise.exercise_type)
     if not template_name:
@@ -261,7 +263,7 @@ def exercise_form(request, course_pk, exercise_pk=None):
         "course_pk": course.pk,
     }
 
-    return render(request, 'exercises/exercise_form.html', {
+    return render(request, 'exercises/teacher/exercise_form.html', {
         'course': course,
         'exercise': exercise,
         'exercise_json': exercise_json

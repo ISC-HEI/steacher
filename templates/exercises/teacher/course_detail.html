@@ -14,9 +14,7 @@
             <h3 class="mb-3 subtitle is-3">Modules:</h3>
         </div>
         <div class="level-right">
-            {% if user.is_staff %}
-                <a href="{% url 'admin:exercises_module_add' %}?course={{ course.pk }}" class="button is-primary">Add New Module</a>
-            {% endif %}
+            <a href="{% url 'admin:exercises_module_add' %}?course={{ course.pk }}" class="button is-primary">Add New Module</a>
         </div>
     </div>
 
@@ -28,11 +26,9 @@
                     <span class="handle mr-2"><i class="fas fa-grip-vertical"></i></span>
                     {{ module.name }}
                 </p>
-                {% if user.is_staff %}
                 <a class="card-header-icon" aria-label="add exercise" href="{% url 'exercises:exercise_add' course_pk=course.pk %}?module={{ module.pk }}" title="Add exercise to this module">
                     <button class="button is-small is-primary">Add exercise</button>
                 </a>
-                {% endif %}
                 <button class="card-header-icon" aria-label="more options" data-action="toggle-module">
                     <span class="icon">
                         <i class="fas fa-angle-up" aria-hidden="true"></i>
@@ -48,15 +44,11 @@
                                 <div class="level-left">
                                     <div class="exercise-info">
                                         <div class="exercise-title-line">
-                                            {% if user.is_staff %}
-                                                <span class="handle mr-1"><i class="fas fa-grip-vertical"></i></span>
-                                            {% endif %}
+                                            <span class="handle mr-1"><i class="fas fa-grip-vertical"></i></span>
                                             <span class="order-number mr-1">{{ exercise.order }}.</span>
-                                            {% if user.is_staff %}
-                                                <a href="{% url 'exercises:exercise_edit' course_pk=course.pk exercise_pk=exercise.pk %}" class="mr-2">
-                                                    <span class="icon"><i class="fas fa-pencil-alt"></i></span>
-                                                </a>
-                                            {% endif %}
+                                            <a href="{% url 'exercises:exercise_edit' course_pk=course.pk exercise_pk=exercise.pk %}" class="mr-2">
+                                                <span class="icon"><i class="fas fa-pencil-alt"></i></span>
+                                            </a>
                                             <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" class="mr-2">
                                               <span class="exercise-title">{{ exercise.title }}</span>
                                             </a>
@@ -170,4 +162,5 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 </script>
-{% endblock %} 
+{% endblock %}
+
