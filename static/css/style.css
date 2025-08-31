@@ -249,3 +249,11 @@
 .schema-summary {
     cursor: pointer;
 }
+
+/* Teacher course detail visibility styles */
+.teacher-course .handle { cursor: grab; }
+.teacher-course .sortable-ghost { background: #f0f0f0; opacity: 0.7; }
+.teacher-course .exercise-description { margin-left: 60px; }
+.teacher-course .is-greyed { color: #9a9a9a; }
+.teacher-course .is-greyed a, .teacher-course .is-greyed .tag { color: #b5b5b5; }
+.teacher-course .is-greyed .exercise-title { text-decoration: line-through; }

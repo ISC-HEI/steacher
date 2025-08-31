@@ -12,6 +12,21 @@
 </nav>
 {% endblock %}
 
+<!-- Shared header with title and teacher edit link -->
+<div class="level" style="margin-bottom: 1rem;">
+    <div class="level-left">
+        <div>
+            <h2 class="title is-4">{{ exercise.title }}</h2>
+        </div>
+    </div>
+    {% if user.is_staff %}
+    <div class="level-right">
+        <a class="button is-light" href="{% url 'teachers:exercise_edit' course_pk=exercise.module.course.pk exercise_pk=exercise.pk %}">Edit exercise</a>
+    </div>
+    {% endif %}
+    
+</div>
+
 {% block exercise_content %}{% endblock %}
 
 <!-- previous and next exercise buttons -->
@@ -40,6 +55,11 @@
     <hr class="mt-3">
     <div class="mb-5"></div>
  </div>
+
+<!-- Shared JSON payloads for all exercise types -->
+{{ exercise_json|json_script:"exercise-data" }}
+{{ guidance_logs|json_script:"guidance-logs-data" }}
+{{ trace_id|json_script:"trace-id" }}
 {% endblock %}
 
 

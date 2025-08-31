@@ -37,11 +37,12 @@
                     </a>
 
                     <div class="navbar-dropdown is-right">
-                        <a href="#" class="navbar-item">
+
+                        <!-- <a href="#" class="navbar-item">
                             Settings
-                        </a>
-                        <hr class="navbar-divider">
-                        {% if request.resolver_match.view_name == 'exercises:exercise_detail' and exercise %}
+                        </a> <hr class="navbar-divider"> -->
+                        
+                        {% if request.resolver_match.view_name == 'exercises:exercise_detail' and exercise and user.is_staff %}
                         <a href="{% url 'exercises:delete_user_answers' exercise.id %}" class="navbar-item">
                             Delete all my answers for this question
                         </a>

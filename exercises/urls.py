@@ -1,28 +1,33 @@
 from django.urls import path
-from . import views
+from . import views_students, views_teachers
 
 app_name = 'exercises'
 
-urlpatterns = [
+# Students' URL patterns
+students_urlpatterns = [
+    path('courses/', views_students.course_list, name='course_list'),
+    path('courses/<int:pk>/', views_students.course_detail, name='course_detail'),
+    path('', views_students.exercise_list, name='exercise_list'),
+    path('<int:pk>/', views_students.exercise_detail, name='exercise_detail'),
+    path('<int:exercise_id>/traces/<int:trace_id>/guidance/', views_students.get_guidance, name='get_guidance'),
+    path('<int:exercise_id>/<str:filename>', views_students.serve_asset, name='serve_asset'),
+    path('<int:exercise_id>/delete_answers/', views_students.delete_user_answers, name='delete_user_answers'),
+]
 
-    # Course urls
-    path('courses/', views.course_list, name='course_list'),
-    path('courses/<int:pk>/', views.course_detail, name='course_detail'),
+# Teachers' URL patterns (namespaced at project level under 'teachers')
+teachers_urlpatterns = [
+    path('courses/', views_teachers.course_list, name='course_list'),
+    path('courses/<int:pk>/', views_teachers.course_detail, name='course_detail'),
+    path('courses/<int:course_pk>/add_exercise/', views_teachers.exercise_form, name='exercise_add'),
+    path('courses/<int:course_pk>/edit_exercise/<int:exercise_pk>/', views_teachers.exercise_form, name='exercise_edit'),
 
-    # Exercise urls
-    path('', views.exercise_list, name='exercise_list'),
-    path('<int:pk>/', views.exercise_detail, name='exercise_detail'),
-    path('<int:exercise_id>/traces/<int:trace_id>/guidance/', views.get_guidance, name='get_guidance'),
-    path('<int:exercise_id>/<str:filename>', views.serve_asset, name='serve_asset'),
-    path('<int:exercise_id>/delete_answers/', views.delete_user_answers, name='delete_user_answers'),
+    path('api/reorder_modules/', views_teachers.reorder_modules, name='reorder_modules'),
+    path('api/reorder_exercises/', views_teachers.reorder_exercises, name='reorder_exercises'),
+    path('api/modules/<int:module_id>/visibility/', views_teachers.set_module_visibility, name='set_module_visibility'),
+    path('api/exercises/<int:exercise_id>/visibility/', views_teachers.set_exercise_visibility, name='set_exercise_visibility'),
 
-    # Teacher URLs for exercise management
-    path('courses/<int:course_pk>/add_exercise/', views.exercise_form, name='exercise_add'),
-    path('courses/<int:course_pk>/edit_exercise/<int:exercise_pk>/', views.exercise_form, name='exercise_edit'),
-    # Authoring assistant (stateless)
-    path('ai/authoring_assistant/', views.exercise_authoring_assistant, name='authoring_assistant'),
+    path('ai/authoring_assistant/', views_teachers.exercise_authoring_assistant, name='authoring_assistant'),
+]
 
-    # API endpoints for reordering
-    path('api/reorder_modules/', views.reorder_modules, name='reorder_modules'),
-    path('api/reorder_exercises/', views.reorder_exercises, name='reorder_exercises'),
-] 
+# Default export keeps backward compatibility (student-facing by default)
+urlpatterns = students_urlpatterns

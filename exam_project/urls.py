@@ -16,6 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from exercises import urls as exercises_urls
 from django.shortcuts import redirect
 from django.conf import settings
 from django.conf.urls.static import static
@@ -23,7 +24,8 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('django.contrib.auth.urls')),
-    path('exercises/', include('exercises.urls', namespace='exercises')),
+    path('exercises/', include((exercises_urls.students_urlpatterns, 'exercises'), namespace='exercises')),
+    path('teachers/', include((exercises_urls.teachers_urlpatterns, 'teachers'), namespace='teachers')),
     path('', lambda request: redirect('exercises:course_list')),  # Redirect root to course list
 ]
 

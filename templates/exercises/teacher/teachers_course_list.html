@@ -1,0 +1,30 @@
+{% extends "exercises/base.html" %}
+
+{% block title %}All Courses{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4 title is-2">All Courses</h1>
+    <div class="list-group">
+        {% for course in courses %}
+            <div class="d-flex w-100 justify-content-between list-group-item list-group-item-action mb-4 {% if not course.visible %}has-text-grey-light is-relative{% endif %}">
+                <a href="{% url 'teachers:course_detail' pk=course.pk %}" class="list-group-item list-group-item-action">
+                    <h5 class="mb-0 mt-5 subtitle is-5">
+                        {% if not course.visible %}
+                            <span class="icon has-text-grey" title="Hidden course"><i class="fas fa-eye-slash"></i></span>
+                        {% else %}
+                            <span class="icon has-text-success" title="Visible course"><i class="fas fa-eye"></i></span>
+                        {% endif %}
+                        > {{ course.name }}
+                    </h5>
+                </a>
+                <p>{{ course.description|truncatewords:120 }}</p>
+            </div>
+        {% empty %}
+            <p>No courses available yet.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+

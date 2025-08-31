@@ -23,24 +23,51 @@
                 {% endif %}
             {% endif %}
 
+
             <form method="post" action="{% url 'login' %}">
                 {% csrf_token %}
-                <div class="field">
-                    <label class="label">{{ form.username.label }}</label>
-                    <div class="control">
-                        {{ form.username }}
+                <div class="box">
+                <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                        <label class="label">{{ form.username.label }}</label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                {{ form.username }}
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="field">
-                    <label class="label">{{ form.password.label }}</label>
-                    <div class="control">
-                        {{ form.password }}
+                <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                        <label class="label">{{ form.password.label }}</label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                {{ form.password }}
+                            </div>
+                        </div>
                     </div>
                 </div>
+
+                <div class="content mt-4">
+                    <details>
+                        <summary>Disclaimer – Use of Data</summary>
+                        <p>By using this platform, you acknowledge that your activity (such as logins, clicks, and interactions) will be recorded. These data are collected solely for pedagogical and research purposes within HEVS.</p>
+                        <p>Data will not be used for commercial purposes and will be handled in accordance with Swiss data protection law and the GDPR. Access is restricted to the research team, and data will be stored securely.</p>
+                        <p>If you have questions about data use or your rights, please contact Renaud Richardet.</p>
+                    </details>
+                </div>
+
+
+
                 <div class="field">
                     <div class="control">
                         <button type="submit" class="button is-primary">Login</button>
                     </div>
+                </div>
                 </div>
                 <input type="hidden" name="next" value="{{ next }}" />
             </form>

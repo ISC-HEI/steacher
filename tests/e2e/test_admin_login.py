@@ -66,7 +66,7 @@ def _create_sql_exercise(page, live_server, course_name):
     )
 
     # Navigate to the course page to add an exercise
-    page.goto(f"{live_server.url}/exercises/courses/")
+    page.goto(f"{live_server.url}/teachers/courses/")
     page.get_by_role("link", name=course_name).click()
 
     # Add a SQL exercise to the module via the form
@@ -123,7 +123,7 @@ def _create_python_exercise(page, live_server, course_name):
     """Create a new Python exercise within the specified course."""
     
      # Navigate to the course page to add an exercise
-    page.goto(f"{live_server.url}/exercises/courses/")
+    page.goto(f"{live_server.url}/teachers/courses/")
     page.get_by_role("link", name=course_name).click()
 
     # Add a SQL exercise to the module via the form

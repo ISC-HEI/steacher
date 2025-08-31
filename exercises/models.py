@@ -7,6 +7,7 @@ class Course(models.Model):
     name = models.CharField(max_length=200, help_text="The name/title of the course that will be displayed to the user.")
     description = models.TextField(blank=True, help_text="A short description of the course that will be displayed to the user.")
     llm_prompts = models.JSONField(blank=True, default=dict, help_text="LLM prompts per exercise type, e.g. {'turtle': 'Your prompt for turtle exercises...'}")
+    visible = models.BooleanField(default=True, help_text="Whether the course is visible to students.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -22,6 +23,7 @@ class Module(models.Model):
     name = models.CharField(max_length=200, help_text="The name/title of the module that will be displayed to the user.")
     description = models.TextField(blank=True, help_text="A short description of the module that will be displayed to the user.")
     order = models.PositiveIntegerField(default=0, help_text="The order of the module within the course.")
+    visible = models.BooleanField(default=True, help_text="Whether the module is visible to students.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -55,6 +57,7 @@ class Exercise(models.Model):
     order = models.PositiveIntegerField(default=0, help_text="The order of the exercice within the course.")
     exercise_data = models.JSONField(help_text="Contains fields like question, data-source, etc.")  # sent to frontend
     answer_data = models.JSONField(default=dict, help_text="Contains fields like expected_result, hints, etc.")  # backend only
+    visible = models.BooleanField(default=True, help_text="Whether the exercise is visible to students.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

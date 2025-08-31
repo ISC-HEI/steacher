@@ -1,0 +1,131 @@
+{% extends "exercises/base.html" %}
+{% load static %}
+
+{% block title %}{{ course.name }}{% endblock %}
+
+{% block content %}
+<div id="teacher-course-app" class="teacher-course" v-cloak>
+<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+<div class="container mt-4">
+    <div class="level">
+        <div class="level-left">
+            <div>
+                <h1 class="mb-3 title is-2">{{ course.name }}</h1>
+                <p class="lead">{{ course.description }}</p>
+            </div>
+        </div>
+        <div class="level-right">
+            <a class="button is-light" href="{% url 'exercises:course_detail' pk=course.pk %}">View as student</a>
+        </div>
+    </div>
+
+    <hr class="my-4">
+
+    <div class="level">
+        <div class="level-left">
+            <h3 class="mb-3 subtitle is-3">Modules:</h3>
+        </div>
+        <div class="level-right">
+            <a href="{% url 'admin:exercises_module_add' %}?course={{ course.pk }}" class="button is-primary">Add New Module</a>
+        </div>
+    </div>
+
+    <div id="modules-list" class="sortable-list" data-course-id="{{ course.pk }}">
+        {% for module in course.modules.all %}
+        <div class="card mb-3 sortable-item" data-id="{{ module.pk }}">
+            <header class="card-header">
+                <p class="card-header-title">
+                    <span class="handle mr-2"><i class="fas fa-grip-vertical"></i></span>
+                    {{ module.name }}
+                </p>
+                <span class="card-header-icon is-clickable"
+                      title="Module visibility"
+                      data-role="module-visibility-icon"
+                      data-visible="{{ module.visible|yesno:'true,false' }}"
+                      @click="toggleModuleVisibility('{{ module.pk }}')"
+                      :class="{ 'has-text-success': moduleVisible['{{ module.pk }}'], 'has-text-grey': !moduleVisible['{{ module.pk }}'] }">
+                    <span class="icon"><i class="fas" :class="moduleVisible['{{ module.pk }}'] ? 'fa-eye' : 'fa-eye-slash'"></i></span>
+                </span>
+                <a class="card-header-icon" aria-label="add exercise" href="{% url 'teachers:exercise_add' course_pk=course.pk %}?module={{ module.pk }}" title="Add exercise to this module">
+                    <button class="button is-small is-primary">Add exercise</button>
+                </a>
+                <button class="card-header-icon" aria-label="more options" data-action="toggle-module" @click="toggleModuleExpanded('{{ module.pk }}')">
+                    <span class="icon">
+                        <i class="fas" :class="moduleExpanded['{{ module.pk }}'] === false ? 'fa-angle-down' : 'fa-angle-up'" aria-hidden="true"></i>
+                    </span>
+                </button>
+            </header>
+            <div class="card-content" :class="{ 'is-hidden': moduleExpanded['{{ module.pk }}'] === false }">
+                <div class="content">
+                    <div class="exercise-list sortable-list" data-module-id="{{ module.pk }}">
+                        {% for exercise in module.exercises.all %}
+                        <div class="list-group-item sortable-item"
+                             data-id="{{ exercise.pk }}"
+                             data-exercise-visible="{{ exercise.visible|yesno:'true,false' }}"
+                             :class="{ 'is-greyed': !(moduleVisible['{{ module.pk }}'] && exerciseVisible['{{ exercise.pk }}']) }">
+                            <div class="level">
+                                <div class="level-left">
+                                    <div class="exercise-info">
+                                        <div class="exercise-title-line">
+                                            <span class="handle mr-1"><i class="fas fa-grip-vertical"></i></span>
+                                            <span class="order-number mr-1">{{ exercise.order }}.</span>
+                                            <a href="{% url 'teachers:exercise_edit' course_pk=course.pk exercise_pk=exercise.pk %}" class="mr-2">
+                                                <span class="icon"><i class="fas fa-pencil-alt"></i></span>
+                                            </a>
+                                            <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" class="mr-2">
+                                              <span class="exercise-title">{{ exercise.title }}</span>
+                                            </a>
+                                            <span class="tag is-light ml-2">{{ exercise.exercise_type }}</span>
+                                            <span class="ml-2 is-clickable"
+                                                  title="Exercise visibility"
+                                                  data-role="exercise-visibility-icon"
+                                                  data-visible="{{ exercise.visible|yesno:'true,false' }}"
+                                                  @click="toggleExerciseVisibility('{{ exercise.pk }}')"
+                                                  :class="{ 'has-text-success': exerciseVisible['{{ exercise.pk }}'], 'has-text-grey': !exerciseVisible['{{ exercise.pk }}'] }">
+                                                <span class="icon"><i class="fas" :class="exerciseVisible['{{ exercise.pk }}'] ? 'fa-eye' : 'fa-eye-slash'"></i></span>
+                                            </span>
+                                        </div>
+                                        <div class="exercise-description ml-6">
+                                            {{ exercise.description|truncatewords:20 }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <p>This module does not have any exercises yet.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+            <p>This course does not have any modules yet.</p>
+        {% endfor %}
+    </div>
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.handle { cursor: grab; }
+.sortable-ghost { background: #f0f0f0; opacity: 0.7; }
+.exercise-description { margin-left: 60px; }
+.is-greyed { color: #9a9a9a; }
+.is-greyed a, .is-greyed .tag { color: #b5b5b5; }
+.is-greyed .exercise-title { text-decoration: line-through; }
+</style>
+{{ block.super }}
+<script type="importmap">
+{
+  "imports": {
+    "vue": "{% static 'vue/dist/vue.esm-browser.js' %}"
+  }
+}
+</script>
+
+<script type="module" src="{% static 'js/dist/teacher_course_details.js' %}"></script>
+{% endblock %}
+
+

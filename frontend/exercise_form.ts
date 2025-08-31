@@ -137,7 +137,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 try {
-                    const response = await fetch(window.location.pathname, {
+                    const teacherPath = window.location.pathname.replace(/^\/exercises\//, '/teachers/');
+                    const response = await fetch(teacherPath, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -205,7 +206,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 try {
-                    const response = await fetch('/exercises/ai/authoring_assistant/', {
+                    const response = await fetch('/teachers/ai/authoring_assistant/', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
