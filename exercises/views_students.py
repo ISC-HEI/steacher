@@ -9,6 +9,7 @@ from django.views.decorators.http import require_POST
 from django.db import models
 from django.db.models import Prefetch
 from django.utils import timezone
+from datetime import timedelta
 import json
 
 from .models import Exercise, ExerciceAsset, Course, GuidanceLog, Trace, Module, StudentInvite, ChatThread
@@ -18,7 +19,8 @@ from .serializers import ExerciseFrontendSerializer
 @login_required
 def dashboard(request):
     """Student dashboard showing progress per course."""
-    courses = Course.objects.filter(visible=True).prefetch_related('modules')
+    # Course progress (for compact list at the bottom)
+    courses = Course.objects.filter(visible=True).order_by('name')
 
     course_progress = []
     for course in courses:
@@ -43,9 +45,75 @@ def dashboard(request):
             'total': total_exercises,
             'percent': percent,
         })
+    
+    # --- Primary Focus & Recents ---
+
+    last_trace = Trace.objects.get_recent_for_user(request.user)
+    last_active_exercise = last_trace.exercise if last_trace else None
+
+    # Recent activity: last 7 traces
+    recent_traces = Trace.objects.get_recent_for_user(request.user, count=7)
+
+    # Next up: next visible exercise after the most recently solved one in the same module
+    next_up_exercise = None
+    if last_active_exercise:
+        module = last_active_exercise.module
+        latest_solved = (
+            Trace.objects
+            .filter(user=request.user, complete=True, exercise__module=module)
+            .select_related('exercise')
+            .order_by('-updated_at')
+            .first()
+        )
+        base_order = latest_solved.exercise.order if latest_solved else None
+        q = Exercise.objects.filter(module=module, visible=True)
+        if base_order is not None:
+            q = q.filter(order__gt=base_order)
+        next_up_exercise = q.order_by('order').first()
+
+    # Recent chats
+    recent_chats = ChatThread.objects.filter(owner=request.user).order_by('-updated_at')[:7]
+
+    # --- Quick Stats ---
+    total_completed = Trace.objects.filter(user=request.user, complete=True).values('exercise_id').distinct().count()
+    
+    # Calculate start of the current week (Monday morning)
+    today = timezone.now().date()
+    start_of_week = today - timedelta(days=today.weekday())
+
+    week_completed = Trace.objects.filter(
+        user=request.user,
+        complete=True,
+        updated_at__gte=start_of_week
+    ).values('exercise_id').distinct().count()
+
+    module_stats = None
+    if last_active_exercise:
+        module = last_active_exercise.module
+        module_total = Exercise.objects.filter(module=module, visible=True).count()
+        module_completed = Trace.objects.filter(
+            user=request.user,
+            complete=True,
+            exercise__module=module
+        ).values('exercise_id').distinct().count()
+        if module_total > 0:
+            module_stats = {
+                "name": module.name,
+                "completed": module_completed,
+                "total": module_total,
+            }
 
     return render(request, 'exercises/students/dashboard.html', {
         'course_progress': course_progress,
+        'last_active_exercise': last_active_exercise,
+        'recent_traces': recent_traces,
+        'next_up_exercise': next_up_exercise,
+        'recent_chats': recent_chats,
+        'stats': {
+            'total_completed': total_completed,
+            'week_completed': week_completed,
+            'module': module_stats,
+        }
     })
 
 
@@ -239,12 +307,7 @@ def chat_home(request):
     """Render the simple AI chat page with the user's threads."""
     courses = Course.objects.filter(visible=True).order_by('name')
     # Default to last course from user's most recent trace
-    last_trace = (
-        Trace.objects.filter(user=request.user)
-        .select_related('exercise__module__course')
-        .order_by('-updated_at')
-        .first()
-    )
+    last_trace = Trace.objects.get_recent_for_user(request.user)
     default_course_id = None
     if last_trace and getattr(last_trace, 'exercise', None) and getattr(last_trace.exercise, 'module', None):
         default_course_id = last_trace.exercise.module.course.id

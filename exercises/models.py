@@ -80,6 +80,22 @@ class Exercise(models.Model):
         unique_together = ('module', 'order')
 
 
+class TraceManager(models.Manager):
+    def get_recent_for_user(self, user, count=None):
+        """
+        Gets recent traces for a user.
+        If count is None, gets only the most recent one.
+        """
+        query = (
+            self.filter(user=user)
+            .select_related('exercise__module__course')
+            .order_by('-updated_at')
+        )
+        if count is None:
+            return query.first()
+        return query[:count]
+
+
 class Trace(models.Model):
     """
     Represents an attempt from a user at an @Exercise.
@@ -93,6 +109,8 @@ class Trace(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     system_prompt = models.TextField(null=True, blank=True, help_text="The system prompt sent to the LLM for this trace, if debugging is enabled.")
+
+    objects = TraceManager()
 
     def __str__(self):
         return f"Trace by {self.user.username} for '{self.exercise.title}'"

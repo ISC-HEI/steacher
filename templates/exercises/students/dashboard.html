@@ -4,27 +4,163 @@
 <section class="section">
   <div class="container">
     <h1 class="title">Your Dashboard</h1>
-    <p class="subtitle">Progress across your courses</p>
-    <div class="mb-4">
-      <a class="button is-info" href="{% url 'exercises:chat_home' %}">
-        <span class="icon"><i class="fas fa-comments"></i></span>
-        <span>Open AI Chat</span>
-      </a>
+
+    {% comment %} --- Primary Focus Box --- {% endcomment %}
+    {% if next_up_exercise or last_active_exercise %}
+    <div class="box has-background-light mb-5">
+        {% with exercise=next_up_exercise|default:last_active_exercise %}
+        <h2 class="title is-4">🎯 
+            {% if next_up_exercise %}Continue where you left off{% else %}Resume your last exercise{% endif %}
+        </h2>
+        
+        <div class="content">
+            <p class="mb-1">
+                <strong>Course:</strong> 
+                <a href="{% url 'exercises:course_detail' exercise.module.course.id %}">{{ exercise.module.course.name }}</a>
+            </p>
+            <p class="mb-1">
+                <strong>Module:</strong> 
+                <a href="{% url 'exercises:course_detail' exercise.module.course.id %}">{{ exercise.module.name }}</a>
+            </p>
+            <p>
+                <strong>Exercise:</strong> 
+                <a href="{% url 'exercises:exercise_detail' exercise.id %}">"{{ exercise.title }}"</a>
+            </p>
+        </div>
+
+        <div class="buttons mt-4">
+            <a href="{% url 'exercises:exercise_detail' exercise.id %}" class="button is-primary is-medium">
+                {% if next_up_exercise %}▶ Continue Learning{% else %}💪 Resume Exercise{% endif %}
+            </a>
+        </div>
+        {% endwith %}
+    </div>
+    {% endif %}
+    
+    {% comment %} --- Secondary Row (3 columns) --- {% endcomment %}
+    <div class="columns">
+      {% comment %} Recent Exercises {% endcomment %}
+      <div class="column is-one-third">
+        <div class="box">
+          <h3 class="title is-5">Recent Activity</h3>
+          {% if recent_traces %}
+            <ul>
+            {% for trace in recent_traces %}
+              <li class="mb-2">
+                {% if trace.complete %}
+                  <span class="icon has-text-success" title="Completed"><i class="fas fa-check-circle"></i></span>
+                {% else %}
+                  <span class="icon has-text-grey-light" title="In progress"><i class="far fa-circle"></i></span>
+                {% endif %}
+                <a href="{% url 'exercises:exercise_detail' trace.exercise.id %}">{{ trace.exercise.title }}</a>
+              </li>
+            {% endfor %}
+            </ul>
+          {% else %}
+            <p>No recent activity. Start an exercise to see your progress!</p>
+          {% endif %}
+        </div>
+      </div>
+
+      {% comment %} Recent Chats {% endcomment %}
+      <div class="column is-one-third">
+        <div class="box">
+          <div class="level is-mobile mb-2">
+            <div class="level-left">
+                <div class="level-item">
+                    <h3 class="title is-5 mb-0">AI Discussions</h3>
+                </div>
+            </div>
+            <div class="level-right">
+                <div class="level-item">
+                    <a class="button is-info is-light" href="{% url 'exercises:chat_home' %}">
+                        <span class="icon"><i class="fas fa-comments"></i></span>
+                        <span>Open Chat</span>
+                    </a>
+                </div>
+            </div>
+          </div>
+          {% if recent_chats %}
+            <ul>
+            {% for chat in recent_chats %}
+              <li class="mb-2">
+                <span class="icon">💬</span>
+                <a href="{% url 'exercises:chat_home' %}?thread={{ chat.id }}">{{ chat.title }}</a>
+              </li>
+            {% endfor %}
+            </ul>
+          {% else %}
+            <p>No recent chats.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      {% comment %} Quick Stats {% endcomment %}
+      <div class="column is-one-third">
+        <div class="box">
+          <h3 class="title is-5">Quick Stats</h3>
+          {% if stats %}
+          <div class="level">
+            <div class="level-item has-text-centered">
+              <div>
+                <p class="heading">Completed</p>
+                <p class="title">{{ stats.total_completed }}</p>
+              </div>
+            </div>
+            <div class="level-item has-text-centered">
+              <div>
+                <p class="heading">This Week</p>
+                <p class="title">{{ stats.week_completed }}</p>
+              </div>
+            </div>
+          </div>
+          {% if stats.module %}
+            <hr class="my-3">
+            <p class="has-text-centered">
+                <strong>{{ stats.module.name }}</strong>:
+                {{ stats.module.completed }} of {{ stats.module.total }} done
+            </p>
+            <progress class="progress is-primary mt-2" value="{{ stats.module.completed }}" max="{{ stats.module.total }}"></progress>
+          {% endif %}
+
+          {% else %}
+            <p>Complete some exercises to see your stats.</p>
+          {% endif %}
+        </div>
+      </div>
     </div>
 
+    {% comment %} --- Course Progress (Compact) --- {% endcomment %}
+    <div class="my-6">
+      <h2 class="title is-4">Your Courses</h2>
+    </div>
+    
     {% if course_progress %}
-      <div class="columns is-multiline">
-        {% for item in course_progress %}
-        <div class="column is-half">
-          <div class="box">
-            <h2 class="title is-4">{{ item.course.name }}</h2>
-            <p>{{ item.completed }} / {{ item.total }} completed ({{ item.percent }}%)</p>
-            <progress class="progress is-primary" value="{{ item.percent }}" max="100">{{ item.percent }}%</progress>
-            <a class="button is-link is-light" href="{% url 'exercises:course_detail' item.course.id %}">View course</a>
+      {% for item in course_progress %}
+      <div class="box">
+        <div class="level">
+          <div class="level-left">
+            <div class="level-item">
+              <div>
+                <p class="title is-5">{{ item.course.name }}</p>
+                <p class="subtitle is-6">{{ item.completed }} / {{ item.total }} completed</p>
+              </div>
+            </div>
+          </div>
+          <div class="level-right">
+            <div class="level-item" style="width: 150px;">
+              <progress class="progress is-primary" value="{{ item.percent }}" max="100">{{ item.percent }}%</progress>
+            </div>
+            <div class="level-item">
+              <span class="mr-3">{{ item.percent }}%</span>
+            </div>
+            <div class="level-item">
+              <a class="button is-link is-light" href="{% url 'exercises:course_detail' item.course.id %}">View course</a>
+            </div>
           </div>
         </div>
-        {% endfor %}
       </div>
+      {% endfor %}
     {% else %}
       <p>No courses available.</p>
     {% endif %}
