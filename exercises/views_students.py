@@ -215,6 +215,7 @@ def exercise_detail(request, pk):
 
     trace_id = None
     guidance_logs = []
+    trace = None
     if request.user.is_authenticated:
         trace, _ = Trace.objects.get_or_create(user=request.user, exercise=exercise)
         trace_id = trace.id
@@ -250,6 +251,7 @@ def exercise_detail(request, pk):
         'exercise_json': exercise_json,
         'guidance_logs': guidance_logs,
         'trace_id': trace_id,
+        'trace': trace,
         'previous_exercise': previous_exercise,
         'next_exercise': next_exercise,
     })

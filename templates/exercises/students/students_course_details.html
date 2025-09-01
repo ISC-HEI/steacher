@@ -2,6 +2,10 @@
 
 {% block title %}{{ course.name }}{% endblock %}
 
+{% block page_title %}
+    <span>{{ course.name }}</span>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <div class="level">
@@ -35,12 +39,9 @@
                         <div class="list-group-item mb-3">
                             <div class="level">
                                 <div class="level-left">
-                                    <div class="exercise-info">
-                                        <div class="exercise-title-line">
+                                    <div class="exercise-info columns is-mobile is-gapless">
+                                        <div class="column is-narrow">
                                             <span class="order-number mr-1">{{ exercise.order }}.</span>
-                                            <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" class="mr-2">
-                                              <span class="exercise-title">{{ exercise.title }}</span>
-                                            </a>
                                             {% if completed_exercise_ids and exercise.id in completed_exercise_ids %}
                                                 <span class="icon has-text-success" title="Completed">
                                                     <i class="fas fa-check-circle"></i>
@@ -49,10 +50,17 @@
                                                 <span class="icon has-text-grey-light" title="Not completed">
                                                     <i class="far fa-circle"></i>
                                                 </span>
-                                            {% endif %}                                            
+                                            {% endif %}
                                         </div>
-                                        <div class="exercise-description ml-5">
-                                            {{ exercise.description|truncatewords:20 }}
+                                        <div class="column ml-2">
+                                            <div class="exercise-title-line">
+                                                <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}">
+                                                  <span class="exercise-title">{{ exercise.title }}</span>
+                                                </a>
+                                            </div>
+                                            <div class="exercise-description">
+                                                {{ exercise.description|truncatewords:20 }}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -85,12 +93,9 @@
                             <div class="list-group-item mb-3">
                                 <div class="level">
                                     <div class="level-left">
-                                        <div class="exercise-info">
-                                            <div class="exercise-title-line">
-                                                <span class="order-number mr-1">{{ exercise.order }}.</span>
-                                                <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" class="mr-2">
-                                                  <span class="exercise-title">{{ exercise.title }}</span>
-                                                </a>
+                                        <div class="exercise-info columns is-mobile is-gapless">
+                                            <div class="column is-narrow">
+                                                <span class="order-number mr-2">{{ exercise.order }}.</span>
                                                 {% if completed_exercise_ids and exercise.id in completed_exercise_ids %}
                                                     <span class="icon has-text-success" title="Completed">
                                                         <i class="fas fa-check-circle"></i>
@@ -99,10 +104,17 @@
                                                     <span class="icon has-text-grey-light" title="Not completed">
                                                         <i class="far fa-circle"></i>
                                                     </span>
-                                                {% endif %}                                            
+                                                {% endif %}
                                             </div>
-                                            <div class="exercise-description ml-5">
-                                                {{ exercise.description|truncatewords:20 }}
+                                            <div class="column">
+                                                <div class="exercise-title-line">
+                                                    <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}">
+                                                      <span class="exercise-title">{{ exercise.title }}</span>
+                                                    </a>
+                                                </div>
+                                                <div class="exercise-description">
+                                                    {{ exercise.description|truncatewords:20 }}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

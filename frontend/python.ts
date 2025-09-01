@@ -137,6 +137,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (guidanceText.includes('<exercise_completed>')) {
                             confetti({ particleCount: 200, spread: 150, origin: { y: 0.6 } });
                             guidanceText = guidanceText.replace('<exercise_completed>', '').trim();
+                            this.updateStatusIcon();
                         }
                         this.chatMessages.push({ role: 'assistant', content: guidanceText });
                     }
@@ -145,6 +146,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 } finally {
                     this.loadingState = 'idle';
                     this.start_timestamp = new Date().toISOString();
+                }
+            },
+
+            updateStatusIcon() {
+                const iconContainer = document.getElementById('exercise-status-icon');
+                if (!iconContainer) return;
+                const existingIcon = iconContainer.querySelector('i');
+                if (existingIcon) {
+                    existingIcon.className = 'fas fa-check-circle has-text-success';
+                    existingIcon.setAttribute('title', 'Completed');
+                    existingIcon.setAttribute('aria-label', 'Completed');
+                } else {
+                    iconContainer.innerHTML = '<i class="fas fa-check-circle has-text-success" title="Completed" aria-label="Completed"></i>';
                 }
             },
 

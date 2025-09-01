@@ -21,11 +21,17 @@
 
 </head>
 <body>
-    <nav class="navbar is-info" role="navigation" aria-label="main navigation">
+    <nav class="navbar is-light" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
-            <a class="navbar-item" href="{% url 'exercises:dashboard' %}">
+            <a class="navbar-item" href="{% url 'exercises:dashboard' %}" style="padding: 0;">
+                <img src="{% static 'images/steacher_logo.jpg' %}" alt="Steacher Logo" style="max-height: 3rem; margin-right: 0.5rem;">
                 <strong>Steacher</strong>
             </a>
+
+            <div class="navbar-item">
+                <span style="margin-right: 0.5rem; font-weight: bold;">/</span>
+                {% block page_title %}Dashboard{% endblock %}
+            </div>
         </div>
 
         <div id="navbarBasicExample" class="navbar-menu">
