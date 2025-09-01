@@ -6,6 +6,11 @@ app_name = 'exercises'
 # Students' URL patterns
 students_urlpatterns = [
     path('dashboard/', views_students.dashboard, name='dashboard'),
+    path('chat/', views_students.chat_home, name='chat_home'),
+    path('chat/threads/', views_students.chat_threads, name='chat_threads'),
+    path('chat/threads/<int:thread_id>/', views_students.chat_thread_detail, name='chat_thread_detail'),
+    path('chat/threads/<int:thread_id>/send/', views_students.chat_thread_send, name='chat_thread_send'),
+    path('chat/threads/<int:thread_id>/delete/', views_students.chat_thread_delete, name='chat_thread_delete'),
     path('courses/', views_students.course_list, name='course_list'),
     path('courses/<int:pk>/', views_students.course_detail, name='course_detail'),
     path('', views_students.exercise_list, name='exercise_list'),

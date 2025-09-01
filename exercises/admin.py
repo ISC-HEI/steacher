@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html, mark_safe
 from django.db.models import Count
-from .models import Exercise, Course, Module, ExerciceAsset, GuidanceLog, Trace, TraceEval, StudentInvite
+from .models import Exercise, Course, Module, ExerciceAsset, GuidanceLog, Trace, TraceEval, StudentInvite, ChatThread
 from django_jsonform.widgets import JSONFormWidget
 
 def format_guidance_logs(trace):
@@ -120,6 +120,7 @@ class CourseAdminForm(forms.ModelForm):
         fields = '__all__'
         widgets = {
             'llm_prompts': JSONFormWidget(schema=LLM_PROMPTS_SCHEMA),
+            'chat_prompt': forms.Textarea(attrs={'rows': 12}),
         }
 
 @admin.register(Course)
@@ -380,3 +381,19 @@ class StudentInviteAdmin(admin.ModelAdmin):
     search_fields = ('email', 'user__username')
     list_filter = ('used',)
     readonly_fields = ('created_at', 'registered_at')
+
+
+@admin.register(ChatThread)
+class ChatThreadAdmin(admin.ModelAdmin):
+    list_display = ('id', 'owner', 'title', 'messages_count', 'updated_at', 'created_at')
+    list_filter = (('owner', admin.RelatedOnlyFieldListFilter),)
+    search_fields = ('title', 'owner__username', 'owner__email')
+    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('-updated_at',)
+
+    def messages_count(self, obj):
+        try:
+            return len(obj.messages or [])
+        except Exception:
+            return 0
+    messages_count.short_description = 'Messages'

@@ -8,9 +8,10 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 from django.db import models
 from django.db.models import Prefetch
+from django.utils import timezone
 import json
 
-from .models import Exercise, ExerciceAsset, Course, GuidanceLog, Trace, Module, StudentInvite
+from .models import Exercise, ExerciceAsset, Course, GuidanceLog, Trace, Module, StudentInvite, ChatThread
 from .serializers import ExerciseFrontendSerializer
 
 
@@ -232,3 +233,193 @@ def delete_user_answers(request, exercise_id):
     return redirect('exercises:exercise_detail', pk=exercise_id)
 
 
+
+@login_required
+def chat_home(request):
+    """Render the simple AI chat page with the user's threads."""
+    courses = Course.objects.filter(visible=True).order_by('name')
+    # Default to last course from user's most recent trace
+    last_trace = (
+        Trace.objects.filter(user=request.user)
+        .select_related('exercise__module__course')
+        .order_by('-updated_at')
+        .first()
+    )
+    default_course_id = None
+    if last_trace and getattr(last_trace, 'exercise', None) and getattr(last_trace.exercise, 'module', None):
+        default_course_id = last_trace.exercise.module.course.id
+    return render(request, 'exercises/students/ai_chat.html', {
+        'courses': courses,
+        'default_course_id': default_course_id,
+    })
+
+
+@login_required
+def chat_threads(request):
+    """
+    GET: return list of threads for the current user
+    POST: create a new thread and return it
+    """
+    if request.method == 'GET':
+        course_id = request.GET.get('course_id')
+        if not course_id:
+            return JsonResponse({'status': 'error', 'message': 'course_id is required'}, status=400)
+        try:
+            course = Course.objects.get(id=int(course_id), visible=True)
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'Invalid course_id'}, status=400)
+        threads = ChatThread.objects.filter(owner=request.user, course=course).order_by('-updated_at')
+        data = [
+            {
+                'id': t.id,
+                'title': t.title,
+                'course_id': t.course_id,
+                'course_name': t.course.name,
+                'updated_at': t.updated_at.isoformat(),
+                'created_at': t.created_at.isoformat(),
+            }
+            for t in threads
+        ]
+        return JsonResponse({'status': 'success', 'threads': data})
+
+    if request.method == 'POST':
+        try:
+            payload = json.loads(request.body or '{}')
+        except json.JSONDecodeError:
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+        course_id = payload.get('course_id')
+        if not course_id:
+            return JsonResponse({'status': 'error', 'message': 'course_id is required'}, status=400)
+        try:
+            course = Course.objects.get(id=int(course_id), visible=True)
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'Invalid course_id'}, status=400)
+
+        title = (payload.get('title') or '').strip() or 'New Chat'
+        thread = ChatThread.objects.create(owner=request.user, course=course, title=title, messages=[])
+        return JsonResponse({
+            'status': 'success',
+            'thread': {
+                'id': thread.id,
+                'title': thread.title,
+                'course_id': thread.course_id,
+                'course_name': thread.course.name,
+                'updated_at': thread.updated_at.isoformat(),
+                'created_at': thread.created_at.isoformat(),
+            }
+        })
+
+    return JsonResponse({'status': 'error', 'message': 'Method not allowed'}, status=405)
+
+
+@login_required
+def chat_thread_detail(request, thread_id: int):
+    """Return a single thread with messages (JSON)."""
+    thread = get_object_or_404(ChatThread, id=thread_id, owner=request.user)
+    return JsonResponse({
+        'status': 'success',
+        'thread': {
+            'id': thread.id,
+            'title': thread.title,
+            'messages': thread.messages,
+            'course_id': thread.course_id,
+            'course_name': thread.course.name,
+            'updated_at': thread.updated_at.isoformat(),
+            'created_at': thread.created_at.isoformat(),
+        }
+    })
+
+
+@login_required
+@require_POST
+def chat_thread_send(request, thread_id: int):
+    """
+    Append a user message, call the AI, append assistant reply, and return updated messages.
+    """
+    thread = get_object_or_404(ChatThread, id=thread_id, owner=request.user)
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+    user_text_raw = (payload.get('message') or '').strip()
+    if not user_text_raw:
+        return JsonResponse({'status': 'error', 'message': 'Message is required'}, status=400)
+
+    # Basic limits
+    user_text = user_text_raw[:4000]
+
+    # Prepare messages and append user message
+    messages = list(thread.messages or [])
+    now_iso = timezone.now().isoformat()
+    messages.append({'role': 'user', 'content': user_text, 'created_at': now_iso})
+
+    # Build AI prompt (study mode prompt + course context)
+    from .logic import client, MODEL_NAME  # reuse existing configured client
+    with open('exercises/study_mode_prompt.md', 'r') as file:
+        base_prompt = file.read()
+
+    course = thread.course
+    course_context = ''
+    try:
+        if (course.chat_prompt or '').strip():
+            course_context = course.chat_prompt.strip()
+        elif (course.description or '').strip():
+            desc = course.description.strip()
+            course_context = desc[:1000]
+    except Exception:
+        course_context = ''
+
+    system_prompt = base_prompt
+    if course_context:
+        system_prompt = f"{base_prompt}\n\nCONTEXT FOR THIS COURSE: {course.name}\n{course_context}"
+
+    model_messages = [{'role': 'system', 'content': system_prompt}]
+    # Cap context to the last ~40 messages to control token usage
+    tail = messages[-40:]
+    for m in tail:
+        role = 'user' if m.get('role') == 'user' else 'assistant'
+        content = str(m.get('content') or '')
+        model_messages.append({'role': role, 'content': content})
+
+    try:
+        completion = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=model_messages,
+            temperature=0.6,
+        )
+        assistant_text = (completion.choices[0].message.content or '').strip()
+    except Exception as e:
+        assistant_text = f"Sorry, I couldn't reach the AI service. ({e})"
+
+    messages.append({'role': 'assistant', 'content': assistant_text, 'created_at': timezone.now().isoformat()})
+    # Trim stored history if it grows too large
+    if len(messages) > 200:
+        messages = messages[-200:]
+
+    thread.messages = messages
+    # Use first user line or assistant summary for title if default
+    if thread.title == 'New Chat' and user_text:
+        thread.title = (user_text.splitlines()[0] or 'New Chat')[:100]
+    thread.save(update_fields=['messages', 'title', 'updated_at'])
+
+    return JsonResponse({
+        'status': 'success',
+        'thread': {
+            'id': thread.id,
+            'title': thread.title,
+            'messages': thread.messages,
+            'updated_at': thread.updated_at.isoformat(),
+            'created_at': thread.created_at.isoformat(),
+        }
+    })
+
+
+@login_required
+@require_POST
+def chat_thread_delete(request, thread_id: int):
+    """Delete a thread owned by the user."""
+    thread = get_object_or_404(ChatThread, id=thread_id, owner=request.user)
+    thread.delete()
+    return JsonResponse({'status': 'success'})

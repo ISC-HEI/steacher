@@ -5,6 +5,12 @@
   <div class="container">
     <h1 class="title">Your Dashboard</h1>
     <p class="subtitle">Progress across your courses</p>
+    <div class="mb-4">
+      <a class="button is-info" href="{% url 'exercises:chat_home' %}">
+        <span class="icon"><i class="fas fa-comments"></i></span>
+        <span>Open AI Chat</span>
+      </a>
+    </div>
 
     {% if course_progress %}
       <div class="columns is-multiline">

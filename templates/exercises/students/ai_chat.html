@@ -1,0 +1,77 @@
+{% extends "exercises/base.html" %}
+{% load static %}
+
+{% block content %}
+<section class="section">
+  <div class="container">
+    <h1 class="title">Chat with AI tutor</h1>
+    <div id="ai-chat-app" v-cloak
+         data-default-course-id="{{ default_course_id|default:'' }}">
+      {% csrf_token %}
+      <div class="columns">
+        <div class="column is-one-quarter">
+          <div class="field">
+            <label class="label">Course</label>
+            <div class="control">
+              <div class="select is-fullwidth">
+                <select v-model.number="selectedCourseId" @change="loadThreads">
+                  {% for c in courses %}
+                    <option value="{{ c.id }}">{{ c.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="mb-3">
+            <button class="button is-primary is-fullwidth" @click="createThread" :disabled="loading || !selectedCourseId">
+              <span class="icon"><i class="fas fa-plus"></i></span>
+              <span>New chat</span>
+            </button>
+          </div>
+          <aside class="menu">
+            <p class="menu-label">Conversations</p>
+            <ul class="menu-list">
+              <li v-for="t in threads" :key="t.id">
+                <a :class="{ 'is-active': t.id === selectedThreadId }" @click="selectThread(t.id)" style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+                  <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">[[ t.title ]]</span>
+                  <span class="delete is-small" title="Delete" @click.stop="confirmDelete(t)"></span>
+                </a>
+              </li>
+            </ul>
+          </aside>
+        </div>
+        <div class="column">
+          <div v-if="selectedThread" class="box" style="min-height: 60vh; display: flex; flex-direction: column;">
+            <div style="flex: 1; overflow-y: auto; padding-right: 0.5rem;">
+              <chatbot-panel
+                :initial-question="''"
+                :messages="selectedThread.messages"
+                :loading="loading"
+                @question-asked="handleAsk"
+              >
+              </chatbot-panel>
+            </div>
+          </div>
+          <div v-else class="notification is-light">Create or select a conversation.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script type="importmap">
+{
+  "imports": {
+    "vue": "{% static 'vue/dist/vue.esm-browser.js' %}",
+    "marked": "{% static 'marked/lib/marked.esm.js' %}",
+    "dompurify": "{% static 'dompurify/dist/purify.es.mjs' %}",
+    "./ChatbotPanel.js": "{% static 'js/dist/ChatbotPanel.js' %}"
+  }
+}
+</script>
+<script type="module" src="{% static 'js/dist/ai_chat.js' %}"></script>
+{% endblock %}
+
+

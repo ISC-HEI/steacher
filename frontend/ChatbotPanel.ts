@@ -82,14 +82,14 @@ export const ChatbotPanel = {
       <div class="field has-addons mt-3">
         <!-- Single Input Field -->
         <p class="control is-expanded">
-          <input
-              class="input"
-              type="text"
+          <textarea
+              class="textarea"
               v-model="question"
-              placeholder="Enter your question"
-              @keyup.enter="askQuestion"
+              placeholder="Enter your message (Shift+Enter for newline)"
+              rows="3"
               :disabled="loading"
-          />
+              @keydown="handleKeydown"
+          ></textarea>
         </p>
 
         <!-- Ask Question Button -->
@@ -238,6 +238,13 @@ export const ChatbotPanel = {
         // Clear the input field after asking the question
         this.question = '';
       }
+    },
+    handleKeydown(this: any, event: KeyboardEvent) {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        this.askQuestion();
+      }
+      // If Shift+Enter, let the default behavior insert a newline
     },
     renderMarkdown(this: any, content: string) {
       if (!content) return '';

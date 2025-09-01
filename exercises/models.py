@@ -9,6 +9,7 @@ class Course(models.Model):
     """
     name = models.CharField(max_length=200, help_text="The name/title of the course that will be displayed to the user.")
     description = models.TextField(blank=True, help_text="A short description of the course that will be displayed to the user.")
+    chat_prompt = models.TextField(blank=True, help_text="Chatbot-specific instructions for this course, when the user starts a chat thread.")
     llm_prompts = models.JSONField(blank=True, default=dict, help_text="LLM prompts per exercise type, e.g. {'turtle': 'Your prompt for turtle exercises...'}")
     visible = models.BooleanField(default=True, help_text="Whether the course is visible to students.")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -190,3 +191,22 @@ class StudentInvite(models.Model):
         self.user = user
         self.registered_at = timezone.now()
         self.save(update_fields=['used', 'user', 'registered_at'])
+
+
+class ChatThread(models.Model):
+    """
+    A standalone AI chat thread for a student. Stores the whole conversation as JSON.
+    `messages` is an ordered list of objects like {"role": "user"|"assistant", "content": str, "created_at": iso str}.
+    """
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='chat_threads')
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='chat_threads', help_text="Each chat thread is associated with a course.")
+    title = models.CharField(max_length=255, help_text="Short title shown in the thread list.")
+    messages = models.JSONField(default=list, blank=True, help_text="Ordered array of chat messages, just like in OpenAI's API.")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"ChatThread {self.id} by {self.owner} - {self.title}"
