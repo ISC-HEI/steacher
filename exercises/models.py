@@ -1,8 +1,6 @@
 from django.db import models
-from django.contrib.auth.models import User
 from django.conf import settings
 from django.utils import timezone
-from django.contrib.auth import get_user_model
 
 
 class Course(models.Model):
@@ -179,7 +177,7 @@ class StudentInvite(models.Model):
     """
     email = models.EmailField(unique=True, help_text="Lowercased")
     used = models.BooleanField(default=False)
-    user = models.ForeignKey(get_user_model(), null=True, blank=True, on_delete=models.SET_NULL, related_name='student_invite')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='student_invite')
     note = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     registered_at = models.DateTimeField(null=True, blank=True)

@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from exercises.models import Exercise, ExerciceAsset, Course, GuidanceLog, Trace
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 
 class Command(BaseCommand):
@@ -16,6 +16,7 @@ class Command(BaseCommand):
         Trace.objects.all().delete()
         
         # Get or create the admin user
+        User = get_user_model()
         try:
             admin_user = User.objects.create_superuser('admin', 'admin@example.com', 'adminpass')
             self.stdout.write("Created admin user.")

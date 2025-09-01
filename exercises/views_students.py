@@ -1,7 +1,7 @@
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.views.decorators.csrf import csrf_protect
 from django.http import JsonResponse, HttpResponse, Http404
 from django.shortcuts import render, get_object_or_404, redirect
@@ -83,19 +83,27 @@ def register(request):
     if errors:
         return render(request, 'registration/register.html', {'errors': errors, 'email': email})
 
+    User = get_user_model()
     if User.objects.filter(username=email).exists():
         return render(request, 'registration/register.html', {
             'errors': ["An account with this email already exists. Use password reset if needed."], 'email': email
         })
 
+    preferred_language = (request.POST.get('preferred_language') or 'en').strip()
+    if preferred_language not in ['en', 'fr', 'de']:
+        preferred_language = 'en'
     user = User.objects.create_user(username=email, email=email, password=p1)
+    try:
+        user.preferred_language = preferred_language
+    except Exception:
+        pass
     user.is_staff = False
     user.save()
 
     invite.mark_used(user)
 
-    login(request, user)
-    return redirect('exercises:course_list')
+    login(request, user, backend=settings.AUTHENTICATION_BACKENDS[0])
+    return redirect('exercises:dashboard')
 
 
 @login_required

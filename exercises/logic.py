@@ -196,6 +196,23 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
     if course_prompt:
         prompt += f"\n\n{course_prompt}"
 
+    # Add student's preferred language directive so the tutor answers accordingly
+    try:
+        preferred_language_code = getattr(trace.user, 'preferred_language', 'en') or 'en'
+    except Exception:
+        preferred_language_code = 'en'
+    language_names = {
+        'en': 'English',
+        'fr': 'French',
+        'de': 'German',
+    }
+    language_name = language_names.get(preferred_language_code, 'English')
+    prompt += (
+        f"\n\n## Language\n"
+        f"Always respond to the student in {language_name}. "
+        f"If you include code snippets, keep the code itself in its original programming language and do not translate identifiers."
+    )
+
     # 4. Add question, expected result, correct answers, hints, additional context, choice explanations
     # TODO: refactor this to make it cleaner
     prompt += f"\n\n# Exercise"

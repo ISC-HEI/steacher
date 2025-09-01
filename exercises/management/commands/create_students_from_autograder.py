@@ -2,7 +2,7 @@
 import os
 import sys
 from django.core.management.base import BaseCommand
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 
 # --- BEGIN COPIED LOGIC from autograder_study ---
 # This section is copied from your autograder_study project to parse student data.
@@ -75,6 +75,7 @@ class Command(BaseCommand):
             self.stderr.write(self.style.ERROR(f"Failed to parse student answers: {e}"))
             return
 
+        User = get_user_model()
         created_count = 0
         for username in student_usernames:
             username = username.replace('@hevs.ch', '')

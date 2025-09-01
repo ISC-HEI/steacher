@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from exercises.models import Exercise, Trace
 from exercises.logic import fetch_ai_guidance
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 import json
 
 class Command(BaseCommand):
@@ -21,6 +21,7 @@ class Command(BaseCommand):
 
         try:
             exercise = Exercise.objects.get(pk=exercise_id)
+            User = get_user_model()
             user = User.objects.get(pk=user_id)
             trace, _ = Trace.objects.get_or_create(user=user, exercise=exercise)
 

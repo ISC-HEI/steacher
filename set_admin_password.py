@@ -14,11 +14,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'exam_project.settings')
 django.setup()
 
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 
 def set_admin_password():
     try:
         # Get the admin user
+        User = get_user_model()
         admin_user = User.objects.get(username='admin')
         
         # Set the password

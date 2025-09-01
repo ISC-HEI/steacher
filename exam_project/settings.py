@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django_jsonform',
 
     # our apps
+    'accounts',  # only used for custom user model (prefered language)
     'exercises',
 ]
 
@@ -199,3 +200,6 @@ AUTHENTICATION_BACKENDS = [
     'exercises.auth_backends.EmailOrUsernameModelBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
+
+# Use custom user model
+AUTH_USER_MODEL = 'accounts.User'

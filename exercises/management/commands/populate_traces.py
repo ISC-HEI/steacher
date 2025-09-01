@@ -6,7 +6,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Max
 from exercises.models import Exercise, Trace, GuidanceLog
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from exercises.logic import fetch_ai_guidance
 import logging
 
@@ -60,6 +60,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"Using version {next_version} for new traces."))
 
         # Process Each Student
+        User = get_user_model()
         for username, student_data in answers.items():
             username = username.replace('@hevs.ch', '').replace('@students.hevs.ch', '')
             

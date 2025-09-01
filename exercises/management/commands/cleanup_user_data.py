@@ -1,6 +1,6 @@
 
 from django.core.management.base import BaseCommand
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from exercises.models import Trace
 
 class Command(BaseCommand):
@@ -22,6 +22,7 @@ class Command(BaseCommand):
         trace_version = options['trace_version']
 
         # 1. Identify non-admin users
+        User = get_user_model()
         non_admin_users = User.objects.filter(is_superuser=False, is_staff=False)
         
         if not non_admin_users.exists():
