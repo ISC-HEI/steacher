@@ -1,9 +1,8 @@
-project.db
-_old
-node_modules
+steacher_app/node_modules
+steacher_app/steacher.log
+
 
 # Compiled JS files
-static/js/dist/
-backend/static/js/dist
-import.ipynb
-steacher.log
+steacher_app/static/js/dist/
+steacher_app/backend/static/js/dist
+steacher_app/frontend/node_modules

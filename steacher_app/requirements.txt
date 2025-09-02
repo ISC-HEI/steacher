@@ -7,3 +7,5 @@ pytest
 pytest-django
 playwright
 pytest-playwright
+gunicorn
+python-dotenv
