@@ -6,3 +6,18 @@ steacher_app/steacher.log
 steacher_app/static/js/dist/
 steacher_app/backend/static/js/dist
 steacher_app/frontend/node_modules
+
+# Environment files
+.env.*
+*.env
+
+# Docker
+volumes/
+postgres_data/
+static_data/
+media_data/
+
+# Python
+__pycache__/
+*.pyc
+PRIVATE.md
