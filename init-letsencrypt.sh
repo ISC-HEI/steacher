@@ -3,10 +3,16 @@
 # This script is used to initialize the Let's Encrypt certificates.
 # It should only be run once.
 
-if ! [ -x "$(command -v docker-compose)" ]; then
-  echo 'Error: docker-compose is not installed.' >&2
-  exit 1
+# Find the correct docker-compose command
+if command -v docker-compose &> /dev/null; then
+    COMPOSE_CMD="docker-compose"
+elif docker compose version &> /dev/null; then
+    COMPOSE_CMD="docker compose"
+else
+    echo "Error: docker-compose or docker compose is not installed." >&2
+    exit 1
 fi
+
 
 DOMAIN="steacher.org"
 EMAIL="teach@steacher.org"
@@ -29,7 +35,7 @@ mkdir -p $DATA_PATH
 
 echo "### Creating dummy certificate for $DOMAIN ..."
 mkdir -p "$RENEWAL_CONFIG_PATH"
-docker-compose run --rm --entrypoint "\
+$COMPOSE_CMD run --rm --entrypoint "\
   openssl req -x509 -nodes -newkey rsa:4096 -days 1\
     -keyout '/etc/letsencrypt/live/$DOMAIN/privkey.pem' \
     -out '/etc/letsencrypt/live/$DOMAIN/fullchain.pem' \
@@ -37,16 +43,16 @@ docker-compose run --rm --entrypoint "\
 echo
 
 echo "### Starting services ..."
-docker-compose up -d --build web proxy
+$COMPOSE_CMD up -d --build web proxy
 echo
 
 echo "### Removing dummy certificate for $DOMAIN ..."
-docker-compose run --rm --entrypoint "\
+$COMPOSE_CMD run --rm --entrypoint "\
   rm -Rf /etc/letsencrypt/live/$DOMAIN" certbot
 echo
 
 echo "### Requesting Let's Encrypt certificate for $DOMAIN ..."
-docker-compose run --rm certbot certonly \
+$COMPOSE_CMD run --rm certbot certonly \
   --webroot \
   --webroot-path /app/static \
   -d $DOMAIN \
@@ -57,7 +63,7 @@ docker-compose run --rm certbot certonly \
 echo
 
 echo "### Restarting Nginx ..."
-docker-compose restart proxy
+$COMPOSE_CMD restart proxy
 echo
 
 echo "### Done! Your certificates are now set up."
