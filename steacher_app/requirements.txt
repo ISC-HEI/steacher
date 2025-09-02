@@ -1,7 +1,8 @@
 Django~=5.0
 psycopg2-binary
 django-cors-headers
-openai 
+openai<1.0.0
+djangorestframework
 django-jsonform
 pytest
 pytest-django

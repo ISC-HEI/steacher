@@ -3,10 +3,11 @@
 
 ssh into vm
 
-update git repo
+git pull
 
 docker compose --env-file .env.production up -d --build
 
+docker compose exec web python manage.py collectstatic --noinput
 
 
 ------
@@ -106,4 +107,47 @@ docker compose version
 
 ---
 
-Do you want me to also give you a **minimal sanity test** (like running a quick container and Compose stack) to verify everything works before you deploy Django/Postgres?
+
+
+
+
+## Add Rules to Your Security Group
+
+You need to do this in your OpenStack Horizon dashboard (the web interface where you created the instance).
+
+1.  **Log in to Horizon (OpenStack dashboard).**
+
+2.  **Navigate to Security Groups:**
+    *   On the left-hand menu, go to **Network** -> **Security Groups**.
+
+3.  **Find and Manage Rules for Your Instance:**
+    *   You will see a list of security groups. Find the one that is associated with your VM (it's often named `default` if you didn't create a new one).
+    *   Click the **Manage Rules** button for that group.
+
+4.  **Add a Rule for HTTP (Port 80):**
+    *   Click the **Add Rule** button.
+    *   In the form that appears, use these settings:
+        *   **Rule:** `Custom TCP Rule`
+        *   **Direction:** `Ingress` (this means incoming traffic)
+        *   **Open Port:** `Port`
+        *   **Port:** `80`
+        *   **Remote:** `CIDR`
+        *   **CIDR:** `0.0.0.0/0` (this means "allow traffic from any IP address")
+    *   Click **Add**.
+
+5.  **Add a Rule for HTTPS (Port 443):**
+    *   Click **Add Rule** again.
+    *   Use the same settings as above, but change the port:
+        *   **Rule:** `Custom TCP Rule`
+        *   **Direction:** `Ingress`
+        *   **Open Port:** `Port`
+        *   **Port:** `443`
+        *   **Remote:** `CIDR`
+        *   **CIDR:** `0.0.0.0/0`
+    *   Click **Add**.
+
+You should now have two new rules in your security group list. The changes are applied almost instantly.
+
+**Now, try accessing `http://37.156.44.113` in your browser again.** It should now connect to your Nginx proxy and show you your Django application.
+
+
