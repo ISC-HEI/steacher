@@ -28,8 +28,15 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - static_data:/app/static
       - media_data:/app/media
+      - ./certbot_data/etc:/etc/letsencrypt:ro
     depends_on:
       - web
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - ./certbot_data/etc:/etc/letsencrypt
+      - static_data:/app/static
 
 volumes:
   postgres_data:

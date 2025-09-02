@@ -151,3 +151,129 @@ You should now have two new rules in your security group list. The changes are a
 **Now, try accessing `http://37.156.44.113` in your browser again.** It should now connect to your Nginx proxy and show you your Django application.
 
 
+
+
+
+
+
+
+
+
+# setting the DNS
+
+
+## 1️⃣ Decide what you want to point
+
+For your LMS, you probably want at least:
+
+* `steacher.org` → main site (Django app behind your proxy)
+* `www.steacher.org` → optionally redirect to main site
+
+---
+
+## 2️⃣ Access Infomaniak DNS Management
+
+1. Go to **Infomaniak Admin Panel → Domains → steacher.org → DNS Settings**.
+2. You’ll see your current records (A, AAAA, CNAME, etc.).
+
+---
+
+## 3️⃣ Add an **A record**
+
+* **Type:** A
+* **Host/Name:** leave empty for root domain (`steacher.org`)
+* **Value / Points to:** your **public IPv4** of the OpenStack instance (from Horizon, e.g., `37.156.44.128`)
+* **TTL:** default is fine (3600s or 1h)
+
+Optional:
+
+* Add **CNAME** for `www`:
+
+  * **Host/Name:** `www`
+  * **Type:** CNAME
+  * **Value / Points to:** `steacher.org`
+
+---
+
+## 4️⃣ Add AAAA record (IPv6, optional)
+
+* If you want IPv6 support:
+
+  * **Type:** AAAA
+  * **Host/Name:** empty or `www`
+  * **Value:** IPv6 of your OpenStack instance (eg `2001:1600:16:10::5bb`)
+
+---
+
+## 5️⃣ Wait for propagation
+
+* DNS changes can take a few minutes to 1 hour.
+* Test with:
+
+  ```bash
+  ping steacher.org
+  ping www.steacher.org
+  ```
+
+  or use online tools like **[https://dnschecker.org](https://dnschecker.org)**
+
+---
+
+## 6️⃣ Configure your proxy for the domain
+
+* In nginx or Traefik, make sure the **host matches** `steacher.org` and `www.steacher.org`.
+* Enable SSL/Let’s Encrypt for HTTPS. Traefik can do this automatically if it sees the domain pointing to your instance.
+
+
+
+
+----
+
+# Let's Encrypt SSL certificate
+
+We can use a script to automate the initial setup. I've just updated your `docker-compose.yml` to use a local directory (`./certbot_data`) to store the certificates, which is necessary for the script to work.
+
+Now, I will create a script called `init-letsencrypt.sh` that will:
+1.  Create a temporary dummy certificate to allow Nginx to start.
+2.  Start all the services.
+3.  Request a real certificate from Let's Encrypt.
+4.  Reload Nginx to use the new certificate.
+
+This script will only need to be run once. After that, we'll set up automatic renewals.
+
+Here is how to proceed:
+
+1.  **Make the script executable:**
+    Open a terminal in the project root and run:
+    ```bash
+    chmod +x init-letsencrypt.sh
+    ```
+
+2.  **Run the script:**
+    This will perform all the necessary steps to get your first certificate.
+    ```bash
+    ./init-letsencrypt.sh
+    ```
+    Follow any on-screen prompts. After the script finishes, `https://steacher.org` will be live.
+
+### Automatic Renewal
+
+Let's Encrypt certificates expire every 90 days. To avoid having to renew them manually, you can set up a cron job on your server to run the renewal command automatically.
+
+1.  **Open your crontab editor:**
+    ```bash
+    crontab -e
+    ```
+
+2.  **Add the following line:**
+    This will run the renewal command every day at 3:30 AM. Certbot will only renew the certificate if it's close to expiration.
+
+    ```
+    30 3 * * * /usr/bin/docker-compose -f /path/to/your/project/docker-compose.yml run --rm certbot renew --quiet && /usr/bin/docker-compose -f /path/to/your/project/docker-compose.yml restart proxy
+    ```
+
+    **Important:**
+    *   Replace `/path/to/your/project/` with the absolute path to your project directory (where `docker-compose.yml` is located).
+    *   Make sure the path to `docker-compose` is correct for your system (you can find it with `which docker-compose`).
+
+This setup automates both the initial certificate acquisition and the renewal process, making it much easier to manage HTTPS for your site.
