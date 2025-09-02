@@ -15,7 +15,7 @@ students_urlpatterns = [
     path('courses/<int:pk>/', views_students.course_detail, name='course_detail'),
     path('', views_students.exercise_list, name='exercise_list'),
     # More specific patterns first to avoid conflicts
-    path('<int:exercise_id>/traces/<int:trace_id>/guidance/', views_students.get_guidance, name='get_guidance'),
+    path('<int:exercise_id>/attempts/<int:attempt_id>/guidance/', views_students.get_guidance, name='get_guidance'),
     path('<int:exercise_id>/delete_answers/', views_students.delete_user_answers, name='delete_user_answers'),
     path('<int:exercise_id>/<str:filename>', views_students.serve_asset, name='serve_asset'),
     # Generic pattern last

@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from exercises.models import Exercise, Trace
+from exercises.models import Exercise, Attempt
 from exercises.logic import fetch_ai_guidance
 from django.contrib.auth import get_user_model
 import json
@@ -23,7 +23,7 @@ class Command(BaseCommand):
             exercise = Exercise.objects.get(pk=exercise_id)
             User = get_user_model()
             user = User.objects.get(pk=user_id)
-            trace, _ = Trace.objects.get_or_create(user=user, exercise=exercise)
+            attempt, _ = Attempt.objects.get_or_create(user=user, exercise=exercise)
 
             data = {
                 "action": "ask_question",
@@ -33,7 +33,7 @@ class Command(BaseCommand):
 
             self.stdout.write(f"Fetching AI guidance for exercise {exercise_id}, user {user_id}...")
             
-            response_data = fetch_ai_guidance(data, exercise, trace)
+            response_data = fetch_ai_guidance(data, exercise, attempt)
 
             self.stdout.write(self.style.SUCCESS('Successfully fetched and stored AI guidance.'))
             self.stdout.write(f"AI Response: {response_data['guidance']}")

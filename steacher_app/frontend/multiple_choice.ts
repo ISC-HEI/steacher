@@ -47,23 +47,23 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     const exerciseData: Exercise = JSON.parse(exerciseDataScript.textContent || '{}');
 
-    // Get trace ID from script tag
-    const traceIdScript = document.getElementById('trace-id');
-    let traceId: number | null = null;
-    if (traceIdScript && traceIdScript.textContent) {
-        traceId = JSON.parse(traceIdScript.textContent);
+    // Get attempt ID from script tag
+    const attemptIdScript = document.getElementById('attempt-id');
+    let attemptId: number | null = null;
+    if (attemptIdScript && attemptIdScript.textContent) {
+        attemptId = JSON.parse(attemptIdScript.textContent);
     }
 
-    // Get guidance logs if they exist
-    const guidanceLogsScript = document.getElementById('guidance-logs-data');
+    // Get interactions if they exist
+    const interactionsScript = document.getElementById('interactions-data');
     let initialMessages: any[] = [];
     let lastSelections: Selections | null = null;
     let lastJustification: string = '';
     let isAlreadySubmitted = false;
     let initialFeedback = null;
 
-    if (guidanceLogsScript) {
-        const logs = JSON.parse(guidanceLogsScript.textContent || '[]') as any[];
+    if (interactionsScript) {
+        const logs = JSON.parse(interactionsScript.textContent || '[]') as any[];
         
         // Find the last answer submission from the logs to restore state
         const lastSubmissionLog = logs.slice().reverse().find(log => 
@@ -168,7 +168,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     };
 
                     // 3. Make API call
-                    const response = await fetch(`/exercises/${this.exercise.id}/traces/${traceId}/guidance/`, {
+                    const response = await fetch(`/exercises/${this.exercise.id}/attempts/${attemptId}/guidance/`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

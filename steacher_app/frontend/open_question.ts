@@ -32,19 +32,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     const exerciseData: Exercise = JSON.parse(exerciseDataScript.textContent || '{}');
 
-    // Get trace ID from script tag
-    const traceIdScript = document.getElementById('trace-id');
-    let traceId: number | null = null;
-    if (traceIdScript && traceIdScript.textContent) {
-        traceId = JSON.parse(traceIdScript.textContent);
+    // Get attempt ID from script tag
+    const attemptIdScript = document.getElementById('attempt-id');
+    let attemptId: number | null = null;
+    if (attemptIdScript && attemptIdScript.textContent) {
+        attemptId = JSON.parse(attemptIdScript.textContent);
     }
 
-    // Get guidance logs if they exist
-    const guidanceLogsScript = document.getElementById('guidance-logs-data');
+    // Get interactions if they exist
+    const interactionsScript = document.getElementById('interactions-data');
     let initialMessages: any[] = [];
     let lastAnswer = '';
-    if (guidanceLogsScript) {
-        const logs = JSON.parse(guidanceLogsScript.textContent || '[]') as any[];
+    if (interactionsScript) {
+        const logs = JSON.parse(interactionsScript.textContent || '[]') as any[];
         // Find last user answer in metadata
         for (let i = logs.length - 1; i >= 0; i--) {
             const log = logs[i];
@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         submission_timestamp: new Date().toISOString(),
                     };
 
-                    const response = await fetch(`/exercises/${this.exercise.id}/traces/${traceId}/guidance/`, {
+                    const response = await fetch(`/exercises/${this.exercise.id}/attempts/${attemptId}/guidance/`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

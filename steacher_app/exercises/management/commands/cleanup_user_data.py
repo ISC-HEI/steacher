@@ -1,25 +1,25 @@
 
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
-from exercises.models import Trace
+from exercises.models import Attempt
 
 class Command(BaseCommand):
     help = (
-        'Deletes all traces and associated guidance logs for non-admin users. '
+        'Deletes all attempts and associated interactions for non-admin users. '
         'This is a destructive operation and does not ask for confirmation.'
     )
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--trace-version',
+            '--attempt-version',
             type=int,
-            help='Only delete traces with this specific version number.',
-            dest='trace_version',  # Ensures the option is stored in options['trace_version']
+            help='Only delete attempts with this specific version number.',
+            dest='attempt_version',  # Ensures the option is stored in options['attempt_version']
             default=None
         )
 
     def handle(self, *args, **options):
-        trace_version = options['trace_version']
+        attempt_version = options['attempt_version']
 
         # 1. Identify non-admin users
         User = get_user_model()
@@ -30,33 +30,33 @@ class Command(BaseCommand):
             return
 
         self.stdout.write(f"Found {non_admin_users.count()} non-admin users. Starting cleanup...")
-        if trace_version is not None:
-            self.stdout.write(self.style.WARNING(f"Only traces with version {trace_version} will be deleted."))
+        if attempt_version is not None:
+            self.stdout.write(self.style.WARNING(f"Only attempts with version {attempt_version} will be deleted."))
 
-        total_traces_deleted = 0
+        total_attempts_deleted = 0
 
-        # 2. Iterate over each user and delete their traces
+        # 2. Iterate over each user and delete their attempts
         for user in non_admin_users:
-            traces_to_delete = Trace.objects.filter(user=user)
+            attempts_to_delete = Attempt.objects.filter(user=user)
             
             # Optionally filter by version
-            if trace_version is not None:
-                traces_to_delete = traces_to_delete.filter(version=trace_version)
+            if attempt_version is not None:
+                attempts_to_delete = attempts_to_delete.filter(version=attempt_version)
 
-            user_traces_count = traces_to_delete.count()
-            if user_traces_count > 0:
-                self.stdout.write(f"  Deleting {user_traces_count} trace(s) for user '{user.username}'...")
+            user_attempts_count = attempts_to_delete.count()
+            if user_attempts_count > 0:
+                self.stdout.write(f"  Deleting {user_attempts_count} attempt(s) for user '{user.username}'...")
                 
                 # As requested, iterate and delete one-by-one
-                for trace in traces_to_delete:
-                    trace.delete()
-                    total_traces_deleted += 1
+                for attempt in attempts_to_delete:
+                    attempt.delete()
+                    total_attempts_deleted += 1
             else:
-                self.stdout.write(f"  No matching traces to delete for user '{user.username}'.")
+                self.stdout.write(f"  No matching attempts to delete for user '{user.username}'.")
         
         # 3. Provide final feedback
         self.stdout.write(
             self.style.SUCCESS(
-                f"\nCleanup complete. A total of {total_traces_deleted} traces were deleted."
+                f"\nCleanup complete. A total of {total_attempts_deleted} attempts were deleted."
             )
         )

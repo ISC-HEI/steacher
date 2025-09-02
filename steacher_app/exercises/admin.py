@@ -5,20 +5,20 @@ from django.urls import reverse
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html, mark_safe
 from django.db.models import Count
-from .models import Exercise, Course, Module, ExerciceAsset, GuidanceLog, Trace, TraceEval, StudentInvite, ChatThread
+from .models import Exercise, Course, Module, ExerciceAsset, AttemptInteraction, Attempt, AttemptEval, UserInvite, ChatThread, Cohort, CohortMembership
 from django_jsonform.widgets import JSONFormWidget
 
-def format_guidance_logs(trace):
+def format_interactions(attempt):
     """
-    Formats the guidance logs for a given trace into a nice HTML representation
+    Formats the interactions for a given attempt into a nice HTML representation
     that looks like a chat dialogue.
     """
-    logs = trace.guidance_logs.order_by('submitted_at')
+    logs = attempt.interactions.order_by('submitted_at')
     
     # Escape all user-provided content first
-    username = html.escape(trace.user.username)
-    exercise_title = html.escape(trace.exercise.title)
-    exercise_question = html.escape(trace.exercise.exercise_data.get('question', 'No question provided.'))
+    username = html.escape(attempt.user.username)
+    exercise_title = html.escape(attempt.exercise.title)
+    exercise_question = html.escape(attempt.exercise.exercise_data.get('question', 'No question provided.'))
     
     html_output = f"<strong>User:</strong> {username}, <strong>Exercise:</strong> {exercise_title}<hr>"
     
@@ -51,7 +51,7 @@ def format_guidance_logs(trace):
             submission_html += "<div><em>Hint was requested.</em></div>"
         code = metadata.get('code')
         if code:
-            language = html.escape(trace.exercise.exercise_type)
+            language = html.escape(attempt.exercise.exercise_type)
             escaped_code = html.escape(code)
             submission_html += f'<pre class="line-numbers"><code class="language-{language}">{escaped_code}</code></pre>'
         
@@ -90,7 +90,7 @@ def format_guidance_logs(trace):
                 html_output += "<div><em>Exercise marked as completed by the LLM.</em></div>"
 
     if not logs.exists():
-        html_output += "<p>No guidance logs found for this trace.</p>"
+        html_output += "<p>No interactions found for this attempt.</p>"
         
     html_output += "</div>" # Close main container
         
@@ -202,32 +202,32 @@ class ExerciceAssetAdmin(admin.ModelAdmin):
             return 'Unknown'
     content_size.short_description = 'Content size'
 
-@admin.register(GuidanceLog)
-class GuidanceLogAdmin(admin.ModelAdmin):
+@admin.register(AttemptInteraction)
+class AttemptInteractionAdmin(admin.ModelAdmin):
     list_display = ('get_exercise', 'get_user', 'submitted_at')
-    list_filter = ('trace__user', 'trace__exercise')
+    list_filter = ('attempt__user', 'attempt__exercise')
     date_hierarchy = 'submitted_at'
     ordering = ('-submitted_at',)
 
     def get_exercise(self, obj):
-        return obj.trace.exercise
+        return obj.attempt.exercise
     get_exercise.short_description = 'Exercise'
 
     def get_user(self, obj):
-        return obj.trace.user
+        return obj.attempt.user
     get_user.short_description = 'User'
 
-class TraceEvalInlineForm(forms.ModelForm):
+class AttemptEvalInlineForm(forms.ModelForm):
     class Meta:
-        model = TraceEval
+        model = AttemptEval
         fields = '__all__'
         widgets = {
             'is_ok': forms.RadioSelect(choices=[(True, 'Yes'), (False, 'No'), (None, 'Unknown')]),
         }
 
-class TraceEvalInline(admin.TabularInline):
-    model = TraceEval
-    form = TraceEvalInlineForm
+class AttemptEvalInline(admin.TabularInline):
+    model = AttemptEval
+    form = AttemptEvalInlineForm
     extra = 1
     fields = ('is_ok', 'feedback', 'created_at', 'updated_at')
     readonly_fields = ('created_at', 'updated_at')
@@ -244,16 +244,16 @@ class HasEvaluationFilter(admin.SimpleListFilter):
 
     def queryset(self, request, queryset):
         if self.value() == 'yes':
-            return queryset.filter(trace_evals__isnull=False).distinct()
+            return queryset.filter(evaluations__isnull=False).distinct()
         if self.value() == 'no':
-            return queryset.filter(trace_evals__isnull=True).distinct()
+            return queryset.filter(evaluations__isnull=True).distinct()
 
-@admin.register(Trace)
-class TraceAdmin(admin.ModelAdmin):
+@admin.register(Attempt)
+class AttemptAdmin(admin.ModelAdmin):
     list_display = ('id', 'version', 'exercise', 'user', 'complete', 'has_evaluation')
     list_filter = (('exercise', admin.RelatedOnlyFieldListFilter), ('user', admin.RelatedOnlyFieldListFilter), 'complete', 'version', HasEvaluationFilter)
     search_fields = ('exercise__title', 'user__username')
-    inlines = [TraceEvalInline]
+    inlines = [AttemptEvalInline]
     readonly_fields = ('id', 'version', 'display_interactions', 'display_full_prompt')
     ordering = ['id']
 
@@ -270,27 +270,27 @@ class TraceAdmin(admin.ModelAdmin):
         }),
     )
 
-    change_form_template = "admin/exercises/trace/change_form.html"
+    change_form_template = "admin/exercises/attempt/change_form.html"
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
         queryset = queryset.annotate(
-            eval_count=Count('trace_evals')
+            eval_count=Count('evaluations')
         )
         return queryset
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
         '''
-        Add navigation arrows to the previous and next trace.
+        Add navigation arrows to the previous and next attempt.
         '''
         extra_context = extra_context or {}
         
-        # Get the current trace object
+        # Get the current attempt object
         obj = self.get_object(request, object_id)
         
-        # Get the previous and next trace objects by id
-        prev_obj = Trace.objects.filter(id__lt=obj.id).order_by('-id').first()
-        next_obj = Trace.objects.filter(id__gt=obj.id).order_by('id').first()
+        # Get the previous and next attempt objects by id
+        prev_obj = Attempt.objects.filter(id__lt=obj.id).order_by('-id').first()
+        next_obj = Attempt.objects.filter(id__gt=obj.id).order_by('id').first()
         
         extra_context['prev_obj'] = prev_obj
         extra_context['next_obj'] = next_obj
@@ -301,15 +301,15 @@ class TraceAdmin(admin.ModelAdmin):
 
     def response_change(self, request, obj):
         '''
-        Adds navigation arrow to the next unevaluated trace.
+        Adds navigation arrow to the next unevaluated attempt.
         '''
         if "_save_and_next" in request.POST:
-            next_trace = Trace.objects.filter(trace_evals__isnull=True, id__gt=obj.id).order_by('id').first()
-            if next_trace:
-                return HttpResponseRedirect(reverse("admin:exercises_trace_change", args=(next_trace.id,)))
+            next_attempt = Attempt.objects.filter(evaluations__isnull=True, id__gt=obj.id).order_by('id').first()
+            if next_attempt:
+                return HttpResponseRedirect(reverse("admin:exercises_attempt_change", args=(next_attempt.id,)))
             else:
-                self.message_user(request, "No more unevaluated traces found.")
-                return HttpResponseRedirect(reverse("admin:exercises_trace_changelist"))
+                self.message_user(request, "No more unevaluated attempts found.")
+                return HttpResponseRedirect(reverse("admin:exercises_attempt_changelist"))
         return super().response_change(request, obj)
 
     def has_evaluation(self, obj):
@@ -319,17 +319,17 @@ class TraceAdmin(admin.ModelAdmin):
     has_evaluation.admin_order_field = 'eval_count'
 
     def display_interactions(self, obj):
-        return format_guidance_logs(obj)
-    display_interactions.short_description = "Guidance Logs"
+        return format_interactions(obj)
+    display_interactions.short_description = "Interactions"
 
     def display_full_prompt(self, obj):
         if not obj.system_prompt:
-            return "No system prompt was saved for this trace (debug mode was likely off)."
+            return "No system prompt was saved for this attempt (debug mode was likely off)."
 
         full_prompt_str = f"----------------\n| ROLE:: SYSTEM | \n----------------\n{obj.system_prompt}\n\n"
         
-        guidance_logs = obj.guidance_logs.order_by('submitted_at')
-        for log in guidance_logs:
+        interactions = obj.interactions.order_by('submitted_at')
+        for log in interactions:
             user_submission = log.interaction.get('user_submission')
             if user_submission:
                 full_prompt_str += f"----------------\n| ROLE:: {user_submission.get('role', 'user')}  | \n----------------\n{user_submission.get('content', '')}\n\n"
@@ -342,19 +342,19 @@ class TraceAdmin(admin.ModelAdmin):
     display_full_prompt.short_description = "Full LLM Prompt"
 
 
-@admin.register(TraceEval)
-class TraceEvalAdmin(admin.ModelAdmin):
-    list_display = ('trace', 'is_ok', 'created_at')
-    list_filter = ('is_ok', 'trace__exercise')
-    search_fields = ('trace__exercise__title', 'trace__user__username', 'feedback')
-    readonly_fields = ('created_at', 'updated_at', 'trace_details_display')
+@admin.register(AttemptEval)
+class AttemptEvalAdmin(admin.ModelAdmin):
+    list_display = ('attempt', 'is_ok', 'created_at')
+    list_filter = ('is_ok', 'attempt__exercise')
+    search_fields = ('attempt__exercise__title', 'attempt__user__username', 'feedback')
+    readonly_fields = ('created_at', 'updated_at', 'attempt_details_display')
     
     fieldsets = (
         (None, {
-            'fields': ('trace', 'is_ok', 'feedback')
+            'fields': ('attempt', 'is_ok', 'feedback')
         }),
-        ('Trace Details', {
-            'fields': ('trace_details_display',),
+        ('Attempt Details', {
+            'fields': ('attempt_details_display',),
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
@@ -364,19 +364,19 @@ class TraceEvalAdmin(admin.ModelAdmin):
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
-        form.base_fields['trace'].queryset = Trace.objects.filter(trace_evals__isnull=True)
+        form.base_fields['attempt'].queryset = Attempt.objects.filter(evaluations__isnull=True)
         return form
 
-    def trace_details_display(self, obj):
-        if not obj.trace:
-            return "Select a trace and save to see details."
-        return format_guidance_logs(obj.trace)
+    def attempt_details_display(self, obj):
+        if not obj.attempt:
+            return "Select an attempt and save to see details."
+        return format_interactions(obj.attempt)
     
-    trace_details_display.short_description = "Full Trace History"
+    attempt_details_display.short_description = "Full Attempt History"
 
 
-@admin.register(StudentInvite)
-class StudentInviteAdmin(admin.ModelAdmin):
+@admin.register(UserInvite)
+class UserInviteAdmin(admin.ModelAdmin):
     list_display = ('email', 'used', 'user', 'created_at', 'registered_at')
     search_fields = ('email', 'user__username')
     list_filter = ('used',)
@@ -397,3 +397,88 @@ class ChatThreadAdmin(admin.ModelAdmin):
         except Exception:
             return 0
     messages_count.short_description = 'Messages'
+
+
+class CohortAdminForm(forms.ModelForm):
+    student_usernames = forms.CharField(
+        label='Add students by username',
+        required=False,
+        widget=forms.Textarea(attrs={'rows': 4}),
+        help_text='Comma, space, or newline separated usernames.'
+    )
+
+    class Meta:
+        model = Cohort
+        fields = '__all__'
+
+    def save(self, commit=True):
+        cohort = super().save(commit)
+        raw = self.cleaned_data.get('student_usernames') or ''
+        if not raw:
+            return cohort
+        # Normalize tokens
+        separators = [',', '\n', '\r', '\t']
+        for sep in separators:
+            raw = raw.replace(sep, ' ')
+        usernames = [u.strip() for u in raw.split(' ') if u.strip()]
+        unique_usernames = []
+        for u in usernames:
+            if u not in unique_usernames:
+                unique_usernames.append(u)
+
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        added, existing, missing = [], [], []
+        for uname in unique_usernames:
+            try:
+                user = User.objects.get(username=uname)
+            except User.DoesNotExist:
+                missing.append(uname)
+                continue
+            # Use through model to avoid duplicates
+            membership, created = CohortMembership.objects.get_or_create(cohort=cohort, student=user)
+            if created:
+                added.append(uname)
+            else:
+                existing.append(uname)
+
+        # Defer messages to ModelAdmin.save_model where request is available
+        self._bulk_add_result = {'added': added, 'existing': existing, 'missing': missing}
+        return cohort
+
+
+@admin.register(Cohort)
+class CohortAdmin(admin.ModelAdmin):
+    form = CohortAdminForm
+    list_display = ('name', 'course', 'owner', 'code', 'created_at', 'updated_at')
+    list_filter = ('course', ('owner', admin.RelatedOnlyFieldListFilter))
+    search_fields = ('name', 'code', 'description')
+    readonly_fields = ('created_at', 'updated_at')
+
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'course', 'owner', 'code', 'description')
+        }),
+        ('Students', {
+            'fields': ('student_usernames',),
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        result = getattr(form, '_bulk_add_result', None)
+        if result:
+            added = result.get('added') or []
+            existing = result.get('existing') or []
+            missing = result.get('missing') or []
+            if added:
+                self.message_user(request, f"Added {len(added)} students: {', '.join(added)}")
+            if existing:
+                self.message_user(request, f"Already in cohort ({len(existing)}): {', '.join(existing)}")
+            if missing:
+                self.message_user(request, f"Usernames not found ({len(missing)}): {', '.join(missing)}")

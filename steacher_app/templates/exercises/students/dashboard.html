@@ -41,16 +41,16 @@
       <div class="column is-one-third">
         <div class="box">
           <h3 class="title is-5">Recent Activity</h3>
-          {% if recent_traces %}
+          {% if recent_attempts %}
             <ul>
-            {% for trace in recent_traces %}
+            {% for attempt in recent_attempts %}
               <li class="mb-2">
-                {% if trace.complete %}
+                {% if attempt.complete %}
                   <span class="icon has-text-success" title="Completed"><i class="fas fa-check-circle"></i></span>
                 {% else %}
                   <span class="icon has-text-grey-light" title="In progress"><i class="far fa-circle"></i></span>
                 {% endif %}
-                <a href="{% url 'exercises:exercise_detail' trace.exercise.id %}">{{ trace.exercise.title }}</a>
+                <a href="{% url 'exercises:exercise_detail' attempt.exercise.id %}">{{ attempt.exercise.title }}</a>
               </li>
             {% endfor %}
             </ul>

@@ -1,0 +1,101 @@
+---
+alwaysApply: true
+description: "High-level overview of this codebase called Steacher, including its purpose, architecture, and key technologies."
+---
+
+# Project Overview: Steacher
+
+**Steacher** is a web-based educational platform designed to help users learn and practice various subjects through interactive exercises. It features a Django backend, a PostgreSQL database, and a modern frontend built with TypeScript and Vue.js. The platform supports different types of exercises, including multiple-choice, SQL, and Python, and leverages the OpenAI API to provide AI-powered guidance and feedback to users.
+
+## Key Files and Directories
+
+*   **Backend (Django)**
+    *   `exam_project/settings.py`: The main [settings file](mdc:exam_project/settings.py) for the Django project.
+    *   `exercises/models.py`: Defines the [database models](mdc:exercises/models.py) for courses, exercises, user traces, and AI guidance logs.
+    *   `exercises/views_teachers.py`: Contains the [application logic](mdc:exercises/views_teachers.py) for handling teacher requests, rendering templates, and interacting with the OpenAI API.
+    *   `exercises/views_students.py`: Contains the [application logic](mdc:exercises/views_students.py) for handling student requests, rendering templates, and interacting with the OpenAI API.
+    *   `exercises/urls.py`: Defines the [URL routing](mdc:exercises/urls.py) for the `exercises` app, wired from `exam_project/urls.py`.
+    *   `templates/`: Contains the [Django templates](mdc:templates/) for rendering the HTML pages.
+
+*   **Frontend (TypeScript/Vue.js)**
+    *   `frontend/`: The main directory for all [frontend source code](mdc:frontend/).
+    *   `frontend/ChatbotPanel.ts`: Manages the user interface for the [AI tutor](mdc:frontend/ChatbotPanel.ts).
+    *   `frontend/CodeMirrorEditor.ts`: A reusable [CodeMirror component](mdc:frontend/CodeMirrorEditor.ts) for code editing.
+
+*   **Project Configuration**
+    *   `README.md`: The main [project documentation](mdc:README.md) with setup instructions and architectural overview.
+    *   `requirements.txt`: The [Python dependencies](mdc:requirements.txt) for the backend.
+    *   `package.json`: The [Node.js dependencies](mdc:package.json) for the frontend.
+
+*   ** Django Models:**
+    *   `Course`: Represents a collection of modules.
+    *   `Module`: Represents a collection of exercises.
+    *   `Exercise`: Defines an individual exercise, with flexible data structures using JSON fields to support various exercise types.
+    *   `Trace`: Tracks a user's attempt at an exercise. Used to persist the conversation history between the user and the AI tutor.
+    *   `GuidanceLog`: Stores the conversation history between the user and the AI tutor.
+    *   `TraceEval`: Stores evaluations of a user's trace.
+    *   `ExerciceAsset`: Manages files associated with exercises.
+    *   `StudentInvite`: Manages student invitations to the platform.
+    *   `ChatThread`: Manages chat conversations with the AI tutor. Used to persist chat conversations between the student and the AI tutor.
+
+## Key Project Features
+
+*   **Interactive Exercises:** Supports various exercise formats, including multiple-choice questions and coding challenges.
+*   **AI-Powered Guidance:** Integrates with the OpenAI API to provide hints, feedback, and answers to user questions.
+*   **Socratic Method:** The AI tutor uses the socratic method to guide the user through the exercise. It never gives the answer directly, but asks questions to help the user find the answer by himself.
+*   **User Progress Tracking:** Records user attempts and conversation history for each exercise.
+*   **Flexible Architecture:** The use of JSON fields for exercise data makes it easy to add new exercise types without significant backend changes.
+
+## Exercise Types
+
+*   **Python:** A Python code to be executed. This is the most mature exercise type. Uses frontend python execution with WASM.
+*   **Multiple Choice:** A multiple-choice question with a set of options.
+*   **SQL:** A SQL query to be executed on a database. Uses frontend SQL execution with WASM.
+*   **Turtle:** A Turtle graphics exercise. WIP
+*   **Open Question:** An open question with a text area for the user to answer.
+
+
+## Architecture and Technologies
+
+*   **Backend:**
+    *   Django
+    *   PostgreSQL (database is called `steacher`)
+    *   Django Rest Framework
+    *   OpenAI API
+*   **Frontend:**
+    *   TypeScript
+    *   Vue.js (in a multi-page application setup. NOT a SPA, don't offer to use a SPA)
+    *   Bulma (CSS Framework)
+
+
+
+
+## Template Structure
+
+`templates/exercises/base.html` provides the shared layout (navbar, messages, common assets) that per-page templates extend. Student pages in `templates/exercises/students/*.html` and teacher pages in `templates/exercises/teacher/*.html` typically use `{% extends "exercises/base.html" %}` and fill blocks (e.g., content, scripts). Page-specific JavaScript from `static/js/dist/*.js` (built from `frontend/*.ts`) is included by each page template to initialize the correct UI behavior.
+
+## Deployment
+
+Deployment of this application is handled outside of this codebase and is out of scope here. While a `Dockerfile` and configuration files may exist to aid local development or containerization, the actual deployment pipeline, infrastructure, and environment provisioning are managed externally and do not need to be handled in this context.
+
+## Prompt Sources and Composition
+
+The base tutor instructions come from `exercises/general_prompt.md`, optionally augmented by `exercises/study_mode_prompt.md` when Study Mode is active. All remaining context (exercise text, course/class-specific details, prior attempts, and guidance history) is loaded from the database and composed per class/course and exercise at runtime by the server views.
+
+## Project Development Context for AI Assistant
+
+### TypeScript Compilation
+
+The TypeScript code in the `frontend/` directory is automatically recompiled whenever a `.ts` file is saved. This is handled by a background process running the `npm run watch` command.
+
+**You do not need to ask to recompile the TypeScript files.** Just assume they are up-to-date after any edit. 
+
+### Django Development
+
+The user runs by himself the following command to start the development server:
+```bash
+python manage.py runserver
+```
+
+**You do not need to ask to run the Django development server.** Just assume it is running and you can use the API to get the data.
+

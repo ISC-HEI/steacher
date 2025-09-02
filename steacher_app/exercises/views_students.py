@@ -12,7 +12,7 @@ from django.utils import timezone
 from datetime import timedelta
 import json
 
-from .models import Exercise, ExerciceAsset, Course, GuidanceLog, Trace, Module, StudentInvite, ChatThread
+from .models import Exercise, ExerciceAsset, Course, AttemptInteraction, Attempt, Module, UserInvite, ChatThread
 from .serializers import ExerciseFrontendSerializer
 
 
@@ -26,7 +26,7 @@ def dashboard(request):
     for course in courses:
         total_exercises = Exercise.objects.filter(module__course=course, visible=True).count()
         completed_count = (
-            Trace.objects.filter(
+            Attempt.objects.filter(
                 user=request.user,
                 complete=True,
                 exercise__module__course=course,
@@ -48,18 +48,18 @@ def dashboard(request):
     
     # --- Primary Focus & Recents ---
 
-    last_trace = Trace.objects.get_recent_for_user(request.user)
-    last_active_exercise = last_trace.exercise if last_trace else None
+    last_attempt = Attempt.objects.get_recent_for_user(request.user)
+    last_active_exercise = last_attempt.exercise if last_attempt else None
 
-    # Recent activity: last 7 traces
-    recent_traces = Trace.objects.get_recent_for_user(request.user, count=7)
+    # Recent activity: last 7 attempts
+    recent_attempts = Attempt.objects.get_recent_for_user(request.user, count=7)
 
     # Next up: next visible exercise after the most recently solved one in the same module
     next_up_exercise = None
     if last_active_exercise:
         module = last_active_exercise.module
         latest_solved = (
-            Trace.objects
+            Attempt.objects
             .filter(user=request.user, complete=True, exercise__module=module)
             .select_related('exercise')
             .order_by('-updated_at')
@@ -75,13 +75,13 @@ def dashboard(request):
     recent_chats = ChatThread.objects.filter(owner=request.user).order_by('-updated_at')[:7]
 
     # --- Quick Stats ---
-    total_completed = Trace.objects.filter(user=request.user, complete=True).values('exercise_id').distinct().count()
+    total_completed = Attempt.objects.filter(user=request.user, complete=True).values('exercise_id').distinct().count()
     
     # Calculate start of the current week (Monday morning)
     today = timezone.now().date()
     start_of_week = today - timedelta(days=today.weekday())
 
-    week_completed = Trace.objects.filter(
+    week_completed = Attempt.objects.filter(
         user=request.user,
         complete=True,
         updated_at__gte=start_of_week
@@ -91,7 +91,7 @@ def dashboard(request):
     if last_active_exercise:
         module = last_active_exercise.module
         module_total = Exercise.objects.filter(module=module, visible=True).count()
-        module_completed = Trace.objects.filter(
+        module_completed = Attempt.objects.filter(
             user=request.user,
             complete=True,
             exercise__module=module
@@ -106,7 +106,7 @@ def dashboard(request):
     return render(request, 'exercises/students/dashboard.html', {
         'course_progress': course_progress,
         'last_active_exercise': last_active_exercise,
-        'recent_traces': recent_traces,
+        'recent_attempts': recent_attempts,
         'next_up_exercise': next_up_exercise,
         'recent_chats': recent_chats,
         'stats': {
@@ -143,7 +143,7 @@ def register(request):
     if p1 != p2:
         errors.append("Passwords do not match.")
 
-    invite = StudentInvite.objects.filter(email=email).first() if email else None
+    invite = UserInvite.objects.filter(email=email).first() if email else None
     if not invite:
         errors.append("This email is not authorized to register.")
     elif invite.used:
@@ -182,7 +182,7 @@ def course_detail(request, pk):
 
     # Compute which exercises are completed by the current user for per-exercise checkmarks
     completed_ids = set(
-        Trace.objects.filter(user=request.user, complete=True, exercise__module__course=course)
+        Attempt.objects.filter(user=request.user, complete=True, exercise__module__course=course)
         .values_list('exercise_id', flat=True)
     )
 
@@ -213,14 +213,14 @@ def exercise_detail(request, pk):
     exercise = get_object_or_404(Exercise, pk=pk)
     exercise_json = ExerciseFrontendSerializer(exercise).data
 
-    trace_id = None
-    guidance_logs = []
-    trace = None
+    attempt_id = None
+    interactions = []
+    attempt = None
     if request.user.is_authenticated:
-        trace, _ = Trace.objects.get_or_create(user=request.user, exercise=exercise)
-        trace_id = trace.id
-        logs = GuidanceLog.objects.filter(trace=trace).order_by('submitted_at')
-        guidance_logs = [log.interaction for log in logs]
+        attempt, _ = Attempt.objects.get_or_create(user=request.user, exercise=exercise)
+        attempt_id = attempt.id
+        logs = AttemptInteraction.objects.filter(attempt=attempt).order_by('submitted_at')
+        interactions = [log.interaction for log in logs]
 
     # Determine neighbors within the same module by order
     previous_exercise = (
@@ -249,9 +249,9 @@ def exercise_detail(request, pk):
     return render(request, template_name, {
         'exercise': exercise,
         'exercise_json': exercise_json,
-        'guidance_logs': guidance_logs,
-        'trace_id': trace_id,
-        'trace': trace,
+        'interactions': interactions,
+        'attempt_id': attempt_id,
+        'attempt': attempt,
         'previous_exercise': previous_exercise,
         'next_exercise': next_exercise,
     })
@@ -270,7 +270,7 @@ def serve_asset(request, exercise_id, filename):
 
 @login_required
 @require_POST
-def get_guidance(request, exercise_id, trace_id):
+def get_guidance(request, exercise_id, attempt_id):
     """
     Handles a user's request for guidance by calling the main guidance logic.
     """
@@ -279,9 +279,9 @@ def get_guidance(request, exercise_id, trace_id):
     try:
         data = json.loads(request.body)
         exercise = get_object_or_404(Exercise, pk=exercise_id)
-        trace = get_object_or_404(Trace, id=trace_id, exercise=exercise, user=request.user)
+        attempt = get_object_or_404(Attempt, id=attempt_id, exercise=exercise, user=request.user)
 
-        response_data = fetch_ai_guidance(data, exercise, trace, debug=True)
+        response_data = fetch_ai_guidance(data, exercise, attempt, debug=True)
         return JsonResponse({'status': 'success', **response_data})
 
     except json.JSONDecodeError:
@@ -296,10 +296,10 @@ def get_guidance(request, exercise_id, trace_id):
 @login_required
 def delete_user_answers(request, exercise_id):
     """
-    Deletes all GuidanceLog entries for the current user for a specific exercise.
+    Deletes all AttemptInteraction entries for the current user for a specific exercise.
     """
     exercise = get_object_or_404(Exercise, pk=exercise_id)
-    Trace.objects.filter(user=request.user, exercise=exercise).delete()
+    Attempt.objects.filter(user=request.user, exercise=exercise).delete()
     return redirect('exercises:exercise_detail', pk=exercise_id)
 
 
@@ -308,11 +308,11 @@ def delete_user_answers(request, exercise_id):
 def chat_home(request):
     """Render the simple AI chat page with the user's threads."""
     courses = Course.objects.filter(visible=True).order_by('name')
-    # Default to last course from user's most recent trace
-    last_trace = Trace.objects.get_recent_for_user(request.user)
+    # Default to last course from user's most recent attempt
+    last_attempt = Attempt.objects.get_recent_for_user(request.user)
     default_course_id = None
-    if last_trace and getattr(last_trace, 'exercise', None) and getattr(last_trace.exercise, 'module', None):
-        default_course_id = last_trace.exercise.module.course.id
+    if last_attempt and getattr(last_attempt, 'exercise', None) and getattr(last_attempt.exercise, 'module', None):
+        default_course_id = last_attempt.exercise.module.course.id
     return render(request, 'exercises/students/ai_chat.html', {
         'courses': courses,
         'default_course_id': default_course_id,

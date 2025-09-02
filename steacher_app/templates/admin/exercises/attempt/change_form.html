@@ -1,4 +1,4 @@
-<!-- custom template with the navigation arrows to the previous and next trace  -->
+<!-- custom template with the navigation arrows to the previous and next attempt  -->
 {% extends "admin/change_form.html" %}
 {% load i18n admin_urls %}
 
@@ -13,14 +13,14 @@
 {% block object-tools-items %}
     {% if prev_obj %}
         <li>
-            <a href="{% url 'admin:exercises_trace_change' prev_obj.pk %}">
+            <a href="{% url 'admin:exercises_attempt_change' prev_obj.pk %}">
                 &larr; {% trans "Previous" %}
             </a>
         </li>
     {% endif %}
     {% if next_obj %}
         <li>
-            <a href="{% url 'admin:exercises_trace_change' next_obj.pk %}">
+            <a href="{% url 'admin:exercises_attempt_change' next_obj.pk %}">
                 {% trans "Next" %} &rarr;
             </a>
         </li>
@@ -30,7 +30,7 @@
 
 {% block submit_buttons_bottom %}
     {{ block.super }}
-    <input type="submit" value="{% trans 'Save and go to next unevaluated trace' %}" name="_save_and_next">
+    <input type="submit" value="{% trans 'Save and go to next unevaluated attempt' %}" name="_save_and_next">
 {% endblock %}
 
 {% block admin_change_form_document_ready %}

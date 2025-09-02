@@ -2,7 +2,7 @@ import json
 import openai
 import time
 from django.conf import settings
-from .models import GuidanceLog, Exercise, Trace, Course
+from .models import AttemptInteraction, Exercise, Attempt, Course
 import logging
 
 client = openai.OpenAI(api_key=settings.GEMINI_API_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
@@ -66,9 +66,9 @@ You will always respond in a JSON format with the following structure:
 - `ambiguity`: An array of strings describing anything unclear or ambiguous in the prompt or in the given of the exercise. This is used by our AI engineers to improve the prompt. If nothing is unclear, return an empty array.
 """
 
-def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool = False) -> dict:
+def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: bool = False) -> dict:
     """
-    Fetches AI guidance for a given exercise and trace.
+    Fetches AI guidance for a given exercise and attempt.
     Input:
     - data: a dict with the following keys:
         - 'action': the action performed by the user, e.g. 'ask_question', 'ask_hint', 'submit_answer', 'run_query', 'run_code'.
@@ -90,7 +90,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
     - 'cbm_result': the CBM result, if any, as a dict, to help the student understand the score breakdown.
     """
 
-    logger.info(f"fetch_ai_guidance: exercise {exercise.id}, trace {trace.id}, data {data}")
+    logger.info(f"fetch_ai_guidance: exercise {exercise.id}, attempt {attempt.id}, data {data}")
     overall_start_time = time.time()
 
     # 1. Construct the user's message for the LLM from the incoming data
@@ -161,7 +161,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
                 user_prompt_content += f"\n## Unit Test Results:\n"
                 user_prompt_content += format_test_results_for_ai(test_results)
                 
-                # Store test results in data for later saving to GuidanceLog
+                # Store test results in data for later saving to AttemptInteraction
                 data['test_results'] = test_results
             else:
                 logger.warning(f"No unit tests defined for Python exercise {exercise.id}")
@@ -182,7 +182,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
     #    raise ValueError(f"Invalid action: {action}")
 
     # 2. Fetch conversation history
-    guidance_logs = GuidanceLog.objects.filter(trace=trace)
+    interactions = AttemptInteraction.objects.filter(attempt=attempt)
     messages = []
 
     # 3. Add system prompt and course prompt (the specific prompt for this kind of exercise)
@@ -198,7 +198,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
 
     # Add student's preferred language directive so the tutor answers accordingly
     try:
-        preferred_language_code = getattr(trace.user, 'preferred_language', 'en') or 'en'
+        preferred_language_code = getattr(attempt.user, 'preferred_language', 'en') or 'en'
     except Exception:
         preferred_language_code = 'en'
     language_names = {
@@ -255,7 +255,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
     logger.debug(f"System prompt:\n{prompt}")
 
     # 4. Add past messages from the log, stripping metadata to save tokens
-    for log in guidance_logs.order_by('submitted_at'):
+    for log in interactions.order_by('submitted_at'):
         user_submission = log.interaction.get('user_submission')
         if user_submission:
             messages.append({
@@ -274,8 +274,8 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
 
     # 5. Store the system prompt if in debug mode
     if debug:
-        trace.system_prompt = prompt
-        trace.save()
+        attempt.system_prompt = prompt
+        attempt.save()
 
     # 6. Add the current user message
     user_submission = {
@@ -323,14 +323,14 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
         # just return the text of the response
         answer = (llm_response.choices[0].message.content or "").strip()
 
-    # 7.a. Detect completion tag and mark the trace as complete if present
+    # 7.a. Detect completion tag and mark the attempt as complete if present
     try:
-        if "<exercise_completed>" in answer and not trace.complete:
-            trace.complete = True
-            trace.save(update_fields=['complete'])
-            logger.info(f"Trace {trace.id} marked as complete based on LLM output tag.")
+        if "<exercise_completed>" in answer and not attempt.complete:
+            attempt.complete = True
+            attempt.save(update_fields=['complete'])
+            logger.info(f"Attempt {attempt.id} marked as complete based on LLM output tag.")
     except Exception as e:
-        logger.warning(f"Failed to set trace {trace.id} as complete: {e}")
+        logger.warning(f"Failed to set attempt {attempt.id} as complete: {e}")
 
     # 7. Create the log entry
     interaction_log = {
@@ -359,8 +359,8 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, trace: Trace, debug: bool 
     if cbm_result:
         interaction_log['user_submission']['metadata']['cbm_result'] = cbm_result
 
-    GuidanceLog.objects.create(
-        trace=trace,
+    AttemptInteraction.objects.create(
+        attempt=attempt,
         interaction=interaction_log
     )
 

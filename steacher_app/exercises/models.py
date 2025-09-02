@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 
 
 class Course(models.Model):
@@ -42,6 +43,59 @@ class Module(models.Model):
         unique_together = ('course', 'order')
 
 
+class Cohort(models.Model):
+    """
+    A cohort groups students within a course. Owned by a teacher/admin.
+    Students are connected via the CohortMembership through-model.
+    """
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='cohorts')
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='owned_cohorts')
+    name = models.CharField(max_length=200, help_text="Human-friendly cohort name.")
+    description = models.TextField(blank=True)
+    code = models.CharField(max_length=32, null=True, blank=True, help_text="Optional short code for joining this cohort.")
+    students = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        through='CohortMembership',
+        through_fields=('cohort', 'student'),
+        related_name='cohorts'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.course.name})"
+
+    class Meta:
+        ordering = ['course', 'name']
+        constraints = [
+            models.UniqueConstraint(fields=['course', 'name'], name='unique_cohort_name_per_course'),
+            models.UniqueConstraint(fields=['course', 'code'], name='unique_cohort_code_per_course'),
+        ]
+
+
+class CohortMembership(models.Model):
+    """
+    Membership of a student in a cohort, with audit metadata.
+    """
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('removed', 'Removed'),
+    ]
+
+    cohort = models.ForeignKey(Cohort, on_delete=models.CASCADE, related_name='memberships')
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='cohort_memberships')
+    joined_at = models.DateTimeField(auto_now_add=True)
+    added_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='cohort_members_added')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+
+    class Meta:
+        unique_together = ('cohort', 'student')
+        ordering = ['-joined_at']
+
+    def __str__(self):
+        return f"{self.student} in {self.cohort} ({self.status})"
+
+
 class Exercise(models.Model):
     """
     A single exercise within a @Module. Has different types (e.g. SQL, Python, multiple choice, etc.). 
@@ -80,10 +134,10 @@ class Exercise(models.Model):
         unique_together = ('module', 'order')
 
 
-class TraceManager(models.Manager):
+class AttemptManager(models.Manager):
     def get_recent_for_user(self, user, count=None):
         """
-        Gets recent traces for a user.
+        Gets recent attempts for a user.
         If count is None, gets only the most recent one.
         """
         query = (
@@ -96,36 +150,48 @@ class TraceManager(models.Manager):
         return query[:count]
 
 
-class Trace(models.Model):
+class Attempt(models.Model):
     """
     Represents an attempt from a user at an @Exercise.
-    Interactions will be stored in a list of @GuidanceLog objects.
+    Interactions will be stored in a list of @AttemptInteraction objects.
     """
     # Foreign keys to link the log to a user and exercise
-    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='traces')
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='traces')
+    exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='attempts')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='attempts')
+    cohort = models.ForeignKey('Cohort', null=True, blank=True, on_delete=models.SET_NULL, related_name='attempts')
     complete = models.BooleanField(default=False, help_text="True if the user has completed the exercise.")
-    version = models.IntegerField(default=1, help_text="Version of the trace, can be used to track changes in the trace logic or prompt or eval version.")
+    version = models.IntegerField(default=1, help_text="Version of the attempt, can be used to track changes in the attempt logic or prompt or eval version.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    system_prompt = models.TextField(null=True, blank=True, help_text="The system prompt sent to the LLM for this trace, if debugging is enabled.")
+    system_prompt = models.TextField(null=True, blank=True, help_text="The system prompt sent to the LLM for this attempt, if debugging is enabled.")
 
-    objects = TraceManager()
+    objects = AttemptManager()
 
     def __str__(self):
-        return f"Trace by {self.user.username} for '{self.exercise.title}'"
+        return f"Attempt by {self.user.username} for '{self.exercise.title}'"
 
     class Meta:
         unique_together = ('user', 'exercise', 'version')
 
+    def clean(self):
+        super().clean()
+        if self.cohort:
+            exercise_course_id = None
+            try:
+                exercise_course_id = self.exercise.module.course_id
+            except Exception:
+                pass
+            if exercise_course_id and self.cohort.course_id != exercise_course_id:
+                raise ValidationError("If set, cohort must belong to the same course as the exercise.")
 
 
-class GuidanceLog(models.Model):
+
+class AttemptInteraction(models.Model):
     """
     Stores a single turn of interaction between a user and the AI tutor for a specific exercise.
-    Each GuidanceLog entry references a @Trace.
+    Each AttemptInteraction entry references a @Attempt.
     """
-    trace = models.ForeignKey(Trace, on_delete=models.CASCADE, related_name='guidance_logs')
+    attempt = models.ForeignKey(Attempt, on_delete=models.CASCADE, related_name='interactions')
 
     # A single field to store the full interaction turn
     interaction = models.JSONField(
@@ -136,7 +202,7 @@ class GuidanceLog(models.Model):
     submitted_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Log for {self.trace.exercise.title} by {self.trace.user.username} at {self.submitted_at}, trace id: {self.trace.id}"
+        return f"Interaction for {self.attempt.exercise.title} by {self.attempt.user.username} at {self.submitted_at}, attempt id: {self.attempt.id}"
 
     class Meta:
         # Ensures logs are always ordered correctly when fetched
@@ -173,30 +239,30 @@ class ExerciceAsset(models.Model):
         ]
 
 
-class TraceEval(models.Model):
+class AttemptEval(models.Model):
     """
-    Represents an evaluation of a user's trace for an exercise. Bound to a @Trace. Used to evaluate how the AI tutor is doing. 
+    Represents an evaluation of a user's attempt for an exercise. Bound to a @Attempt. Used to evaluate how the AI tutor is doing. 
     """
-    trace = models.ForeignKey(Trace, on_delete=models.CASCADE, related_name='trace_evals')
-    is_ok = models.BooleanField(null=True, help_text="Whether the trace is considered correct or not. Null means not evaluated.")
+    attempt = models.ForeignKey(Attempt, on_delete=models.CASCADE, related_name='evaluations')
+    is_ok = models.BooleanField(null=True, help_text="Whether the attempt is considered correct or not. Null means not evaluated.")
     feedback = models.TextField(blank=True, help_text="Feedback provided for this evaluation.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Evaluation for trace {self.trace.id} at {self.created_at}"
+        return f"Evaluation for attempt {self.attempt.id} at {self.created_at}"
 
     class Meta:
         ordering = ['-created_at']
 
 
-class StudentInvite(models.Model):
+class UserInvite(models.Model):
     """
-    A student invite is an email address that has been invited to register as a student.
+    A user invite is an email address that has been invited to register as a student.
     """
     email = models.EmailField(unique=True, help_text="Lowercased")
     used = models.BooleanField(default=False)
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='student_invite')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='user_invite')
     note = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     registered_at = models.DateTimeField(null=True, blank=True)

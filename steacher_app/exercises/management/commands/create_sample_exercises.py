@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from exercises.models import Exercise, ExerciceAsset, Course, GuidanceLog, Trace
+from exercises.models import Exercise, ExerciceAsset, Course, AttemptInteraction, Attempt
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 
@@ -12,8 +12,8 @@ class Command(BaseCommand):
         Exercise.objects.all().delete()
         ExerciceAsset.objects.all().delete()
         Course.objects.all().delete()
-        GuidanceLog.objects.all().delete()
-        Trace.objects.all().delete()
+        AttemptInteraction.objects.all().delete()
+        Attempt.objects.all().delete()
         
         # Get or create the admin user
         User = get_user_model()
@@ -252,13 +252,13 @@ To help you figure out what the function does, **testcases** might be provided (
             }
         )
 
-        # --- Create a detailed Trace with full interaction history ---
-        self.stdout.write("Creating a sample trace with full interaction history for the admin user...")
+        # --- Create a detailed Attempt with full interaction history ---
+        self.stdout.write("Creating a sample attempt with full interaction history for the admin user...")
         
         try:
-            exercise_for_trace = Exercise.objects.get(title='Hello Python')
+            exercise_for_attempt = Exercise.objects.get(title='Hello Python')
             
-            historical_trace = Trace.objects.create(exercise=exercise_for_trace, user=admin_user, complete=True)
+            historical_attempt = Attempt.objects.create(exercise=exercise_for_attempt, user=admin_user, complete=True)
 
             # Define the historical interaction logs to simulate the frontend payload
             interaction_logs = [
@@ -332,13 +332,13 @@ To help you figure out what the function does, **testcases** might be provided (
                     },
                     "llm_response": log_data["llm_response"]
                 }
-                GuidanceLog.objects.create(trace=historical_trace, interaction=reconstructed_interaction)
+                AttemptInteraction.objects.create(attempt=historical_attempt, interaction=reconstructed_interaction)
             
-            self.stdout.write(f"Successfully created historical trace for '{exercise_for_trace.title}'.")
+            self.stdout.write(f"Successfully created historical attempt for '{exercise_for_attempt.title}'.")
 
         except Exercise.DoesNotExist:
-            self.style.WARNING(f"Could not find exercise 'Hello Python' to create historical trace.")
-        # --- End of historical trace creation ---
+            self.style.WARNING(f"Could not find exercise 'Hello Python' to create historical attempt.")
+        # --- End of historical attempt creation ---
 
 
         self.style.SUCCESS(

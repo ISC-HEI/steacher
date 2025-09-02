@@ -281,3 +281,98 @@ Let's Encrypt certificates expire every 90 days. To avoid having to renew them m
     *   Make sure the path to `docker-compose` is correct for your system (you can find it with `which docker-compose`).
 
 This setup automates both the initial certificate acquisition and the renewal process, making it much easier to manage HTTPS for your site.
+
+------------
+
+# refresh nginx
+
+    docker compose stop proxy
+    docker compose rm -f proxy
+    docker compose up -d --no-deps proxy
+    docker compose exec proxy nginx -t | cat
+    docker compose exec proxy sh -lc "grep -n 'mjs' /etc/nginx/nginx.conf | cat"
+    curl -I -k https://steacher.org/static/dompurify/dist/purify.es.mjs | grep -i content-type
+
+
+
+
+
+----------------
+
+# Backups
+
+
+
+* **`pg_dump` → fully automatable** (cron job, runs inside your VM).
+* **OpenStack volume snapshots → not automatable directly from Horizon**, but you *can* script it with the **OpenStack CLI** or API if you want (I’ll explain).
+
+---
+
+# 1️⃣ Automating `pg_dump` (inside your VM)
+
+Create a folder for backups:
+
+```bash
+sudo mkdir -p /var/backups/postgres
+sudo chown $USER:$USER /var/backups/postgres
+```
+
+Test a manual dump (replace values):
+
+```bash
+docker compose exec -T db pg_dump -U lms_user lms_db > /var/backups/postgres/db_$(date +%F).sql
+```
+
+👉 If that works, add a **cron job** for daily dumps:
+
+```bash
+crontab -e
+```
+
+Add:
+
+```
+0 2 * * * docker compose exec -T db pg_dump -U lms_user lms_db > /var/backups/postgres/db_$(date +\%F).sql
+```
+
+This runs every night at **2:00 AM**, creating a new `.sql` dump.
+
+---
+
+# 2️⃣ Media volume backup (optional but smart)
+
+If Django stores uploads (student files), back them up weekly with tar:
+
+```
+0 3 * * 0 docker run --rm -v your_media_volume:/data -v /var/backups:/backup busybox sh -c "tar czf /backup/media_$(date +\%F).tar.gz /data"
+```
+
+---
+
+# 3️⃣ Volume Snapshots in OpenStack
+
+* From Horizon: you can click **Create Backup** for your volume → manual snapshots only.
+* Automation: yes, but only if you install the **OpenStack CLI** on your VM (or locally).
+
+Example (with CLI configured):
+
+```bash
+openstack volume backup create --name db-backup-$(date +%F) your-volume-id
+```
+
+👉 This can also be put in a cron job if you really want automatic snapshots.
+But in many setups, people trigger snapshots **weekly or before upgrades** (semi-manual, as a second safety net).
+
+---
+
+# ✅ Recommended combo for you
+
+* **Nightly `pg_dump`** → clean, consistent DB backups.
+* **Weekly tar of media volume** → covers student uploads.
+* **Monthly OpenStack volume snapshot** → full “bare-metal” copy for disaster recovery.
+
+This way, you get both **application-level consistency** and **infrastructure-level safety**.
+
+---
+
+Do you want me to write you a **ready-to-use cron backup plan** (with all commands and schedules), so you can just drop it into your server?
