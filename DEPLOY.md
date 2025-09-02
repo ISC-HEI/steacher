@@ -10,6 +10,10 @@ docker compose --env-file .env.production up -d --build
 docker compose exec web python manage.py collectstatic --noinput
 
 
+
+
+docker compose logs web
+
 ------
 
 # Installation
