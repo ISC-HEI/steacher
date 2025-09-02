@@ -62,6 +62,8 @@ interface SqlDataContext {
     chatMessages: any[];
     start_timestamp: string;
     foreignKeysByTable?: Record<string, ForeignKeyInfo[]>;
+    isPreview?: boolean;
+    previewMeta?: { tableName: string; limit: number; maybeMore: boolean } | null;
 }
 
 interface OptionButton {
@@ -132,7 +134,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 guidance: null,
                 chatMessages: initialMessages,
                 start_timestamp: new Date().toISOString(),
-                foreignKeysByTable: {}
+                foreignKeysByTable: {},
+                isPreview: false,
+                previewMeta: null
             }
         },
         
@@ -142,6 +146,40 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         
         methods: {
+            async viewTableData(tableName: string) {
+                if (!this.database) {
+                    this.queryError = 'Database not loaded yet. Please wait...';
+                    return;
+                }
+                try {
+                    this.loadingState = 'querying';
+                    this.queryError = null;
+                    this.isPreview = true;
+                    const limit = 50;
+                    const sql = `SELECT * FROM "${tableName}" LIMIT ${limit};`;
+                    const result = await this.database.query(sql);
+                    if (result.rows && result.rows.length >= 0) {
+                        this.queryResult = {
+                            type: 'select',
+                            columns: result.fields.map((field: any) => field.name),
+                            rows: result.rows,
+                            rowCount: result.rows.length
+                        };
+                        this.previewMeta = { tableName, limit, maybeMore: result.rows.length === limit };
+                    } else {
+                        this.queryResult = {
+                            type: 'other',
+                            message: 'No rows'
+                        };
+                        this.previewMeta = { tableName, limit, maybeMore: false };
+                    }
+                } catch (error) {
+                    console.error('Preview query error:', error);
+                    this.queryError = 'SQL Error: ' + String(error);
+                } finally {
+                    this.loadingState = 'idle';
+                }
+            },
             async getGuidance(action: 'run_query' | 'ask_hint' | 'ask_question' | 'option_selected', details: { question?: string | null, error?: string | null, selected_option?: OptionButton } = {}) {
                 this.loadingState = 'getting-guidance';
                 try {
@@ -388,6 +426,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         };
                     }
                     
+                    // Manual run clears preview flag
+                    this.isPreview = false;
+                    this.previewMeta = null;
                     // After successfully running the query, get guidance
                     await this.getGuidance('run_query');
 

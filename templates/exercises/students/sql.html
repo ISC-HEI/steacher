@@ -25,6 +25,9 @@
                     <details>
                         <summary class="schema-summary">
                             <span class="title is-6 table-name has-text-weight-semibold mb-0">[[ tableName ]]</span>
+                            <button class="button is-small is-light ml-2" @click.stop.prevent="viewTableData(tableName)">
+                                <span class="icon is-small"><i class="fas fa-table" title="View data"></i></span>
+                            </button>
                         </summary>
                         <div class="table-container mt-2">
                             <table class="table is-bordered is-striped is-narrow is-hoverable is-size-7">
@@ -115,7 +118,11 @@
                         <h6 class="title is-6">Query Result:</h6>
                         <div v-if="queryResult.type === 'select'" class="table-container">
                             <div class="notification is-success is-light mb-3">
-                                <p><strong>[[ queryResult.rowCount ]] row(s) returned</strong></p>
+                                <p>
+                                    <strong v-if="!isPreview">[[ queryResult.rowCount ]] row[[ queryResult.rowCount === 1 ? '' : 's']] returned</strong>
+                                    <strong v-else>Preview: showing [[ queryResult.rowCount ]] row[[ queryResult.rowCount === 1 ? '' : 's']] from [[ previewMeta.tableName ]]</strong>
+                                    <span v-if="isPreview && previewMeta.maybeMore" class="has-text-grey"> — more data available</span>
+                                </p>
                             </div>
                             <table class="table is-striped is-fullwidth">
                                 <thead>

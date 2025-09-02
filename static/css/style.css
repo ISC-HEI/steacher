@@ -103,7 +103,7 @@
     color: #666666;
 }
 .exercise-output .table-container {
-    max-height: 400px;
+    max-height: 1200px;
     overflow-y: auto;
 } 
 
