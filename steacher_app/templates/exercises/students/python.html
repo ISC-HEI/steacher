@@ -12,6 +12,10 @@
         <div class="left-panel">
             <div class="exercise">
                 <div class="content">
+                    <div v-if="exercise.exercise_data.question"
+                         v-html="renderMarkdown(exercise.exercise_data.question)"
+                         class="box content mb-3 initial-question">
+                    </div>
                     <div class="field">
                         <div class="control">
                             <code-mirror-editor
@@ -53,7 +57,7 @@
                         </div>
                     </div>
                     <div v-if="loadingState === 'pyodide-loading'">
-                        <div class="notification"><p><em>Loading Python interpreter (Pyodide)... This may take a moment.</em></p></div>
+                        <div class="notification"><p><em>Loading Python interpreter... This may take a few seconds.</em></p></div>
                     </div>
                      <div v-if="loadingState === 'executing'">
                         <div class="notification is-info"><p><em>Executing code...</em></p></div>
@@ -70,7 +74,6 @@
         </div>
         <div class="right-panel">
             <chatbot-panel
-                :initial-question="exercise.exercise_data.question"
                 :messages="chatMessages"
                 :loading="loadingState !== 'idle'"
                 @question-asked="handleQuestion"

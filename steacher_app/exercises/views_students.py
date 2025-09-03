@@ -421,7 +421,7 @@ def chat_thread_send(request, thread_id: int):
     messages.append({'role': 'user', 'content': user_text, 'created_at': now_iso})
 
     # Build AI prompt (study mode prompt + course context)
-    from .logic import client, MODEL_NAME  # reuse existing configured client
+    from .logic import client, MODEL_FAST  # reuse existing configured client
     with open('exercises/study_mode_prompt.md', 'r') as file:
         base_prompt = file.read()
 
@@ -450,7 +450,7 @@ def chat_thread_send(request, thread_id: int):
 
     try:
         completion = client.chat.completions.create(
-            model=MODEL_NAME,
+            model=MODEL_FAST,
             messages=model_messages,
             temperature=0.6,
         )

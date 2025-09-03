@@ -3,6 +3,8 @@ import { CodeMirrorEditor } from './CodeMirrorEditor.js';
 import { createApp, markRaw, defineComponent } from 'vue';
 import confetti from 'canvas-confetti';
 import { loadPyodide } from 'pyodide';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 // Define the shape of our exercise data for type safety
 interface Exercise {
@@ -95,6 +97,10 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         
         methods: {
+            renderMarkdown(this: any, content: string) {
+                if (!content) return '';
+                return DOMPurify.sanitize(marked.parse(content) as string);
+            },
             async getGuidance(action: 'run_code' | 'ask_hint' | 'ask_question' | 'option_selected', details: { question?: string | null, error?: string | null, output?: string | null, selected_option?: OptionButton } = {}) {
                 this.loadingState = 'getting-guidance';
                 try {

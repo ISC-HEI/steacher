@@ -271,6 +271,16 @@
                         <div class="content" style="white-space: pre-wrap;">[[ m.content ]]</div>
                         <hr v-if="i < messages.length - 1" style="margin: 0.5rem 0;">
                     </div>
+                    <!-- Thinking indicator while waiting for AI response -->
+                    <div v-if="sending" style="margin-bottom: 0.75rem;">
+                        <p><strong>Assistant</strong></p>
+                        <div class="typing-indicator" aria-label="Assistant is thinking">
+                            <span class="dot" style="--ti-delay: 0ms;"></span>
+                            <span class="dot" style="--ti-delay: 150ms;"></span>
+                            <span class="dot" style="--ti-delay: 300ms;"></span>
+                            <span class="helper-text">Generating response... this can take 5–15s</span>
+                        </div>
+                    </div>
                 </div>
                 <div class="field" style="margin-bottom: 0.5rem;">
                     <div class="control">

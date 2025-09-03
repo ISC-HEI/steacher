@@ -7,7 +7,8 @@ import logging
 
 client = openai.OpenAI(api_key=settings.GEMINI_API_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
 logger = logging.getLogger(__name__)
-MODEL_NAME = "gemini-2.5-flash"
+MODEL_FAST = "gemini-2.5-flash"
+MODEL_PRO = "gemini-2.5-pro"
 
 def calculate_cbm_score(selections, correct_answer_ids, all_choices):
     """
@@ -291,7 +292,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
     # 7. Call the OpenAI API using JSON object response format
     llm_start_time = time.time()
     llm_response = client.chat.completions.create(
-        model=MODEL_NAME,
+        model=MODEL_FAST,
         messages=messages,
         temperature=0.7,
         response_format={"type": "json_object"} if not debug else None,
@@ -393,11 +394,15 @@ def generate_authoring_update(*, exercise_payload: dict, messages: list, course:
     """
 
     # 1) Build system prompt specialized for authoring
-    system_prompt = (
-        "You are an AI exercise authoring assistant. Your response MUST be a single JSON object with two keys: "
-        "'assistant_message' (a string explaining your changes) and "
-        "'updated_exercise' (the complete, modified exercise JSON object). "
-        "Do not use markdown or code fences. The exercise object MUST be the value of the 'updated_exercise' key."
+    system_prompt = ("""You are an AI exercise authoring assistant. You are given a json that contains the current exercise, including the exercise type, exercise data, expected result, test cases, hints, etc.
+Your job is to help the teacher improve the exercise.
+If you are not sure about the exercise, you can ask the teacher for clarification. Else try to improve the exercise and return the updated exercise. For exemple, you may write better hints, improve the exercise data, add more test cases, etc.
+                     
+# Output format                     
+Your response MUST be a single JSON object with two keys:
+'assistant_message' (a string explaining your changes) and
+'updated_exercise' (the complete, modified exercise JSON object).
+Do not use markdown or code fences. The exercise object MUST be the value of the 'updated_exercise' key."""
     )
 
     # 2) Build a single, consolidated system prompt
@@ -438,7 +443,7 @@ def generate_authoring_update(*, exercise_payload: dict, messages: list, course:
     # 3) Ask for a JSON object in the response, without a strict schema
     try:
         completion = client.chat.completions.create(
-            model=MODEL_NAME,
+            model=MODEL_PRO,
             messages=messages_for_llm,
             temperature=0.2,
             response_format={"type": "json_object"},
