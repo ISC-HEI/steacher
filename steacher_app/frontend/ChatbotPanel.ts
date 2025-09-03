@@ -206,6 +206,17 @@ export const ChatbotPanel = {
             return '<span class="icon"><i class="fas fa-question-circle"></i></span> ' + (question || 'Question asked');
         }
 
+        else if (action === 'run_code') {
+            // Collapse verbose student code/unit test report by default
+            const detailsContent = message.content || '';
+            const renderedDetailsContent = this.renderMarkdown(detailsContent);
+            return `
+<details class="collapsible-message">
+  <summary><span class="icon ml-3"><i class="fas fa-code"></i></span> Code submitted to AI tutor</summary>
+  <div class="mt-2">${renderedDetailsContent}</div>
+  </details>`;
+        }
+
         else if (action === 'run_query' && code) {
             let display = '';
 

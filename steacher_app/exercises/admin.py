@@ -338,7 +338,7 @@ class AttemptAdmin(admin.ModelAdmin):
             if llm_response:
                 full_prompt_str += f"----------------\n| ROLE:: {llm_response.get('role', 'assistant')}| \n----------------\n{llm_response.get('content', '')}\n\n"
         
-        return format_html("<pre>{}</pre>", full_prompt_str)
+        return format_html("<pre style='max-width: 100%; white-space: pre-wrap; word-wrap: break-word;'>{}</pre>", full_prompt_str)
     display_full_prompt.short_description = "Full LLM Prompt"
 
 

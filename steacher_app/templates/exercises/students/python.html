@@ -48,6 +48,9 @@
                             <span>Gimme a Hint</span>
                         </button>
                     </div>
+                    <div class="control" v-if="loadingState === 'pyodide-loading'">
+                        <span class="tag is-light is-info is-medium">Loading Python interpreter...</span>
+                    </div>
                 </div>
                 <div class="exercise-output mt-4">
                     <div v-if="executionError">
@@ -56,26 +59,15 @@
                             <pre>[[ executionError ]]</pre>
                         </div>
                     </div>
-                    <div v-if="loadingState === 'pyodide-loading'">
-                        <div class="notification"><p><em>Loading Python interpreter... This may take a few seconds.</em></p></div>
-                    </div>
-                     <div v-if="loadingState === 'executing'">
-                        <div class="notification is-info"><p><em>Executing code...</em></p></div>
-                    </div>
-                    <div v-if="loadingState === 'getting-guidance'">
-                        <div class="notification is-info"><p><em>Analysing your code and creating guidance...</em></p></div>
-                    </div>
-                    <div v-if="executionOutput !== null && loadingState === 'idle'">
-                        <h6 class="title is-6 mt-6 mb-2">Console Output:</h6>
-                        <pre class="has-background-black has-text-white p-5 is-size-6">[[ executionOutput ]]</pre>
-                    </div>
+                    <h6 class="title is-6 mt-6 mb-2">Console Output:</h6>
+                    <pre class="has-background-black has-text-white p-5 is-size-6 console-output">[[ executionOutput ]]</pre>
                 </div>
             </div>
         </div>
         <div class="right-panel">
             <chatbot-panel
                 :messages="chatMessages"
-                :loading="loadingState !== 'idle'"
+                :loading="loadingState === 'getting-guidance'"
                 @question-asked="handleQuestion"
                 @option-selected="handleOptionSelected">
             </chatbot-panel>

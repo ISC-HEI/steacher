@@ -107,6 +107,14 @@
     overflow-y: auto;
 } 
 
+/* Console output area */
+.console-output {
+    min-height: 240px; /* similar to editor min height */
+    max-height: 600px;
+    overflow: auto;
+    border-radius: 4px;
+}
+
 /* Two-column layout for exercise page */
 .exercise-container {
     display: flex;
@@ -233,8 +241,6 @@
     overflow: hidden; /* Prevent editor from overflowing */
 }
 
-.chatbot-panel-sql {
-}
 
 /* Ensure the chatbot panel inside the grid fills the container */
 .chatbot-panel-sql .chatbot-container {
@@ -308,4 +314,8 @@
 @keyframes typing-bounce {
     0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
     30% { opacity: 1; transform: translateY(-3px); }
+}
+
+.collapsible-message summary::marker {
+    font-size: 1.5em; /* Make the disclosure arrow bigger */
 }

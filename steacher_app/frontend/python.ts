@@ -103,6 +103,10 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             async getGuidance(action: 'run_code' | 'ask_hint' | 'ask_question' | 'option_selected', details: { question?: string | null, error?: string | null, output?: string | null, selected_option?: OptionButton } = {}) {
                 this.loadingState = 'getting-guidance';
+                // Add a temporary assistant placeholder ("...") while waiting for backend
+                const placeholderMessage = { role: 'assistant', content: '...' } as any;
+                this.chatMessages.push(placeholderMessage);
+                const placeholderIndex = this.chatMessages.length - 1;
                 try {
                     const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
                     if (!csrfTokenElement) {
@@ -135,6 +139,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     const result = await response.json();
+                    // Remove the placeholder as soon as we have a response
+                    if (this.chatMessages[placeholderIndex] === placeholderMessage) {
+                        this.chatMessages.splice(placeholderIndex, 1);
+                    }
                     if (result.user_submission) {
                         this.chatMessages.push(result.user_submission);
                     }
@@ -150,6 +158,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 } catch (error) {
                     this.executionError = `Error communicating with the server: ${error}`;
                 } finally {
+                    // Ensure placeholder is removed even on error
+                    const idx = this.chatMessages.indexOf(placeholderMessage);
+                    if (idx !== -1) {
+                        this.chatMessages.splice(idx, 1);
+                    }
                     this.loadingState = 'idle';
                     this.start_timestamp = new Date().toISOString();
                 }
@@ -211,11 +224,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     await this.pyodide.runPythonAsync(this.userCode);
                     
                     this.executionOutput = stdout.trim();
+                    // Render console output first, then call backend
+                    await (this as any).$nextTick();
                     await this.getGuidance('run_code', { output: this.executionOutput });
 
                 } catch (error) {
                     const errorMessage = String(error);
                     this.executionError = errorMessage;
+                    // Still proceed to request guidance after rendering any visible changes
+                    await (this as any).$nextTick();
                     await this.getGuidance('run_code', { error: errorMessage });
                 } finally {
                     this.loadingState = 'idle';
