@@ -118,6 +118,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # OpenAI API Key
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+SCALA_INTERPRETER_URL = os.getenv('SCALA_INTERPRETER_URL', 'http://localhost:8642')
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/

@@ -4,6 +4,8 @@ services:
       context: ./steacher_app
     env_file:
       - .env.production
+    environment:
+      - SCALA_INTERPRETER_URL=http://scala_interpreter:8642
     volumes:
       - static_data:/app/staticfiles
       - media_data:/app/media
@@ -11,6 +13,7 @@ services:
       - 8000
     depends_on:
       - db
+      - scala_interpreter
 
   db:
     image: postgres:15
@@ -31,6 +34,27 @@ services:
       - ./certbot_data/etc:/etc/letsencrypt:ro
     depends_on:
       - web
+
+  scala_interpreter:
+    build:
+      context: ./scala_interpreter
+      args:
+        BUILD_PLATFORM: linux/amd64
+    environment:
+      - PORT=8642
+    restart: unless-stopped
+    labels:
+      - autoheal=true
+    # No ports exposed to host; reachable internally at http://scala_interpreter:8642
+
+  autoheal:
+    image: willfarrell/autoheal
+    restart: unless-stopped
+    environment:
+      - AUTOHEAL_INTERVAL=5
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
 
   certbot:
     image: certbot/certbot

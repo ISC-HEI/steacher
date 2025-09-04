@@ -2,7 +2,7 @@ import requests
 import json
 import time
 
-BASE_URL = "http://localhost:8080"
+BASE_URL = "http://localhost:8642"
 
 def run_test(name, code, expected_success, expected_output_contains="", expected_error_contains=""):
     print(f"--- Running test: {name} ---")
@@ -68,5 +68,5 @@ if __name__ == "__main__":
     start_time = time.time()
     for i in range(20):
         run_test(f"Request {i}", "println(\"Hello, world!\")", True, expected_output_contains="Hello, world!")
-    took = time.time() - start_time
-    print(f"Time taken: {took / 20} seconds per request")
+    took = (time.time() - start_time)/ 20 * 1000
+    print(f"Time taken: {took} ms per request")

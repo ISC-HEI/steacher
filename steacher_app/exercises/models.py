@@ -108,6 +108,7 @@ class Exercise(models.Model):
         ('sql', 'SQL'),
         ('turtle', 'Turtle'),
         ('open_question', 'Open Question'),
+        ('scala', 'Scala'),
     ]
 
     module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='exercises')

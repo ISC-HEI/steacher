@@ -4,7 +4,7 @@ import spark.Spark._
 import java.util.concurrent.{Executors, Callable, TimeUnit}
 
 object Server extends App {
-  port(sys.env.get("PORT").map(_.toInt).getOrElse(8080))
+  port(sys.env.get("PORT").map(_.toInt).getOrElse(8642))
   ipAddress("0.0.0.0")
 
   // List of potentially dangerous patterns to check

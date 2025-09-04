@@ -145,13 +145,20 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
 
     # add code, error message, output
     if 'code' in data:
-        user_prompt_content += f"## Student code:\n```python\n{data.get('code', '')}\n```\n"
+        # Use language-specific code fences
+        lang = 'python'
+        try:
+            if exercise.exercise_type in ['sql', 'python', 'scala']:
+                lang = exercise.exercise_type
+        except Exception:
+            lang = 'python'
+        user_prompt_content += f"## Student code:\n```{lang}\n{data.get('code', '')}\n```\n"
 
         # NEW: Run unit tests if available
         if exercise.exercise_type == 'python':
             unit_tests = exercise.answer_data.get('unit_tests', {})
             if unit_tests and unit_tests.get('test_cases'):
-                from exercises.unit_testing import run_unit_tests, format_test_results_for_ai
+                from exercises.unit_testing import run_unit_tests, format_test_results_for_ai_with_lang
                 
                 test_start_time = time.time()
                 test_results = run_unit_tests(data.get('code', ''), unit_tests)
@@ -160,12 +167,26 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
                 
                 # Add test results to the prompt for the AI
                 user_prompt_content += f"\n## Unit Test Results:\n"
-                user_prompt_content += format_test_results_for_ai(test_results)
+                user_prompt_content += format_test_results_for_ai_with_lang(test_results, 'python')
                 
                 # Store test results in data for later saving to AttemptInteraction
                 data['test_results'] = test_results
             else:
                 logger.warning(f"No unit tests defined for Python exercise {exercise.id}")
+        elif exercise.exercise_type == 'scala':
+            unit_tests = exercise.answer_data.get('unit_tests', {})
+            if unit_tests and unit_tests.get('test_cases'):
+                try:
+                    from exercises.unit_testing import run_unit_tests_scala, format_test_results_for_ai_with_lang
+                    test_start_time = time.time()
+                    test_results = run_unit_tests_scala(data.get('code', ''), unit_tests)
+                    test_duration = time.time() - test_start_time
+                    logger.info(f"Scala unit testing for exercise {exercise.id} took {test_duration:.2f} seconds.")
+                    user_prompt_content += f"\n## Unit Test Results:\n"
+                    user_prompt_content += format_test_results_for_ai_with_lang(test_results, 'scala')
+                    data['test_results'] = test_results
+                except Exception as e:
+                    logger.warning(f"Scala unit tests failed to run: {e}")
 
     if 'error_message' in data:
         user_prompt_content += f"Error:\n```\n{data.get('error_message')}\n```"

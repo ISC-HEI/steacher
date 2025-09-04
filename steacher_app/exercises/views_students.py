@@ -10,6 +10,8 @@ from django.db import models
 from django.db.models import Prefetch
 from django.utils import timezone
 from datetime import timedelta
+import requests
+import time
 import json
 
 from .models import Exercise, ExerciceAsset, Course, AttemptInteraction, Attempt, Module, UserInvite, ChatThread, CohortMembership
@@ -251,6 +253,7 @@ def exercise_detail(request, pk):
     template_map = {
         'sql': 'exercises/students/sql.html',
         'python': 'exercises/students/python.html',
+        'scala': 'exercises/students/scala.html',
         'multiple_choice': 'exercises/students/multiple_choice.html',
         'open_question': 'exercises/students/open_question.html',
     }
@@ -331,6 +334,38 @@ def delete_user_answers(request, exercise_id):
     Attempt.objects.filter(user=request.user, exercise=exercise).delete()
     return redirect('exercises:exercise_detail', pk=exercise_id)
 
+
+
+@login_required
+@require_POST
+def scala_execute(request):
+    """Proxy Scala code execution to the scala_interpreter service."""
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+    code = (payload.get('code') or '').strip()
+    if not code:
+        return JsonResponse({'success': False, 'output': '', 'error': 'No code provided'}, status=400)
+
+    url = f"{getattr(settings, 'SCALA_INTERPRETER_URL', 'http://scala_interpreter:8642')}/execute"
+    start = time.time()
+    try:
+        resp = requests.post(url, json={'code': code}, timeout=20)
+        duration_ms = int((time.time() - start) * 1000)
+        resp.raise_for_status()
+        data = resp.json() or {}
+        # Normalize response
+        return JsonResponse({
+            'success': bool(data.get('success')),
+            'output': str(data.get('output') or ''),
+            'error': str(data.get('error') or '') if data.get('error') else None,
+            'durationMs': duration_ms,
+        })
+    except requests.exceptions.RequestException as e:
+        duration_ms = int((time.time() - start) * 1000)
+        return JsonResponse({'success': False, 'output': '', 'error': f'Request failed: {e}', 'durationMs': duration_ms}, status=502)
 
 
 @login_required

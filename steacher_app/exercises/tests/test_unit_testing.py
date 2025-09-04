@@ -1,5 +1,5 @@
 import unittest
-from exercises.unit_testing import normalize_output, run_unit_tests, format_test_results_for_ai
+from exercises.unit_testing import normalize_output, run_unit_tests, format_test_results_for_ai_with_lang
 
 class TestUnitTesting(unittest.TestCase):
 
@@ -120,7 +120,7 @@ class TestUnitTesting(unittest.TestCase):
                 }
             ]
         }
-        formatted_string = format_test_results_for_ai(results)
+        formatted_string = format_test_results_for_ai_with_lang(results, 'python')
         self.assertIn("✓ PASSED test: Correct addition", formatted_string)
         self.assertIn("✗ FAILED test: Incorrect subtraction", formatted_string)
         self.assertIn("Expected output", formatted_string)
@@ -134,7 +134,7 @@ class TestUnitTesting(unittest.TestCase):
             "execution_error": "Syntax Error in your code: invalid syntax",
             "test_results": []
         }
-        formatted_string = format_test_results_for_ai(results)
+        formatted_string = format_test_results_for_ai_with_lang(results, 'python')
         self.assertIn("could not be tested", formatted_string)
         self.assertIn("Syntax Error", formatted_string)
 

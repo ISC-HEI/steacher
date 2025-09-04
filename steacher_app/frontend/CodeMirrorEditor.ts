@@ -1,5 +1,5 @@
 import { defineComponent } from 'vue';
-import { EditorView, basicSetup, EditorState, sql, python, keymap, indentWithTab, indentUnit, autocompletion, acceptCompletion } from 'codemirror-bundle';
+import { EditorView, basicSetup, EditorState, sql, python, scala, keymap, indentWithTab, indentUnit, autocompletion, acceptCompletion } from 'codemirror-bundle';
 import type { ViewUpdate } from '@codemirror/view';
 
 interface CodeMirrorEditorData {
@@ -104,6 +104,8 @@ export const CodeMirrorEditor = defineComponent({
                     return sql();
                 case 'python':
                     return python();
+                case 'scala':
+                    return scala();
                 default:
                     return [];
             }

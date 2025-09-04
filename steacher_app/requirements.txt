@@ -10,3 +10,4 @@ playwright
 pytest-playwright
 gunicorn
 python-dotenv
+requests

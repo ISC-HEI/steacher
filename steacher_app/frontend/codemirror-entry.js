@@ -8,11 +8,14 @@ import { EditorState } from '@codemirror/state';
 import { indentUnit } from '@codemirror/language';
 import { sql } from '@codemirror/lang-sql';
 import { python as pythonLang } from '@codemirror/lang-python';
+import { StreamLanguage } from '@codemirror/language';
+import { scala as legacyScala } from '@codemirror/legacy-modes/mode/clike';
 import { indentWithTab as indentWithTabCmd } from '@codemirror/commands';
 import { autocompletion, acceptCompletion, CompletionContext } from '@codemirror/autocomplete';
 
 // Re-export under the canonical names expected by the rest of the codebase.
 export const python = pythonLang;
+export const scala = () => StreamLanguage.define(legacyScala);
 export const indentWithTab = indentWithTabCmd;
 export { indentUnit };
 export { autocompletion, acceptCompletion, CompletionContext };

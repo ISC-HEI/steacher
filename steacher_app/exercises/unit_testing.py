@@ -7,6 +7,8 @@ TODO: Replace with a proper sandbox environment for security.
 import io
 import traceback
 from contextlib import redirect_stdout, redirect_stderr
+import requests
+from django.conf import settings
 import logging
 import multiprocessing
 
@@ -131,30 +133,81 @@ def run_unit_tests(student_code: str, unit_tests_data: dict) -> dict:
         "test_results": results
     }
 
-def format_test_results_for_ai(results: dict) -> str:
-    """Formats test results for inclusion in the AI tutor prompt."""
+"""Language-agnostic formatters live below; prefer format_test_results_for_ai_with_lang."""
+
+
+def run_unit_tests_scala(student_code: str, unit_tests_data: dict) -> dict:
+    """Run Scala unit tests by calling the scala_interpreter service per test."""
+    setup_code = unit_tests_data.get("setup_code", "")
+    test_cases = unit_tests_data.get("test_cases", [])
+    if not test_cases:
+        return {"all_passed": True, "passed_count": 0, "failed_count": 0, "total_count": 0, "execution_error": None, "test_results": []}
+
+    results = []
+    passed_count = 0
+    base_url = f"{getattr(settings, 'SCALA_INTERPRETER_URL', 'http://scala_interpreter:8642')}/execute"
+
+    for test_case in test_cases:
+        test_code = test_case.get("test_code", "")
+        full_code = f"{setup_code}\n\n{student_code}\n\n{test_code}"
+        try:
+            r = requests.post(base_url, json={"code": full_code}, timeout=20)
+            r.raise_for_status()
+            data = r.json() or {}
+            actual_out = normalize_output(str(data.get("output") or ""))
+            expected = normalize_output(test_case.get("expected_output", ""))
+            passed = bool(data.get("success")) and (actual_out == expected)
+            if passed:
+                passed_count += 1
+            results.append({
+                "description": test_case.get("description", "Unnamed test"),
+                "test_code": test_code,
+                "passed": passed,
+                "actual_output": str(data.get("output") or ""),
+                "expected_output": test_case.get("expected_output", ""),
+                "error": str(data.get("error") or "") or None,
+            })
+        except Exception as e:
+            results.append({
+                "description": test_case.get("description", "Unnamed test"),
+                "test_code": test_code,
+                "passed": False,
+                "actual_output": "",
+                "expected_output": test_case.get("expected_output", ""),
+                "error": str(e),
+            })
+
+    return {
+        "all_passed": passed_count == len(test_cases),
+        "passed_count": passed_count,
+        "failed_count": len(test_cases) - passed_count,
+        "total_count": len(test_cases),
+        "execution_error": None,
+        "test_results": results,
+    }
+
+
+def format_test_results_for_ai_with_lang(results: dict, language: str) -> str:
+    """Same as format_test_results_for_ai but with language tag in code fences."""
     if not results or not results.get("test_results"):
         if results.get("execution_error"):
             return f"The student's code could not be tested due to an error:\n{results['execution_error']}"
         return "No test results available."
 
     output = f"Passed: {results['passed_count']}/{results['total_count']} tests\n\n"
-
     if results.get('execution_error'):
         output += f"**Execution Error:** {results['execution_error']}\n\n"
 
     for test in results['test_results']:
         status = "✓ PASSED test" if test['passed'] else "✗ FAILED test"
         output += f"### {status}: {test['description']}\n"
-        output += f"**Test code:**\n```python\n{test['test_code']}\n```\n"
-
+        output += f"**Test code:**\n```{language}\n{test['test_code']}\n```\n"
         if not test['passed']:
-            if test['error']:
+            if test.get('error'):
                 output += f"**Error:**\n```\n{test['error']}\n```\n"
             else:
                 output += f"**Expected output:**\n```\n{test['expected_output']}\n```\n"
                 output += f"**Actual output from student's code:**\n```\n{test['actual_output']}\n```\n"
             output += "=> The student's code did not produce the expected result for this test case.\n"
         output += "\n---\n"
-
     return output

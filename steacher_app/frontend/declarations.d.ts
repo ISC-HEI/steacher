@@ -4,10 +4,13 @@ declare module 'codemirror-bundle' {
     export * from 'codemirror';
     export * from '@codemirror/state';
     export * from '@codemirror/lang-sql';
-    // Added for Python language support and extra commands/view utilities
-    export * from '@codemirror/lang-python';
-    export * from '@codemirror/view';
-    export * from '@codemirror/commands';
+    export { python } from '@codemirror/lang-python';
+    export { EditorView, keymap } from '@codemirror/view';
+    export { indentWithTab } from '@codemirror/commands';
+    export { autocompletion, acceptCompletion, CompletionContext } from '@codemirror/autocomplete';
+    export { indentUnit, StreamLanguage } from '@codemirror/language';
+    // Custom re-export provided by our bundle for Scala legacy mode
+    export function scala(): any;
 }
 
 declare module 'canvas-confetti';
