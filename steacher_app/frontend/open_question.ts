@@ -1,5 +1,7 @@
 import { ChatbotPanel } from './ChatbotPanel.js';
 import { createApp, defineComponent } from 'vue';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import confetti from 'canvas-confetti';
 
 interface Exercise {
@@ -73,6 +75,10 @@ document.addEventListener('DOMContentLoaded', function() {
             };
         },
         methods: {
+            renderMarkdown(this: any, content: string) {
+                if (!content) return '';
+                return DOMPurify.sanitize(marked.parse(content) as string);
+            },
             async getGuidance(action: 'submit_answer' | 'ask_hint' | 'ask_question', details: { question?: string | null } = {}) {
                 this.loadingState = 'getting-guidance';
                 try {

@@ -1,5 +1,7 @@
 import { ChatbotPanel } from './ChatbotPanel.js';
 import { createApp, defineComponent } from 'vue';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import confetti from 'canvas-confetti';
 
 // Define the shape of our exercise data for type safety
@@ -121,6 +123,10 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         
         methods: {
+            renderMarkdown(this: any, content: string) {
+                if (!content) return '';
+                return DOMPurify.sanitize(marked.parse(content) as string);
+            },
             getChoiceClass(choiceId: string, confidenceValue: 'right' | 'wrong' | 'notsure') {
                 if (!this.feedback) return '';
 

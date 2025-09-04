@@ -16,10 +16,6 @@ interface ProcessedMessage {
 
 export const ChatbotPanel = {
   props: {
-    initialQuestion: {
-      type: String,
-      default: ''
-    },
     messages: {
       type: Array,
       default: () => []
@@ -33,24 +29,6 @@ export const ChatbotPanel = {
   template: `
     <div id="chatbot" ref="chatContainer">
       <div class="chat-content">
-
-        <!-- First, we display the initial question of the exercise -->
-        <div v-if="initialQuestion" class="initial-question-container">
-            <div v-if="processedInitialQuestion.cleanedContent"
-                 v-html="renderMarkdown(processedInitialQuestion.cleanedContent)"
-                 ref="initialQuestionMessage"
-                 class="box content mb-3 assistant-message initial-question">
-            </div>
-            <div v-if="processedInitialQuestion.buttons.length > 0" class="mb-3">
-                <div v-for="button in processedInitialQuestion.buttons" :key="button.id" class="mb-2">
-                    <button @click="selectOption(button)" class="button is-info">
-                        {{ button.title }}
-                    </button>
-                    <p class="help" v-if="button.comment">{{ button.comment }}</p>
-                </div>
-            </div>
-        </div>
-
         <!-- Chatbot Content. A list of messages exchanged between the user and the assistant. -->
         <div>
           <template v-for="(message, index) in processedMessages">
@@ -78,7 +56,17 @@ export const ChatbotPanel = {
         </div>
       </div>
 
-      <!-- Text Input and Button for asking a question. -->
+      <!-- Typing indicator (while waiting for AI) -->
+      <div v-if="loading" style="margin-bottom: 0.75rem;">
+        <div class="typing-indicator" aria-label="Assistant is thinking">
+          <span class="dot" style="--ti-delay: 0ms;"></span>
+          <span class="dot" style="--ti-delay: 150ms;"></span>
+          <span class="dot" style="--ti-delay: 300ms;"></span>
+          <span class="helper-text">Generating feedback...</span>
+        </div>
+      </div>
+
+      <!-- Input area -->
       <div class="field has-addons mt-3">
         <!-- Single Input Field -->
         <p class="control is-expanded">
@@ -111,10 +99,6 @@ export const ChatbotPanel = {
     };
   },
   computed: {
-    processedInitialQuestion(): ProcessedMessage {
-        // @ts-ignore
-        return this.parseMessageContent({ content: this.initialQuestion });
-    },
     processedMessages(): ProcessedMessage[] {
       // Parse the message content for buttons, using a regex.
       // @ts-ignore
@@ -129,14 +113,6 @@ export const ChatbotPanel = {
     }
   },
   mounted(this: any) {
-    // Highlight the initial question for 4 seconds in yellow, so the user's attention is drawn to it.
-    if (this.initialQuestion && this.$refs.initialQuestionMessage) {
-      const el = this.$refs.initialQuestionMessage as HTMLElement;
-      el.classList.add('highlight-question');
-      setTimeout(() => {
-        el.classList.remove('highlight-question');
-      }, 4000); // Remove after 4 seconds (duration of animation)
-    }
   },
   watch: {
     messages: {
@@ -206,32 +182,19 @@ export const ChatbotPanel = {
             return '<span class="icon"><i class="fas fa-question-circle"></i></span> ' + (question || 'Question asked');
         }
 
-        else if (action === 'run_code') {
-            // Collapse verbose student code/unit test report by default
-            const detailsContent = message.content || '';
+        else if (action === 'run_submission') {
+            // Collapsible block for any submission (Python/SQL)
+            let detailsContent = message.content || '';
+            if (!detailsContent && code) {
+                const errorSection = error_message ? `\n\nError:\n\n\`${error_message}\`` : '';
+                detailsContent = `\n\n\`\`\`\n${code}\n\`\`\`\n${errorSection}`;
+            }
             const renderedDetailsContent = this.renderMarkdown(detailsContent);
             return `
 <details class="collapsible-message">
   <summary><span class="icon ml-3"><i class="fas fa-code"></i></span> Code submitted to AI tutor</summary>
   <div class="mt-2">${renderedDetailsContent}</div>
   </details>`;
-        }
-
-        else if (action === 'run_query' && code) {
-            let display = '';
-
-            const lines = code.split('\n');
-            if (lines.length > 2) {
-                display += `\`${lines.slice(0, 2).join('\n')}\n...\n\``;
-            } else {
-                display += `\`${code}\``;
-            }
-
-            if (error_message) {
-                display += `<br/>\`${error_message.replace('SQL Error: ', '')}\``;
-            }
-
-            return display;
         }
 
         else if (action === 'option_selected') {

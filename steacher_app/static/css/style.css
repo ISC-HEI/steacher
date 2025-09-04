@@ -291,11 +291,8 @@
 .typing-indicator {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 0.5rem 0.75rem;
-    border: 1px solid #eee;
-    border-radius: 6px;
-    background: #f8f8f8;
+    gap: 6px;
+    padding: 0.5rem;
 }
 .typing-indicator .dot {
     width: 6px;

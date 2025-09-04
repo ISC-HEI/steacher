@@ -10,8 +10,11 @@
         <div class="left-panel">
             <div class="exercise">
                 <div class="content">
+                    <div v-if="exercise.exercise_data.question"
+                         v-html="renderMarkdown(exercise.exercise_data.question)"
+                         class="box content mb-3 initial-question">
+                    </div>
                     <div class="field">
-                        <label class="label">Question: [[ exercise.exercise_data.question ]]</label>
                         <p class="mb-0 mt-5">For each option, please select whether you are confident it is <em>"right"</em>, <em>"wrong"</em>, or if you are <em>"not sure"</em>.</p>
                         
                         <!-- Scoring Table -->
@@ -108,9 +111,8 @@
         </div>
         <div class="right-panel">
             <chatbot-panel
-                :initial-question="exercise.exercise_data.question"
                 :messages="chatMessages"
-                :loading="loadingState !== 'idle'"
+                :loading="loadingState === 'getting-guidance'"
                 @question-asked="handleQuestion">
             </chatbot-panel>
         </div>

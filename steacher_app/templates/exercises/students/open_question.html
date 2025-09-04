@@ -10,6 +10,10 @@
         <div class="left-panel">
             <div class="exercise">
                 <div class="content">
+                    <div v-if="exercise.exercise_data.question"
+                         v-html="renderMarkdown(exercise.exercise_data.question)"
+                         class="box content mb-3 initial-question">
+                    </div>
                     <div class="field">
                         <label class="label">Your Answer</label>
                         <div class="control">
@@ -54,9 +58,8 @@
         </div>
         <div class="right-panel">
             <chatbot-panel
-                :initial-question="exercise.exercise_data.question"
                 :messages="chatMessages"
-                :loading="loadingState !== 'idle'"
+                :loading="loadingState === 'getting-guidance'"
                 @question-asked="handleQuestion">
             </chatbot-panel>
         </div>

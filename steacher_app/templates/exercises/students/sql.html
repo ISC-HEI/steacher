@@ -64,6 +64,10 @@
             <h5 class="title is-5">SQL Editor</h5>
             <div class="exercise">
                 <div class="content">
+                    <div v-if="exercise.exercise_data.question"
+                         v-html="renderMarkdown(exercise.exercise_data.question)"
+                         class="box content mb-3 initial-question">
+                    </div>
                     <div class="field">
                         <div class="control">
                             <code-mirror-editor
@@ -105,7 +109,7 @@
                             <p>[[ queryError ]]</p>
                         </div>
                     </div>
-                    <div v-if="loadingState === 'db-loading'">
+                    <div v-if="loadingState === 'engine-loading'">
                         <div class="notification"><p><em>Loading database...</em></p></div>
                     </div>
                     <div v-if="loadingState === 'querying'">
@@ -152,9 +156,8 @@
         <div class="chatbot-panel-sql">
             <h5 class="title is-5">AI Tutor</h5>
             <chatbot-panel
-                :initial-question="'{{ exercise.exercise_data.question|escapejs }}'"
                 :messages="chatMessages"
-                :loading="loadingState !== 'idle'"
+                :loading="loadingState === 'getting-guidance'"
                 @question-asked="handleQuestion"
                 @option-selected="handleOptionSelected">
             </chatbot-panel>

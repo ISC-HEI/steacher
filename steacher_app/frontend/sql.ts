@@ -3,6 +3,8 @@ import { ChatbotPanel } from './ChatbotPanel.js';
 import { CodeMirrorEditor } from './CodeMirrorEditor.js';
 import { createApp, markRaw, defineComponent } from 'vue';
 import confetti from 'canvas-confetti';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 // Define the shape of our exercise data for type safety
 interface Exercise {
@@ -54,7 +56,7 @@ interface SqlDataContext {
     showCorrectAnswers: boolean;
     queryResult: QueryResult | null;
     queryError: string | null;
-    loadingState: 'idle' | 'db-loading' | 'querying' | 'getting-guidance';
+    loadingState: 'idle' | 'engine-loading' | 'querying' | 'getting-guidance';
     database: any | null; // PGlite instance
     databaseSchema: DatabaseSchema | null;
     schemaError: string | null;
@@ -146,6 +148,10 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         
         methods: {
+            renderMarkdown(this: any, content: string) {
+                if (!content) return '';
+                return DOMPurify.sanitize(marked.parse(content) as string);
+            },
             async viewTableData(tableName: string) {
                 if (!this.database) {
                     this.queryError = 'Database not loaded yet. Please wait...';
@@ -180,7 +186,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.loadingState = 'idle';
                 }
             },
-            async getGuidance(action: 'run_query' | 'ask_hint' | 'ask_question' | 'option_selected', details: { question?: string | null, error?: string | null, selected_option?: OptionButton } = {}) {
+            async getGuidance(action: 'run_submission' | 'ask_hint' | 'ask_question' | 'option_selected', details: { question?: string | null, error?: string | null, selected_option?: OptionButton } = {}) {
                 this.loadingState = 'getting-guidance';
                 try {
                     // 1. Get CSRF token
@@ -268,7 +274,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             async loadDatabase() {
                 try {
-                    this.loadingState = 'db-loading';
+                    this.loadingState = 'engine-loading';
 
                     // When integrating a class-based library like PGlite with Vue,
                     // it's crucial to prevent Vue from making the library's instance
@@ -430,7 +436,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.isPreview = false;
                     this.previewMeta = null;
                     // After successfully running the query, get guidance
-                    await this.getGuidance('run_query');
+                    await this.getGuidance('run_submission');
 
                 } catch (error) {
                     console.error('Query error:', error);
@@ -438,7 +444,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.queryError = errorMessage;
 
                     // When there's an error, also get guidance
-                    await this.getGuidance('run_query', { error: errorMessage });
+                    await this.getGuidance('run_submission', { error: errorMessage });
                 }
             },
 
