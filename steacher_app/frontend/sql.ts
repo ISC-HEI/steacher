@@ -321,6 +321,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 try {
+                    // Indicate schema is being loaded for the left panel
+                    this.loadingState = 'db-loading' as any;
                     const tablesResult = await this.database.query(`
                         SELECT tablename 
                         FROM pg_tables 
@@ -347,6 +349,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 } catch (error) {
                     console.error('Error loading schema:', error);
                     this.schemaError = 'Failed to load database schema: ' + String(error);
+                } finally {
+                    // Schema load complete
+                    this.loadingState = 'idle';
                 }
             },
 
@@ -409,8 +414,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     const result = await this.database.query(this.userQuery);
                     
                     // Format result based on query type
-                    if (result.rows && result.rows.length > 0) {
-                        // SELECT query with results
+                    if (result && Array.isArray(result.rows) && result.fields) {
+                        // SELECT query (even if zero rows)
                         this.queryResult = {
                             type: 'select',
                             columns: result.fields.map((field: any) => field.name),
@@ -437,6 +442,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.previewMeta = null;
                     // After successfully running the query, get guidance
                     await this.getGuidance('run_submission');
+
+                    // If the query may have changed the schema, refresh the schema explorer
+                    if (this.isSchemaChangingQuery(this.userQuery)) {
+                        await this.loadSchema();
+                    }
 
                 } catch (error) {
                     console.error('Query error:', error);
@@ -484,6 +494,13 @@ document.addEventListener('DOMContentLoaded', function() {
             getResultColumns(resultArray: Record<string, any>[] | undefined): string[] {
                 if (!resultArray || resultArray.length === 0) return [];
                 return Object.keys(resultArray[0]!);
+            },
+
+            isSchemaChangingQuery(query: string): boolean {
+                if (!query) return false;
+                const q = query.toLowerCase();
+                // Intentionally simple; false positives are acceptable
+                return q.includes('create ') || q.includes('alter ') || q.includes('drop ');
             }
         },
         
