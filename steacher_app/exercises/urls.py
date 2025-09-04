@@ -37,6 +37,7 @@ teachers_urlpatterns = [
     path('api/exercises/<int:exercise_id>/visibility/', views_teachers.set_exercise_visibility, name='set_exercise_visibility'),
 
     path('ai/authoring_assistant/', views_teachers.exercise_authoring_assistant, name='authoring_assistant'),
+    path('ai/translate_i18n/', views_teachers.translate_i18n, name='translate_i18n'),
 ]
 
 # Default export keeps backward compatibility (student-facing by default)

@@ -105,6 +105,38 @@ def dashboard(request):
                 "total": module_total,
             }
 
+    # Localize titles for dashboard (primary focus + recent attempts)
+    try:
+        pref_lang = getattr(request.user, 'preferred_language', 'en') or 'en'
+    except Exception:
+        pref_lang = 'en'
+
+    def pick_i18n(d: dict) -> str:
+        if not isinstance(d, dict):
+            return ''
+        return d.get(pref_lang) or d.get('en') or next(iter(d.values()), '')
+
+    try:
+        if last_active_exercise:
+            try:
+                last_active_exercise.localized_title = pick_i18n(getattr(last_active_exercise, 'title_i18n', {}) or {})
+            except Exception:
+                last_active_exercise.localized_title = ''
+        if next_up_exercise:
+            try:
+                next_up_exercise.localized_title = pick_i18n(getattr(next_up_exercise, 'title_i18n', {}) or {})
+            except Exception:
+                next_up_exercise.localized_title = ''
+        for a in (recent_attempts or []):
+            ex = getattr(a, 'exercise', None)
+            if ex is not None:
+                try:
+                    ex.localized_title = pick_i18n(getattr(ex, 'title_i18n', {}) or {})
+                except Exception:
+                    ex.localized_title = ''
+    except Exception:
+        pass
+
     return render(request, 'exercises/students/dashboard.html', {
         'course_progress': course_progress,
         'last_active_exercise': last_active_exercise,
@@ -205,6 +237,33 @@ def course_detail(request, pk):
         .prefetch_related(Prefetch('exercises', queryset=Exercise.objects.filter(visible=True).order_by('order')))
     )
 
+    # Localize exercise titles/descriptions for listing
+    try:
+        pref_lang = getattr(request.user, 'preferred_language', 'en') or 'en'
+    except Exception:
+        pref_lang = 'en'
+
+    def pick_i18n(d: dict) -> str:
+        if not isinstance(d, dict):
+            return ''
+        return d.get(pref_lang) or d.get('en') or next(iter(d.values()), '')
+
+    try:
+        for module in visible_modules:
+            ex_qs = getattr(module, 'exercises', None)
+            if hasattr(ex_qs, 'all'):
+                for ex in ex_qs.all():
+                    try:
+                        ex.localized_title = pick_i18n(getattr(ex, 'title_i18n', {}) or {})
+                    except Exception:
+                        ex.localized_title = ''
+                    try:
+                        ex.localized_description = pick_i18n(getattr(ex, 'description_i18n', {}) or {})
+                    except Exception:
+                        ex.localized_description = ''
+    except Exception:
+        pass
+
     return render(request, 'exercises/students/students_course_details.html', {
         'course': course,
         'modules': visible_modules,
@@ -225,7 +284,37 @@ def exercise_list(request):
 def exercise_detail(request, pk):
     """Display individual exercise for students."""
     exercise = get_object_or_404(Exercise, pk=pk)
-    exercise_json = ExerciseFrontendSerializer(exercise).data
+    # Build localized exercise_json
+    try:
+        preferred_language = getattr(request.user, 'preferred_language', 'en') or 'en'
+    except Exception:
+        preferred_language = 'en'
+
+    title_map = getattr(exercise, 'title_i18n', {}) or {}
+    desc_map = getattr(exercise, 'description_i18n', {}) or {}
+    def pick(d: dict) -> str:
+        if not isinstance(d, dict):
+            return ''
+        return d.get(preferred_language) or d.get('en') or next(iter(d.values()), '')
+
+    ex_data = dict(exercise.exercise_data or {})
+    q_map = getattr(exercise, 'question_i18n', {}) or {}
+    if isinstance(q_map, dict):
+        ex_data['question'] = q_map.get(preferred_language) or q_map.get('en') or next(iter(q_map.values()), '')
+    else:
+        ex_data['question'] = ''
+
+    exercise_json = {
+        'id': exercise.id,
+        'title': pick(title_map),
+        'description': pick(desc_map),
+        'exercise_type': exercise.exercise_type,
+        'exercise_data': ex_data,
+        'created_at': exercise.created_at.isoformat(),
+        'updated_at': exercise.updated_at.isoformat(),
+    }
+    localized_title = exercise_json['title']
+    localized_description = exercise_json['description']
 
     attempt_id = None
     interactions = []
@@ -286,6 +375,8 @@ def exercise_detail(request, pk):
         'previous_exercise': previous_exercise,
         'next_exercise': next_exercise,
         'instructor_email': instructor_email,
+        'localized_title': localized_title,
+        'localized_description': localized_description,
     })
 
 

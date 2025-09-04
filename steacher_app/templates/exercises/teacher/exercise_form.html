@@ -15,14 +15,45 @@
             <form @submit.prevent="saveExercise">
                 {% csrf_token %}
 
+              
+
+                <!-- Language Tabs and Actions (inline row) -->
+                <div class="mb-3" style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div class="tabs is-toggle is-small" style="margin-bottom: 0;">
+                        <ul>
+                            <li :class="{ 'is-active': uiLang === 'en' }"><a @click="uiLang='en'">EN</a></li>
+                            <li :class="{ 'is-active': uiLang === 'fr' }">
+                                <a @click="uiLang='fr'">FR
+                                    <span v-if="langEmpty('fr')" class="tag is-danger is-light ml-2" title="Missing fields">!</span>
+                                    <span v-else-if="langStale('fr')" class="tag is-warning is-light ml-2" title="May be outdated">⚠</span>
+                                </a>
+                            </li>
+                            <li :class="{ 'is-active': uiLang === 'de' }">
+                                <a @click="uiLang='de'">DE
+                                    <span v-if="langEmpty('de')" class="tag is-danger is-light ml-2" title="Missing fields">!</span>
+                                    <span v-else-if="langStale('de')" class="tag is-warning is-light ml-2" title="May be outdated">⚠</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="buttons" style="margin-left: auto;">
+                        <button type="button" class="button is-link is-light" v-if="uiLang !== 'en'" @click="translateLanguage(uiLang)" :disabled="sending">Translate EN → [[ uiLang.toUpperCase() ]]</button>
+                        <button type="button" class="button" v-if="uiLang !== 'en'" @click="markSynced(uiLang)" :disabled="!langStale(uiLang)">Mark As Synced</button>
+                        <button type="button" class="button is-link is-light" @click="translateMissingOrStale()" :disabled="sending">Translate missing/stale</button>
+                    </div>
+                </div>
+
+                <!-- Box with Title, Description, Question (i18n) -->
+                <div class="box">
+                <!-- Title (i18n) -->
                 <div class="field is-horizontal">
             <div class="field-label is-normal">
-                <label for="title" class="label">Title</label>
+                <label for="title" class="label">Title ([[ uiLang.toUpperCase() ]])</label>
             </div>
             <div class="field-body">
                 <div class="field">
                     <div class="control">
-                        <input type="text" id="title" class="input" v-model="exercise.title" required>
+                        <input type="text" id="title" class="input" v-model="exercise.title_i18n[uiLang]" required>
                     </div>
                 </div>
             </div>
@@ -30,21 +61,12 @@
 
                 <div class="field is-horizontal">
             <div class="field-label is-normal">
-                <label class="label" for="id_exercise_type">Exercise Type</label>
+                <label for="description" class="label">Description ([[ uiLang.toUpperCase() ]])</label>
             </div>
             <div class="field-body">
                 <div class="field">
                     <div class="control">
-                        <div class="select">
-                            <select id="id_exercise_type" v-model="exercise.exercise_type">
-                                <option value="python">Python</option>
-                                <option value="multiple_choice">Multiple Choice</option>
-                                <option value="sql">SQL</option>
-                                <option value="turtle">Turtle</option>
-                                <option value="open_question">Open Question</option>
-                                <option value="scala">Scala</option>
-                            </select>
-                        </div>
+                        <textarea id="description" class="textarea" v-model="exercise.description_i18n[uiLang]"></textarea>
                     </div>
                 </div>
             </div>
@@ -52,31 +74,16 @@
 
                 <div class="field is-horizontal">
             <div class="field-label is-normal">
-                <label for="description" class="label">Description</label>
+                <label for="question" class="label">Question ([[ uiLang.toUpperCase() ]]) (Markdown supported)</label>
             </div>
             <div class="field-body">
                 <div class="field">
                     <div class="control">
-                        <textarea id="description" class="textarea" v-model="exercise.description"></textarea>
+                        <textarea id="question" class="textarea" v-model="exercise.question_i18n[uiLang]" rows="10"></textarea>
                     </div>
                 </div>
             </div>
                 </div>
-
-                <hr>
-                <h3 class="mb-3 title is-4">Exercise Details</h3>
-
-                <div class="field is-horizontal">
-            <div class="field-label is-normal">
-                <label for="question" class="label">Question (Markdown supported)</label>
-            </div>
-            <div class="field-body">
-                <div class="field">
-                    <div class="control">
-                        <textarea id="question" class="textarea" v-model="exercise.exercise_data.question" rows="10"></textarea>
-                    </div>
-                </div>
-            </div>
                 </div>
 
                 <div class="field is-horizontal" v-if="exercise.exercise_type === 'sql'">
@@ -98,8 +105,31 @@
             </div>
                 </div>
         
-                <hr>
-                <h3 class="mb-3 title is-4">Answer Details</h3>
+                <div class="box">
+                
+                  <!-- Exercise Type -->
+                  <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                        <label class="label" for="id_exercise_type">Exercise Type</label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <div class="select">
+                                    <select id="id_exercise_type" v-model="exercise.exercise_type">
+                                        <option value="python">Python</option>
+                                        <option value="multiple_choice">Multiple Choice</option>
+                                        <option value="sql">SQL</option>
+                                        <option value="turtle">Turtle</option>
+                                        <option value="open_question">Open Question</option>
+                                        <option value="scala">Scala</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                        </div>
+
 
                 <div class="field is-horizontal">
             <div class="field-label is-normal">
@@ -138,6 +168,7 @@
                     </div>
                 </div>
             </div>
+                </div>
                 </div>
         
                 <h4 class="title is-5 mt-4">Correct Answers</h4>

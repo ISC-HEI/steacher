@@ -9,6 +9,7 @@ from .decorators import teacher_required
 from .models import Exercise, Course, Module, ExerciceAsset, Cohort, CohortMembership, Attempt, AttemptInteraction
 from .unit_testing import run_unit_tests
 from .logic import generate_authoring_update
+from .logic import generate_i18n_translations
 
 
 @login_required
@@ -355,14 +356,18 @@ def exercise_form(request, course_pk, exercise_pk=None):
         exercise = Exercise(
             module=selected_module,
             exercise_type='python',
-            exercise_data={"question": ""},
+            question_i18n={"en": ""},
+            exercise_data={},
             answer_data={"unit_tests": {"setup_code": "", "test_cases": [], "timeout_seconds": 5}},
         )
 
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
-            exercise.title = data.get('title', 'New Exercise')
+            # Title/description/question i18n
+            title_i18n = data.get('title_i18n') or {}
+            description_i18n = data.get('description_i18n') or {}
+            question_i18n = data.get('question_i18n') or {}
 
             if not exercise.pk:
                 with transaction.atomic():
@@ -376,9 +381,17 @@ def exercise_form(request, course_pk, exercise_pk=None):
                     )
                     exercise.order = max_order + 1
 
-            exercise.description = data.get('description', '')
             exercise.exercise_type = data.get('exercise_type', 'python')
-            exercise.exercise_data = data.get('exercise_data', {})
+            # Clean exercise_data legacy question keys
+            ex_data = data.get('exercise_data', {}) or {}
+            if 'question' in ex_data:
+                ex_data.pop('question', None)
+            if 'question_i18n' in ex_data:
+                ex_data.pop('question_i18n', None)
+            exercise.exercise_data = ex_data
+            exercise.title_i18n = title_i18n
+            exercise.description_i18n = description_i18n
+            exercise.question_i18n = question_i18n
             answer_data = data.get('answer_data', {})
             if not answer_data:
                 answer_data = {"unit_tests": {"setup_code": "", "test_cases": [], "timeout_seconds": 5}}
@@ -409,14 +422,17 @@ def exercise_form(request, course_pk, exercise_pk=None):
 
     exercise_json = {
         "pk": exercise.pk,
-        "title": exercise.title,
+        "title_i18n": exercise.title_i18n,
         "order": exercise.order,
-        "description": exercise.description,
+        "description_i18n": exercise.description_i18n,
+        "question_i18n": exercise.question_i18n,
         "exercise_type": exercise.exercise_type,
         "exercise_data": exercise.exercise_data,
         "answer_data": exercise.answer_data,
         "available_sql_assets": available_sql_assets,
         "course_pk": course.pk,
+        "course_name": course.name,
+        "course_description": course.description,
     }
 
     return render(request, 'exercises/teacher/exercise_form.html', {
@@ -453,5 +469,33 @@ def exercise_authoring_assistant(request):
         return JsonResponse({'status': 'success', **result})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+@login_required
+@teacher_required
+@require_POST
+def translate_i18n(request):
+    try:
+        body = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+    source_lang = (body.get('source_lang') or 'en').strip()
+    targets = body.get('targets') or []
+    fields = body.get('fields') or {}
+    course_context = body.get('course_context') or {}
+
+    if not isinstance(targets, list) or not targets:
+        return JsonResponse({'status': 'error', 'message': 'targets must be a non-empty list'}, status=400)
+
+    try:
+        result = generate_i18n_translations(
+            source_lang=source_lang,
+            targets=targets,
+            fields=fields,
+            course_context=course_context,
+        )
+        return JsonResponse({'status': 'success', 'translations': result})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
 
 

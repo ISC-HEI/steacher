@@ -13,4 +13,4 @@ class ExerciseFrontendSerializer(serializers.ModelSerializer):
     """Frontend serializer - excludes answer_data"""
     class Meta:
         model = Exercise
-        fields = ['id', 'title', 'description', 'exercise_type', 'exercise_data', 'created_at', 'updated_at'] 
+        fields = ['id', 'title_i18n', 'description_i18n', 'question_i18n', 'exercise_type', 'exercise_data', 'created_at', 'updated_at']

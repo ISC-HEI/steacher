@@ -112,8 +112,10 @@ class Exercise(models.Model):
     ]
 
     module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='exercises')
-    title = models.CharField(max_length=200, help_text="Title of the exercice; not displayed to the user.")
-    description = models.TextField(blank=True, help_text="Description of the exercice; not displayed to the user.")
+    # i18n fields (student-facing). Keys are language codes like 'en', 'fr', 'de'
+    title_i18n = models.JSONField(default=dict, blank=True, help_text="Localized title strings by language code, e.g. {'en': '...', 'fr': '...'}")
+    description_i18n = models.JSONField(default=dict, blank=True, help_text="Localized description strings by language code, e.g. {'en': '...', 'fr': '...'}")
+    question_i18n = models.JSONField(default=dict, blank=True, help_text="Localized question (Markdown) by language code, e.g. {'en': '...', 'fr': '...'}")
     exercise_type = models.CharField(
         max_length=50,
         choices=EXERCISE_TYPE_CHOICES,
@@ -121,14 +123,29 @@ class Exercise(models.Model):
         help_text="Type of the exercice, e.g. 'multiple_choice', 'text', 'turtle', etc."
     )
     order = models.PositiveIntegerField(default=0, help_text="The order of the exercice within the course.")
-    exercise_data = models.JSONField(help_text="Contains fields like question, data-source, etc.")  # sent to frontend
+    exercise_data = models.JSONField(help_text="Contains fields like data-source, etc.")  # sent to frontend
     answer_data = models.JSONField(default=dict, help_text="Contains fields like expected_result, hints, etc.")  # backend only
     visible = models.BooleanField(default=True, help_text="Whether the exercise is visible to students.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.title} ({self.exercise_type})"
+        # Keep it simple: show the English title if set; otherwise a generic label
+        title = (self.title_i18n or {}).get('en') or ''
+        if not title:
+            title = f"Exercise {self.id}"
+        return f"{title} ({self.exercise_type})"
+
+    # Backwards-compatible properties for templates/admin that referenced 'title'/'description'
+    @property
+    def title(self) -> str:
+        # Expose English title for legacy template/admin usage
+        return (self.title_i18n or {}).get('en', '')
+
+    @property
+    def description(self) -> str:
+        # Expose English description for legacy template/admin usage
+        return (self.description_i18n or {}).get('en', '')
 
     class Meta:
         ordering = ['module', 'order']

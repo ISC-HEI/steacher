@@ -239,8 +239,20 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
     # TODO: refactor this to make it cleaner
     prompt += f"\n\n# Exercise"
     exercice_data = exercise.exercise_data
-    if exercice_data and exercice_data.get('question'):
-        prompt += f"\n\n## Question given to the student\n\n{exercice_data.get('question')}"
+    if exercice_data:
+        # Support i18n question
+        try:
+            preferred_language_code = getattr(attempt.user, 'preferred_language', 'en') or 'en'
+        except Exception:
+            preferred_language_code = 'en'
+        q_map = exercice_data.get('question_i18n') if isinstance(exercice_data, dict) else None
+        question_text = None
+        if isinstance(q_map, dict):
+            question_text = q_map.get(preferred_language_code) or q_map.get('en') or next(iter(q_map.values()), None)
+        if not question_text:
+            question_text = exercice_data.get('question') if isinstance(exercice_data, dict) else None
+        if question_text:
+            prompt += f"\n\n## Question given to the student\n\n{question_text}"
     
     exercise_answer_data = exercise.answer_data
     if exercise_answer_data:
@@ -544,3 +556,70 @@ Do not use markdown or code fences. The exercise object MUST be the value of the
         'assistant_message': assistant_message,
         'updated_exercise': updated_exercise,
     }
+
+
+def generate_i18n_translations(*, source_lang: str, targets: list, fields: dict, course_context: dict) -> dict:
+    """Translate only i18n fields using the small model. Single-call batch.
+    Returns { lang: { title?, description?, question? } }.
+    Input fields are raw strings. No DB reads/writes here.
+    """
+    system_prompt = (
+        "You are a translation engine. Translate ONLY the provided fields into each of the TARGET languages. "
+        "Preserve Markdown and fenced code blocks; do not translate or alter code or placeholders (backticks, triple backticks, {{var}}). "
+        "Do not add commentary.\n\n"
+        "Output JSON with this exact shape:\n"
+        "{\n  \"translations\": {\n    \"fr\": {\"title\": str?, \"description\": str?, \"question\": str?},\n    \"de\": {\"title\": str?, \"description\": str?, \"question\": str?}\n  }\n}\n"
+        "Only include languages listed in TARGETS. Only include keys for fields that were provided in 'fields'."
+    )
+
+    payload = {
+        'source_lang': source_lang,
+        'targets': list(targets or []),
+        'fields': {
+            'title': (fields.get('title') or '').strip(),
+            'description': (fields.get('description') or '').strip(),
+            'question': (fields.get('question') or '').strip(),
+        },
+        'course_context': {
+            'name': (course_context.get('name') or '').strip(),
+            'description': (course_context.get('description') or '').strip(),
+        }
+    }
+
+    msgs = [
+        { 'role': 'system', 'content': system_prompt },
+        { 'role': 'user', 'content': json.dumps(payload, ensure_ascii=False) },
+    ]
+    completion = client.chat.completions.create(
+        model=MODEL_FAST,
+        messages=msgs,
+        temperature=0.1,
+        response_format={"type": "json_object"},
+    )
+    content = (completion.choices[0].message.content or '').strip()
+    if content.startswith('```'):
+        if content.startswith('```json'):
+            content = content[7:]
+        if content.endswith('```'):
+            content = content[:-3]
+        content = content.strip()
+    try:
+        obj = json.loads(content) if content else {}
+    except Exception:
+        obj = {}
+
+    translations = {}
+    tmap = (obj.get('translations') or {}) if isinstance(obj, dict) else {}
+    if not isinstance(tmap, dict):
+        tmap = {}
+    for lang in targets or []:
+        entry = tmap.get(lang) or {}
+        out = {}
+        if isinstance(entry, dict):
+            for k in ('title', 'description', 'question'):
+                v = entry.get(k)
+                if isinstance(v, str) and v.strip():
+                    out[k] = v
+        translations[lang] = out
+
+    return translations

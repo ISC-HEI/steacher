@@ -18,7 +18,15 @@ def format_interactions(attempt):
     # Escape all user-provided content first
     username = html.escape(attempt.user.username)
     exercise_title = html.escape(attempt.exercise.title)
-    exercise_question = html.escape(attempt.exercise.exercise_data.get('question', 'No question provided.'))
+    # Use top-level question_i18n (fallback to any available language)
+    q = ''
+    try:
+        q_map = getattr(attempt.exercise, 'question_i18n', {}) or {}
+        if isinstance(q_map, dict):
+            q = q_map.get('en') or next(iter(q_map.values()), '')
+    except Exception:
+        q = ''
+    exercise_question = html.escape(q or 'No question provided.')
     
     html_output = f"<strong>User:</strong> {username}, <strong>Exercise:</strong> {exercise_title}<hr>"
     

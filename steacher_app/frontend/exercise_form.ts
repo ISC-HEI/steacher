@@ -8,12 +8,12 @@ interface TestCase {
 
 interface ExerciseFormData {
     pk: number | null;
-    title: string;
+    title_i18n: Record<string, string>;
     order: number;
-    description: string;
+    description_i18n: Record<string, string>;
+    question_i18n: Record<string, string>;
     exercise_type: string;
     exercise_data: {
-        question: string;
         db?: string;
     };
     answer_data: {
@@ -42,6 +42,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const initialData: ExerciseFormData = rawData as ExerciseFormData;
     const availableSqlAssets: string[] = Array.isArray(rawData.available_sql_assets) ? rawData.available_sql_assets : [];
     const coursePk: number | null = typeof rawData.course_pk === 'number' ? rawData.course_pk : null;
+    const courseName: string = typeof (rawData as any).course_name === 'string' ? (rawData as any).course_name : '';
+    const courseDescription: string = typeof (rawData as any).course_description === 'string' ? (rawData as any).course_description : '';
 
     // Ensure the nested structure for unit tests exists, especially for new exercises.
     if (!initialData.answer_data) {
@@ -60,8 +62,11 @@ document.addEventListener('DOMContentLoaded', function() {
         initialData.answer_data.hints = [];
     }
     if (!initialData.exercise_data) {
-        initialData.exercise_data = { question: '' };
+        (initialData as any).exercise_data = {};
     }
+    if (!(initialData as any).title_i18n) (initialData as any).title_i18n = {};
+    if (!(initialData as any).description_i18n) (initialData as any).description_i18n = {};
+    if (!(initialData as any).question_i18n) (initialData as any).question_i18n = {};
     
 
     const ExerciseFormApp = defineComponent({
@@ -78,6 +83,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 assistantError: null as string | null,
                 lastAppliedSnapshot: null as ExerciseFormData | null,
                 course_pk: coursePk,
+                uiLang: 'en' as 'en' | 'fr' | 'de',
+                baselineEnSum: 0,
+                staleLangs: new Set<string>() as Set<string>,
+                course_name: courseName,
+                course_description: courseDescription,
             };
         },
         watch: {
@@ -85,7 +95,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // When switching to SQL, ensure the db property exists.
                 if (newType === 'sql') {
                     if (!this.exercise.exercise_data) {
-                        this.exercise.exercise_data = { question: '', db: '' };
+                        this.exercise.exercise_data = { question_i18n: {}, db: '' } as any;
                     } else if (this.exercise.exercise_data.db === undefined) {
                         this.exercise.exercise_data.db = '';
                     }
@@ -94,7 +104,8 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         computed: {
             pageTitle(): string {
-                return this.exercise.pk ? `Edit Exercise: ${this.exercise.title}` : 'Create New Exercise';
+                const title = this.exercise.title_i18n?.['en'] || this.exercise.title_i18n?.['fr'] || this.exercise.title_i18n?.['de'] || '';
+                return this.exercise.pk ? `Edit Exercise: ${title}` : 'Create New Exercise';
             },
             hints_text: {
                 get(): string {
@@ -105,9 +116,55 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         },
+        mounted() {
+            // Initialize baseline and mark stale when EN changes
+            try {
+                (this as any).recomputeBaselineEn();
+            } catch (_) {}
+            try {
+                setInterval(() => {
+                    try {
+                        if ((this as any).isEnChanged()) {
+                            (this as any).staleLangs.add('fr');
+                            (this as any).staleLangs.add('de');
+                        }
+                    } catch (_) {}
+                }, 600);
+            } catch (_) {}
+        },
         methods: {
             deepClone<T>(obj: T): T {
                 return JSON.parse(JSON.stringify(obj));
+            },
+            asciiSum(s: string): number {
+                let total = 0;
+                for (let i = 0; i < s.length; i++) total += s.charCodeAt(i);
+                return total >>> 0;
+            },
+            recomputeBaselineEn() {
+                const enTitle = this.exercise.title_i18n?.['en'] || '';
+                const enDesc = this.exercise.description_i18n?.['en'] || '';
+                const enQ = this.exercise.question_i18n?.['en'] || '';
+                this.baselineEnSum = this.asciiSum(enTitle + enDesc + enQ);
+            },
+            isEnChanged(): boolean {
+                const enTitle = this.exercise.title_i18n?.['en'] || '';
+                const enDesc = this.exercise.description_i18n?.['en'] || '';
+                const enQ = this.exercise.question_i18n?.['en'] || '';
+                const current = this.asciiSum(enTitle + enDesc + enQ);
+                return current !== this.baselineEnSum;
+            },
+            langEmpty(lang: 'en'|'fr'|'de'): boolean {
+                const t = (this.exercise.title_i18n?.[lang] || '').trim();
+                const d = (this.exercise.description_i18n?.[lang] || '').trim();
+                const q = (this.exercise.question_i18n?.[lang] || '').trim();
+                return !t || !d || !q;
+            },
+            langStale(lang: 'fr'|'de'): boolean {
+                return this.staleLangs.has(lang);
+            },
+            markSynced(lang: 'fr'|'de') {
+                this.staleLangs.delete(lang);
             },
             getCsrfToken(): string | null {
                 const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
@@ -129,14 +186,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.loading = true;
                 this.error = null;
 
-                const csrfToken = this.getCsrfToken();
-                if (!csrfToken) {
-                    this.error = 'CSRF token not found!';
-                    this.loading = false;
-                    return;
-                }
-
                 try {
+                    // Save-time warning: missing/stale translations
+                    const missing: string[] = [];
+                    const stale: string[] = [];
+                    (['fr','de'] as const).forEach((lang) => {
+                        if (this.langEmpty(lang)) missing.push(lang.toUpperCase());
+                        if (this.langStale(lang)) stale.push(lang.toUpperCase());
+                    });
+                    if (missing.length || stale.length) {
+                        const msg = `Translations\nMissing: ${missing.join(', ') || 'none'}\nStale: ${stale.join(', ') || 'none'}\n\nProceed to save?`;
+                        const proceed = window.confirm(msg);
+                        if (!proceed) {
+                            this.loading = false;
+                            return;
+                        }
+                    }
+
+                    const csrfToken = this.getCsrfToken();
+                    if (!csrfToken) {
+                        this.error = 'CSRF token not found!';
+                        this.loading = false;
+                        return;
+                    }
                     const teacherPath = window.location.pathname.replace(/^\/exercises\//, '/teachers/');
                     const response = await fetch(teacherPath, {
                         method: 'POST',
@@ -171,6 +243,102 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.error = err.message || String(err);
                 } finally {
                     this.loading = false;
+                }
+            },
+            async translateLanguage(targetLang: 'fr'|'de') {
+                this.assistantError = null;
+                this.sending = true;
+                const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
+                if (!csrfTokenElement) {
+                    this.assistantError = 'CSRF token not found!';
+                    this.sending = false;
+                    return;
+                }
+                try {
+                    console.log('[translate_i18n] sending single target', targetLang);
+                    const response = await fetch('/teachers/ai/translate_i18n/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfTokenElement.value,
+                        },
+                        body: JSON.stringify({
+                            source_lang: 'en',
+                            targets: [targetLang],
+                            fields: {
+                                title: this.exercise.title_i18n?.['en'] || '',
+                                description: this.exercise.description_i18n?.['en'] || '',
+                                question: this.exercise.question_i18n?.['en'] || '',
+                            },
+                            course_context: { name: this.course_name, description: this.course_description },
+                        }),
+                    });
+                    const result = await response.json();
+                    console.log('[translate_i18n] response', result);
+                    if (!response.ok || result.status !== 'success') {
+                        throw new Error(result.message || `Server error: ${response.status}`);
+                    }
+                    const translations = (result.translations || {})[targetLang] || {};
+                    if (translations.title !== undefined) this.exercise.title_i18n[targetLang] = translations.title;
+                    if (translations.description !== undefined) this.exercise.description_i18n[targetLang] = translations.description;
+                    if (translations.question !== undefined) this.exercise.question_i18n[targetLang] = translations.question;
+                    this.staleLangs.delete(targetLang);
+                } catch (err: any) {
+                    this.assistantError = err.message || String(err);
+                } finally {
+                    this.sending = false;
+                }
+            },
+            async translateMissingOrStale() {
+                const targets: ('fr'|'de')[] = [];
+                (['fr','de'] as const).forEach((lang) => {
+                    if (this.langEmpty(lang) || this.langStale(lang)) targets.push(lang);
+                });
+                if (targets.length === 0) return;
+                this.assistantError = null;
+                this.sending = true;
+                const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
+                if (!csrfTokenElement) {
+                    this.assistantError = 'CSRF token not found!';
+                    this.sending = false;
+                    return;
+                }
+                try {
+                    console.log('[translate_i18n] sending batch', targets);
+                    const response = await fetch('/teachers/ai/translate_i18n/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfTokenElement.value,
+                        },
+                        body: JSON.stringify({
+                            source_lang: 'en',
+                            targets,
+                            fields: {
+                                title: this.exercise.title_i18n?.['en'] || '',
+                                description: this.exercise.description_i18n?.['en'] || '',
+                                question: this.exercise.question_i18n?.['en'] || '',
+                            },
+                            course_context: { name: this.course_name, description: this.course_description },
+                        }),
+                    });
+                    const result = await response.json();
+                    console.log('[translate_i18n] batch response', result);
+                    if (!response.ok || result.status !== 'success') {
+                        throw new Error(result.message || `Server error: ${response.status}`);
+                    }
+                    const translations = result.translations || {};
+                    (targets as string[]).forEach((lang) => {
+                        const t = translations[lang] || {};
+                        if (t.title !== undefined) this.exercise.title_i18n[lang] = t.title;
+                        if (t.description !== undefined) this.exercise.description_i18n[lang] = t.description;
+                        if (t.question !== undefined) this.exercise.question_i18n[lang] = t.question;
+                        this.staleLangs.delete(lang);
+                    });
+                } catch (err: any) {
+                    this.assistantError = err.message || String(err);
+                } finally {
+                    this.sending = false;
                 }
             },
             addTestCase() {
