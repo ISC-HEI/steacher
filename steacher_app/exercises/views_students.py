@@ -12,7 +12,7 @@ from django.utils import timezone
 from datetime import timedelta
 import json
 
-from .models import Exercise, ExerciceAsset, Course, AttemptInteraction, Attempt, Module, UserInvite, ChatThread
+from .models import Exercise, ExerciceAsset, Course, AttemptInteraction, Attempt, Module, UserInvite, ChatThread, CohortMembership
 from .serializers import ExerciseFrontendSerializer
 
 
@@ -121,8 +121,20 @@ def dashboard(request):
 def course_list(request):
     """Display list of all courses for students (only visible ones)."""
     courses = Course.objects.filter(visible=True)
+    # Resolve instructor email from latest active cohort membership (any course)
+    instructor_email = None
+    membership = (
+        CohortMembership.objects
+        .filter(student=request.user, status='active')
+        .select_related('cohort__owner')
+        .order_by('-joined_at')
+        .first()
+    )
+    if membership and getattr(membership.cohort.owner, 'email', ''):
+        instructor_email = (membership.cohort.owner.email or '').strip() or None
     return render(request, 'exercises/students/students_course_list.html', {
-        'courses': courses
+        'courses': courses,
+        'instructor_email': instructor_email,
     })
 
 
@@ -246,6 +258,22 @@ def exercise_detail(request, pk):
     if not template_name:
         raise Http404(f"Unsupported exercise type: {exercise.exercise_type}")
 
+    # Determine cohort instructor email for this course, if any
+    instructor_email = None
+    try:
+        course = exercise.module.course
+        membership = (
+            CohortMembership.objects
+            .filter(student=request.user, status='active', cohort__course=course)
+            .select_related('cohort__owner')
+            .order_by('-joined_at')
+            .first()
+        )
+        if membership and getattr(membership.cohort.owner, 'email', ''):
+            instructor_email = (membership.cohort.owner.email or '').strip() or None
+    except Exception:
+        instructor_email = None
+
     return render(request, template_name, {
         'exercise': exercise,
         'exercise_json': exercise_json,
@@ -254,6 +282,7 @@ def exercise_detail(request, pk):
         'attempt': attempt,
         'previous_exercise': previous_exercise,
         'next_exercise': next_exercise,
+        'instructor_email': instructor_email,
     })
 
 
