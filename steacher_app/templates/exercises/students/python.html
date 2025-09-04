@@ -6,7 +6,8 @@
 {% block exercise_content %}
 <div id="python-exercise-app"
      v-cloak
-     data-static-prefix="{% get_static_prefix %}">
+     data-static-prefix="{% get_static_prefix %}"
+     data-execution-timeout="8000">
     {% csrf_token %}
     <div class="exercise-container">
         <div class="left-panel">

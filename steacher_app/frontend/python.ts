@@ -1,8 +1,7 @@
 import { ChatbotPanel } from './ChatbotPanel.js';
 import { CodeMirrorEditor } from './CodeMirrorEditor.js';
-import { createApp, markRaw, defineComponent } from 'vue';
+import { createApp, defineComponent } from 'vue';
 import confetti from 'canvas-confetti';
-import { loadPyodide } from 'pyodide';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 
@@ -24,7 +23,11 @@ interface PythonDataContext {
     executionOutput: string | null;
     executionError: string | null;
     loadingState: 'idle' | 'pyodide-loading' | 'executing' | 'getting-guidance';
-    pyodide: any | null;
+    worker: Worker | null;
+    workerReady: boolean;
+    pendingResolvers: { [runId: string]: (value: any) => void };
+    executionTimeoutMs: number;
+    staticPrefix: string;
     chatMessages: any[];
     start_timestamp: string;
 }
@@ -80,26 +83,76 @@ document.addEventListener('DOMContentLoaded', function() {
     const PythonExerciseApp = defineComponent({
         delimiters: ['[[', ']]'],
         data(): PythonDataContext {
+            const datasetEl = appElement as HTMLElement;
+            const staticPrefix = datasetEl?.getAttribute('data-static-prefix') || '/static/';
+            const timeoutAttr = datasetEl?.getAttribute('data-execution-timeout');
+            const executionTimeoutMs = timeoutAttr ? parseInt(timeoutAttr, 10) : 8000;
             return {
                 exercise: exerciseData,
                 userCode: lastUserCode,
                 executionOutput: null,
                 executionError: null,
                 loadingState: 'idle',
-                pyodide: null,
+                worker: null,
+                workerReady: false,
+                pendingResolvers: {},
+                executionTimeoutMs,
+                staticPrefix,
                 chatMessages: initialMessages,
                 start_timestamp: new Date().toISOString()
             }
         },
         
         async mounted() {
-            await this.loadPyodideInterpreter();
+            await this.startWorker();
         },
         
         methods: {
             renderMarkdown(this: any, content: string) {
                 if (!content) return '';
                 return DOMPurify.sanitize(marked.parse(content) as string);
+            },
+            async startWorker() {
+                try {
+                    this.loadingState = 'pyodide-loading';
+                    // Create a module worker from the built JS path under static
+                    const workerUrl = `${this.staticPrefix}js/dist/python_worker.js`;
+                    const w = new Worker(workerUrl, { type: 'module' });
+                    this.worker = w;
+
+                    w.onmessage = (evt: MessageEvent) => {
+                        const msg = evt.data as any;
+                        if (!msg || !msg.type) return;
+                        if (msg.type === 'ready') {
+                            this.workerReady = true;
+                            this.loadingState = 'idle';
+                            return;
+                        }
+                        if (msg.type === 'init-error') {
+                            this.executionError = 'Failed to initialize Python interpreter: ' + String(msg.error);
+                            this.loadingState = 'idle';
+                            return;
+                        }
+                        if (msg.type === 'result') {
+                            const { runId } = msg;
+                            const resolver = this.pendingResolvers[runId];
+                            if (resolver) {
+                                resolver(msg);
+                                delete this.pendingResolvers[runId];
+                            }
+                            return;
+                        }
+                    };
+
+                    // Initialize pyodide inside the worker using local static files
+                    const pyodideModuleUrl = `${this.staticPrefix}pyodide/pyodide.mjs`;
+                    // indexURL will be computed by the worker if not provided
+                    w.postMessage({ type: 'init', pyodideModuleUrl });
+                } catch (error) {
+                    console.error('Failed to start worker:', error);
+                    this.executionError = 'Failed to start Python worker: ' + String(error);
+                    this.loadingState = 'idle';
+                }
             },
             async getGuidance(action: 'run_submission' | 'ask_hint' | 'ask_question' | 'option_selected', details: { question?: string | null, error?: string | null, output?: string | null, selected_option?: OptionButton } = {}) {
                 this.loadingState = 'getting-guidance';
@@ -168,24 +221,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
 
-            async loadPyodideInterpreter() {
-                try {
-                    this.loadingState = 'pyodide-loading';
-                    const pyodideInstance = await loadPyodide({
-                        indexURL: "https://cdn.jsdelivr.net/pyodide/v0.28.0/full/"
-                    });
-                    this.pyodide = markRaw(pyodideInstance);
-                } catch (error) {
-                    console.error('Error loading Pyodide:', error);
-                    this.executionError = 'Failed to load Python interpreter: ' + String(error);
-                } finally {
-                    this.loadingState = 'idle';
-                }
-            },
-            
             async runCode() {
-                if (!this.pyodide) {
-                    this.executionError = 'Pyodide not loaded yet. Please wait...';
+                if (!this.worker || !this.workerReady) {
+                    this.executionError = 'Python worker not ready yet. Please wait...';
                     return;
                 }
                 
@@ -198,27 +236,51 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.loadingState = 'executing';
                     this.executionError = null;
                     this.executionOutput = null;
-                    
-                    // Capture stdout
-                    let stdout = '';
-                    this.pyodide.setStdout({
-                        batched: (msg: string) => {
-                            stdout += msg + "\n";
-                        }
-                    });
+                    const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                    const resultPromise = new Promise((resolve) => {
+                        this.pendingResolvers[runId] = resolve as (value: any) => void;
+                    }) as Promise<any>;
 
-                    await this.pyodide.loadPackagesFromImports(this.userCode);
-                    await this.pyodide.runPythonAsync(this.userCode);
-                    
-                    this.executionOutput = stdout.trim();
-                    // Render console output first, then call backend
-                    await (this as any).$nextTick();
-                    await this.getGuidance('run_submission', { output: this.executionOutput });
+                    this.worker.postMessage({ type: 'run', runId, code: this.userCode });
+
+                    let timedOut = false;
+                    const timeoutHandle = setTimeout(() => {
+                        timedOut = true;
+                        try {
+                            this.worker?.terminate();
+                        } catch (_) { /* noop */ }
+                        this.worker = null;
+                        this.workerReady = false;
+                        this.executionError = `Execution timed out after ${this.executionTimeoutMs / 1000} seconds (possible infinite loop).`;
+                        // Clean pending resolver if any
+                        delete this.pendingResolvers[runId];
+                        // Restart worker for future runs
+                        this.startWorker();
+                    }, this.executionTimeoutMs);
+
+                    const msg = await resultPromise.catch((e) => ({ error: String(e), success: false }));
+                    clearTimeout(timeoutHandle);
+                    if (timedOut) {
+                        // Timeout path already handled
+                        // Still proceed to guidance with error
+                        await (this as any).$nextTick();
+                        await this.getGuidance('run_submission', { error: this.executionError || 'Timed out' });
+                    } else {
+                        if (msg.success) {
+                            this.executionOutput = (msg.stdout || '').trim();
+                            await (this as any).$nextTick();
+                            await this.getGuidance('run_submission', { output: this.executionOutput });
+                        } else {
+                            const errorMessage = String(msg.error || 'Unknown error');
+                            this.executionError = errorMessage;
+                            await (this as any).$nextTick();
+                            await this.getGuidance('run_submission', { error: errorMessage });
+                        }
+                    }
 
                 } catch (error) {
                     const errorMessage = String(error);
                     this.executionError = errorMessage;
-                    // Still proceed to request guidance after rendering any visible changes
                     await (this as any).$nextTick();
                     await this.getGuidance('run_submission', { error: errorMessage });
                 } finally {
@@ -235,7 +297,6 @@ document.addEventListener('DOMContentLoaded', function() {
             },
 
             handleOptionSelected(option: OptionButton) {
-                console.log('[PythonExerciseApp] Option selected event received:', option);
                 if (option.to) {
                     // Handle redirection if 'to' is present
                     if (/^\d+$/.test(option.to)) {
