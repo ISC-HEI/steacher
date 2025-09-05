@@ -219,6 +219,15 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
 
     if debug:
         prompt += f"\n\n{DEBUG_TEXT}"
+
+    if action == 'ask_hint':
+        prompt += """
+# Hint Request Exception
+For this specific request, you are allowed to relax your core directive slightly. 
+The student has explicitly asked for a hint, indicating they are stuck. 
+You may provide a more direct hint, such as a small code snippet, a key part of a formula, or a clearer step-by-step instruction to help them overcome their current specific obstacle. 
+Do not provide the entire solution, but give them enough to make meaningful progress. Then, return to your Socratic style in subsequent interactions.
+"""
     
     course_prompt = exercise.module.course.llm_prompts.get(exercise.exercise_type)
     if course_prompt:
