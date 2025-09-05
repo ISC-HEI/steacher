@@ -12,6 +12,7 @@ interface Exercise {
     exercise_data: {
         question: string;
         additional_context?: string;
+        answer_template?: string;
     };
 }
 
@@ -67,7 +68,7 @@ document.addEventListener('DOMContentLoaded', function() {
         data(): OpenQuestionDataContext {
             return {
                 exercise: exerciseData,
-                userAnswer: lastAnswer,
+                userAnswer: lastAnswer || (exerciseData.exercise_data && exerciseData.exercise_data.answer_template) || '',
                 queryError: null,
                 loadingState: 'idle',
                 chatMessages: initialMessages,

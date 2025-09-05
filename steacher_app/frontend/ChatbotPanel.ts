@@ -206,6 +206,18 @@ export const ChatbotPanel = {
   </details>`;
         }
 
+        else if (action === 'submit_answer') {
+            // Collapsible block for open-question free-form answers
+            const plainAnswer = (message.metadata && typeof message.metadata.answer === 'string') ? message.metadata.answer : '';
+            const detailsContent = (message.content && String(message.content).trim()) || plainAnswer || '';
+            const renderedDetailsContent = this.renderMarkdown(detailsContent);
+            return `
+<details class="collapsible-message">
+  <summary><span class="icon ml-3"><i class="fas fa-comment-dots"></i></span> Answer submitted</summary>
+  <div class="mt-2">${renderedDetailsContent}</div>
+  </details>`;
+        }
+
         else if (action === 'option_selected') {
             return '<span class="icon"><i class="fas fa-check-circle"></i></span> ' + (message.metadata.selected_option.title || 'Option selected');
         }

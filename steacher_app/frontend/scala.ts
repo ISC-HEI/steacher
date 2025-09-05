@@ -10,7 +10,7 @@ interface Exercise {
     title: string;
     exercise_type: string;
     description: string;
-    exercise_data: { question: string; additional_context?: string; };
+    exercise_data: { question: string; additional_context?: string; answer_template?: string; };
 }
 
 interface ScalaDataContext {
@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', function() {
         data(): ScalaDataContext {
             return {
                 exercise: exerciseData,
-                userCode: lastUserCode,
+                userCode: lastUserCode || (exerciseData.exercise_data && exerciseData.exercise_data.answer_template) || '',
                 executionOutput: null,
                 executionError: null,
                 loadingState: 'idle',

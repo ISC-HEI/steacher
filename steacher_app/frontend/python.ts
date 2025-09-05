@@ -14,6 +14,7 @@ interface Exercise {
     exercise_data: {
         question: string;
         additional_context?: string;
+        answer_template?: string;
     };
 }
 
@@ -89,7 +90,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const executionTimeoutMs = timeoutAttr ? parseInt(timeoutAttr, 10) : 8000;
             return {
                 exercise: exerciseData,
-                userCode: lastUserCode,
+                userCode: lastUserCode || (exerciseData.exercise_data && exerciseData.exercise_data.answer_template) || '',
                 executionOutput: null,
                 executionError: null,
                 loadingState: 'idle',

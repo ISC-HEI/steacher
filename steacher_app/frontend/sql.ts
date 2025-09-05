@@ -19,6 +19,7 @@ interface Exercise {
         hints?: string[];
         expected_result?: Record<string, any>[];
         correct_answers?: { answer: string; explanation: string }[];
+        answer_template?: string;
     };
 }
 
@@ -123,7 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
         data(): SqlDataContext {
             return {
                 exercise: exerciseData,
-                userQuery: lastUserCode, // Initialize with the last saved code
+                userQuery: lastUserCode || (exerciseData.exercise_data && exerciseData.exercise_data.answer_template) || '', // Initialize with last saved code or template
                 showHints: false,
                 showExpectedResult: false,
                 showCorrectAnswers: false,

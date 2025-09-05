@@ -15,6 +15,7 @@ interface ExerciseFormData {
     exercise_type: string;
     exercise_data: {
         db?: string;
+        answer_template?: string;
     };
     answer_data: {
         expected_result?: string;
@@ -97,6 +98,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         this.exercise.exercise_data = { question_i18n: {}, db: '' } as any;
                     } else if (this.exercise.exercise_data.db === undefined) {
                         this.exercise.exercise_data.db = '';
+                    }
+                }
+                // Ensure answer_template key exists for supported types
+                if (['python','sql','scala','open_question'].includes(newType)) {
+                    if (!this.exercise.exercise_data) {
+                        this.exercise.exercise_data = {} as any;
+                    }
+                    if (this.exercise.exercise_data.answer_template === undefined) {
+                        this.exercise.exercise_data.answer_template = '';
                     }
                 }
             }
