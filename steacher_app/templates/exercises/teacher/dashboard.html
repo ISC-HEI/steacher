@@ -49,7 +49,7 @@
                 {% for bucket in histogram %}
                 <div class="has-text-centered" style="width: 18px;">
                     <div class="tooltip" style="height: {{ bucket.height_px }}px; background-color: #4a90e2; border-radius: 3px;" title="{{ bucket.count }} student(s): {{ bucket.names|join:', ' }}"></div>
-                    <div class="is-size-7 has-text-grey mt-1">{{ bucket.position }}</div>
+                    <div class="is-size-7 has-text-grey mt-1">{{ bucket.label }}</div>
                 </div>
                 {% endfor %}
             </div>
@@ -61,7 +61,7 @@
                 {% for bar in exercise_completion_bars %}
                 <div class="has-text-centered" style="width: 18px;">
                     <div class="tooltip" style="height: {{ bar.height_px }}px; background-color: #48c774; border-radius: 3px;" title="{{ bar.percent }}% ({{ bar.count }}/{{ bar.total }})"></div>
-                    <div class="is-size-7 has-text-grey mt-1">{{ bar.position }}</div>
+                    <div class="is-size-7 has-text-grey mt-1">{{ bar.label }}</div>
                 </div>
                 {% endfor %}
             </div>
@@ -100,7 +100,7 @@
                             </td>
                             <td>
                                 {% if s.last_exercise %}
-                                    {{ s.last_exercise.title }}
+                                    {{ s.last_exercise.sequence_label }} — {{ s.last_exercise.title }}
                                     {% if s.last_attempt_complete %}
                                         <span class="icon has-text-success" title="Completed"><i class="fas fa-check-circle"></i></span>
                                     {% else %}

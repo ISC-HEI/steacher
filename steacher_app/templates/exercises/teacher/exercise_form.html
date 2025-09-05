@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="container mt-4" id="exercise-form-app">
-    <h1 class="title is-3 mb-3">{% if exercise.pk %}Edit Exercise: {{ exercise.title }}{% else %}Create New Exercise{% endif %}</h1>
+    <h1 class="title is-3 mb-3">{% if exercise.pk %}Edit Exercise: {{ exercise.sequence_label }} — {{ exercise.title }}{% else %}Create New Exercise{% endif %}</h1>
 
     <div class="columns">
         <div class="column is-two-thirds">

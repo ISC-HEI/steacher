@@ -4,7 +4,7 @@
 {% block page_title %}
     <a href="{% url 'exercises:course_detail' pk=exercise.module.course.pk %}" style="text-decoration: none;">{{ exercise.module.course.name }}</a>
     <span style="margin: 0 0.5rem;">/</span>
-    <span>{{ localized_title|default:exercise.title }}</span>
+    <span>{{ exercise.sequence_label }} — {{ localized_title|default:exercise.title }}</span>
 {% endblock %}
 
 {% block content %}
@@ -21,7 +21,7 @@
                         <i class="far fa-circle has-text-grey-light"></i>
                     {% endif %}
                 </span>
-                {{ localized_title|default:exercise.title }}
+                {{ exercise.sequence_label }} — {{ localized_title|default:exercise.title }}
             </h2>
         </div>
     </div>

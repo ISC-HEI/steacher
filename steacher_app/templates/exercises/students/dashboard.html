@@ -22,7 +22,7 @@
             </p>
             <p>
                 <strong>Exercise:</strong> 
-                <a href="{% url 'exercises:exercise_detail' exercise.id %}">"{{ exercise.localized_title|default:exercise.title }}"</a>
+                <a href="{% url 'exercises:exercise_detail' exercise.id %}">{{ exercise.sequence_label }} — "{{ exercise.localized_title|default:exercise.title }}"</a>
             </p>
         </div>
 
@@ -50,7 +50,7 @@
                 {% else %}
                   <span class="icon has-text-grey-light" title="In progress"><i class="far fa-circle"></i></span>
                 {% endif %}
-                <a href="{% url 'exercises:exercise_detail' attempt.exercise.id %}">{{ attempt.exercise.localized_title|default:attempt.exercise.title }}</a>
+                <a href="{% url 'exercises:exercise_detail' attempt.exercise.id %}">{{ attempt.exercise.sequence_label }} — {{ attempt.exercise.localized_title|default:attempt.exercise.title }}</a>
               </li>
             {% endfor %}
             </ul>

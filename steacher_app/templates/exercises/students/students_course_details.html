@@ -41,7 +41,7 @@
                                 <div class="level-left">
                                     <div class="exercise-info columns is-mobile is-gapless">
                                         <div class="column is-narrow">
-                                            <span class="order-number mr-1">M{{ forloop.parentloop.counter }}.E<strong>{{ forloop.counter }}</strong></span>
+                                            <span class="order-number mr-1">{{ exercise.sequence_label }}</span>
                                             {% if completed_exercise_ids and exercise.id in completed_exercise_ids %}
                                                 <span class="icon has-text-success" title="Completed">
                                                     <i class="fas fa-check-circle"></i>
@@ -95,7 +95,7 @@
                                     <div class="level-left">
                                         <div class="exercise-info columns is-mobile is-gapless">
                                             <div class="column is-narrow">
-                                                <span class="order-number mr-2">M{{ forloop.parentloop.counter }}.E{{ forloop.counter }}</span>
+                                                <span class="order-number mr-2">{{ exercise.sequence_label }}</span>
                                                 {% if completed_exercise_ids and exercise.id in completed_exercise_ids %}
                                                     <span class="icon has-text-success" title="Completed">
                                                         <i class="fas fa-check-circle"></i>

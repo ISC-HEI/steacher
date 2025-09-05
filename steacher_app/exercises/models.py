@@ -151,6 +151,33 @@ class Exercise(models.Model):
         ordering = ['module', 'order']
         unique_together = ('module', 'order')
 
+    @property
+    def sequence_tuple(self):
+        """
+        Return a tuple (module_index, exercise_index) using 1-based indices
+        derived from the persisted Module.order and Exercise.order fields.
+        Falls back to (None, None) if unavailable.
+        """
+        try:
+            module_order = getattr(self.module, 'order', None)
+            exercise_order = getattr(self, 'order', None)
+            if module_order is None or exercise_order is None:
+                return (None, None)
+            return (int(module_order) + 1, int(exercise_order) + 1)
+        except Exception:
+            return (None, None)
+
+    @property
+    def sequence_label(self) -> str:
+        """
+        Human-friendly label like "1.2" built from sequence_tuple.
+        Returns an empty string if indices are not available.
+        """
+        module_idx, exercise_idx = self.sequence_tuple
+        if module_idx and exercise_idx:
+            return f"{module_idx}.{exercise_idx}"
+        return ''
+
 
 class AttemptManager(models.Manager):
     def get_recent_for_user(self, user, count=None):

@@ -74,6 +74,15 @@ def dashboard(request):
             .order_by('module__order', 'order')
         )
         total_exercises = len(ordered_exercises)
+        # Helper: map linear position -> label ("1.2") and 0 -> em dash
+        def position_label(position: int) -> str:
+            if position <= 0:
+                return '—'
+            try:
+                ex = ordered_exercises[position - 1]
+                return ex.sequence_label or str(position)
+            except Exception:
+                return str(position)
         # Map exercise id to linear position 1..N across the course
         exercise_pos = {ex.id: idx + 1 for idx, ex in enumerate(ordered_exercises)}
 
@@ -192,7 +201,7 @@ def dashboard(request):
         hist = []
         for k in range(0, max(total_exercises, 0) + 1):
             names = sorted(bucket_map.get(k, []), key=lambda s: s.lower())
-            hist.append({'position': k, 'count': len(names), 'names': names})
+            hist.append({'position': k, 'label': position_label(k), 'count': len(names), 'names': names})
         # Compute max for scaling
         max_bar_count = max((h['count'] for h in hist), default=0)
         # Precompute bar heights in pixels to avoid template arithmetic
@@ -214,6 +223,7 @@ def dashboard(request):
             height_px = int(round((percent / 100) * MAX_BAR_HEIGHT_PX2))
             exercise_completion_bars.append({
                 'position': pos,
+                'label': position_label(pos),
                 'count': count,
                 'total': active_members_count,
                 'percent': percent,
