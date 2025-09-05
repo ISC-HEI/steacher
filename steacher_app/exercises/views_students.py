@@ -353,14 +353,15 @@ def exercise_detail(request, pk):
     ex_data = dict(exercise.exercise_data or {})
     q_map = getattr(exercise, 'question_i18n', {}) or {}
     if isinstance(q_map, dict):
-        ex_data['question'] = q_map.get(preferred_language) or q_map.get('en') or next(iter(q_map.values()), '')
+        question_text = q_map.get(preferred_language) or q_map.get('en') or next(iter(q_map.values()), '')
     else:
-        ex_data['question'] = ''
+        question_text = ''
 
     exercise_json = {
         'id': exercise.id,
         'title': pick(title_map),
         'description': pick(desc_map),
+        'question': question_text,
         'exercise_type': exercise.exercise_type,
         'exercise_data': ex_data,
         'created_at': exercise.created_at.isoformat(),

@@ -12,8 +12,8 @@
         <div class="left-panel">
             <div class="exercise">
                 <div class="content">
-                    <div v-if="exercise.exercise_data.question"
-                         v-html="renderMarkdown(exercise.exercise_data.question)"
+                    <div v-if="exercise.question"
+                         v-html="renderMarkdown(exercise.question)"
                          class="box content mb-3 initial-question">
                     </div>
                     <div class="field">

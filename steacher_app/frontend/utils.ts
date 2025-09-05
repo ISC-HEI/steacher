@@ -1,3 +1,21 @@
+// util.ts shared (imported) by all question types
+
+// Shared student-facing Exercise interface
+export interface Exercise {
+    id: number;
+    title: string;
+    exercise_type: string;
+    description: string;
+    question: string;
+    exercise_data: {
+        additional_context?: string;
+        db?: string; // SQL only
+        answer_template?: string; // optional starter code/query
+    };
+}
+
+// CSRF utilities
+
 export function getCsrfToken(): string {
     const input = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
     if (input && input.value) return input.value;

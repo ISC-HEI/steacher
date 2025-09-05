@@ -3,23 +3,12 @@ import { createApp, defineComponent } from 'vue';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import confetti from 'canvas-confetti';
+import type { Exercise } from './utils.js';
 import { csrfFetch, getCsrfToken } from './utils.js';
 
-// Define the shape of our exercise data for type safety
 interface Choice {
     id: string;
     text: string;
-}
-
-interface Exercise {
-    id: number;
-    title: string;
-    exercise_type: string;
-    description: string;
-    exercise_data: {
-        question: string;
-        choices: Choice[];
-    };
 }
 
 interface Selections {

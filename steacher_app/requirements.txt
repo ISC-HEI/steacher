@@ -11,3 +11,4 @@ pytest-playwright
 gunicorn
 python-dotenv
 requests
+pydantic

@@ -10,6 +10,8 @@ from .models import Exercise, Course, Module, ExerciceAsset, Cohort, CohortMembe
 from .unit_testing import run_unit_tests
 from .logic import generate_authoring_update
 from .logic import generate_i18n_translations
+from .schemas import ExerciseData, AnswerData
+from pydantic import ValidationError
 
 
 @login_required
@@ -392,26 +394,24 @@ def exercise_form(request, course_pk, exercise_pk=None):
                     exercise.order = max_order + 1
 
             exercise.exercise_type = data.get('exercise_type', 'python')
-            # Clean exercise_data legacy question keys
             ex_data = data.get('exercise_data', {}) or {}
-            if 'question' in ex_data:
-                ex_data.pop('question', None)
-            if 'question_i18n' in ex_data:
-                ex_data.pop('question_i18n', None)
-            exercise.exercise_data = ex_data
+            
+            try:
+                exercise.exercise_data = ExerciseData.model_validate(ex_data).model_dump(exclude_unset=True)
+                answer_data = data.get('answer_data', {}) or {}
+                exercise.answer_data = AnswerData.model_validate(answer_data).model_dump(exclude_unset=True)
+            except ValidationError as e:
+                return JsonResponse({'status': 'error', 'message': f"Invalid data format: {e}"}, status=400)
+
             exercise.title_i18n = title_i18n
             exercise.description_i18n = description_i18n
             exercise.question_i18n = question_i18n
-            answer_data = data.get('answer_data', {})
-            if not answer_data:
-                answer_data = {"unit_tests": {"setup_code": "", "test_cases": [], "timeout_seconds": 5}}
-            exercise.answer_data = answer_data
-
-            if exercise.exercise_type == 'python' and 'unit_tests' in answer_data:
-                unit_tests = answer_data.get('unit_tests', {})
-                correct_answers = answer_data.get('correct_answers', [])
+            
+            if exercise.exercise_type == 'python' and 'unit_tests' in exercise.answer_data:
+                unit_tests = exercise.answer_data_obj.unit_tests.model_dump()
+                correct_answers = exercise.answer_data_obj.correct_answers
                 for i, correct_answer in enumerate(correct_answers):
-                    code_to_test = correct_answer.get('answer', '')
+                    code_to_test = correct_answer.answer
                     test_results = run_unit_tests(code_to_test, unit_tests)
                     if not test_results.get('all_passed'):
                         failed_tests = [res for res in test_results['test_results'] if not res['passed']]
@@ -437,8 +437,8 @@ def exercise_form(request, course_pk, exercise_pk=None):
         "description_i18n": exercise.description_i18n,
         "question_i18n": exercise.question_i18n,
         "exercise_type": exercise.exercise_type,
-        "exercise_data": exercise.exercise_data,
-        "answer_data": exercise.answer_data,
+        "exercise_data": exercise.exercise_data_obj.model_dump(),
+        "answer_data": exercise.answer_data_obj.model_dump(),
         "available_sql_assets": available_sql_assets,
         "course_pk": course.pk,
         "course_name": course.name,

@@ -2,6 +2,8 @@ from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from django.core.exceptions import ValidationError
+from functools import lru_cache
+from exercises.schemas import ExerciseData, AnswerData
 
 
 class Course(models.Model):
@@ -146,6 +148,16 @@ class Exercise(models.Model):
     def description(self) -> str:
         # Expose English description for legacy template/admin usage
         return (self.description_i18n or {}).get('en', '')
+
+    @property
+    def exercise_data_obj(self) -> ExerciseData:
+        """Returns the exercise_data field as a validated Pydantic object."""
+        return ExerciseData.model_validate(self.exercise_data or {})
+
+    @property
+    def answer_data_obj(self) -> AnswerData:
+        """Returns the answer_data field as a validated Pydantic object."""
+        return AnswerData.model_validate(self.answer_data or {})
 
     class Meta:
         ordering = ['module', 'order']

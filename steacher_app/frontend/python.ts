@@ -4,20 +4,8 @@ import { createApp, defineComponent } from 'vue';
 import confetti from 'canvas-confetti';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import type { Exercise } from './utils.js';
 import { csrfFetch, getCsrfToken } from './utils.js';
-
-// Define the shape of our exercise data for type safety
-interface Exercise {
-    id: number;
-    title: string;
-    exercise_type: string;
-    description: string;
-    exercise_data: {
-        question: string;
-        additional_context?: string;
-        answer_template?: string;
-    };
-}
 
 interface PythonDataContext {
     exercise: Exercise;

@@ -36,11 +36,11 @@
                 <div class="content">
                     <div class="exercise-list">
                         {% for exercise in module.exercises.all %}
-                        <div class="list-group-item mb-3">
+                        <div class="list-group-item mb-3" style="min-height: 2em;">
                             <div class="level">
                                 <div class="level-left">
                                     <div class="exercise-info columns is-mobile is-gapless">
-                                        <div class="column is-narrow">
+                                        <div class="column is-narrow" style="width: 70px;">
                                             <span class="order-number mr-1">{{ exercise.sequence_label }}</span>
                                             {% if completed_exercise_ids and exercise.id in completed_exercise_ids %}
                                                 <span class="icon has-text-success" title="Completed">
@@ -90,11 +90,11 @@
                         <div class="exercise-list">
                             {% for exercise in module.exercises.all %}
                             {% if exercise.visible %}
-                            <div class="list-group-item mb-3">
+                            <div class="list-group-item mb-3" style="min-height: 5em;">
                                 <div class="level">
                                     <div class="level-left">
                                         <div class="exercise-info columns is-mobile is-gapless">
-                                            <div class="column is-narrow">
+                                            <div class="column is-narrow" style="width: 70px;">
                                                 <span class="order-number mr-2">{{ exercise.sequence_label }}</span>
                                                 {% if completed_exercise_ids and exercise.id in completed_exercise_ids %}
                                                     <span class="icon has-text-success" title="Completed">

@@ -3,6 +3,7 @@ import openai
 import time
 from django.conf import settings
 from .models import AttemptInteraction, Exercise, Attempt, Course
+from .schemas import Choice
 import logging
 
 client = openai.OpenAI(api_key=settings.GEMINI_API_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 MODEL_FAST = "gemini-2.5-flash"
 MODEL_PRO = "gemini-2.5-pro"
 
-def calculate_cbm_score(selections, correct_answer_ids, all_choices):
+def calculate_cbm_score(selections: dict, correct_answer_ids: list[str], all_choices: list['Choice']) -> dict:
     """
     Calculates the score for a multiple-choice question using Certainty-Based Marking.
     """
@@ -24,7 +25,7 @@ def calculate_cbm_score(selections, correct_answer_ids, all_choices):
     total_score = 0
     max_score = 0
 
-    all_choice_ids = [choice['id'] for choice in all_choices]
+    all_choice_ids = [choice.id for choice in all_choices]
 
     for choice_id in all_choice_ids:
         student_confidence = selections.get(choice_id)
@@ -112,10 +113,15 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
     elif action == 'submit_answer' and exercise.exercise_type == 'multiple_choice':
         selections = data.get('selections', {})
         justification = data.get('justification', '')
-        correct_answers = exercise.answer_data.get('correct_answers', [])
-        all_choices = exercise.exercise_data.get('choices', [])
+
+        # Use Pydantic objects for safer access
+        correct_answers_obj = exercise.answer_data_obj.correct_answers
+        # correct_answers are stored as a list of {"answer": "choice_id", "explanation": "..."}
+        # we need to extract the "answer" field to get the list of correct choice IDs
+        correct_answer_ids = [ca.answer for ca in correct_answers_obj]
+        all_choices = exercise.exercise_data_obj.choices
         
-        cbm_result = calculate_cbm_score(selections, correct_answers, all_choices)
+        cbm_result = calculate_cbm_score(selections, correct_answer_ids, all_choices)
         
         score_breakdown = "\n".join(
             [
@@ -156,12 +162,12 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
 
         # NEW: Run unit tests if available
         if exercise.exercise_type == 'python':
-            unit_tests = exercise.answer_data.get('unit_tests', {})
-            if unit_tests and unit_tests.get('test_cases'):
+            unit_tests = exercise.answer_data_obj.unit_tests
+            if unit_tests and unit_tests.test_cases:
                 from exercises.unit_testing import run_unit_tests, format_test_results_for_ai_with_lang
                 
                 test_start_time = time.time()
-                test_results = run_unit_tests(data.get('code', ''), unit_tests)
+                test_results = run_unit_tests(data.get('code', ''), unit_tests.model_dump())
                 test_duration = time.time() - test_start_time
                 logger.info(f"Unit testing for exercise {exercise.id} took {test_duration:.2f} seconds.")
                 
@@ -174,12 +180,12 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
             else:
                 logger.warning(f"No unit tests defined for Python exercise {exercise.id}")
         elif exercise.exercise_type == 'scala':
-            unit_tests = exercise.answer_data.get('unit_tests', {})
-            if unit_tests and unit_tests.get('test_cases'):
+            unit_tests = exercise.answer_data_obj.unit_tests
+            if unit_tests and unit_tests.test_cases:
                 try:
                     from exercises.unit_testing import run_unit_tests_scala, format_test_results_for_ai_with_lang
                     test_start_time = time.time()
-                    test_results = run_unit_tests_scala(data.get('code', ''), unit_tests)
+                    test_results = run_unit_tests_scala(data.get('code', ''), unit_tests.model_dump())
                     test_duration = time.time() - test_start_time
                     logger.info(f"Scala unit testing for exercise {exercise.id} took {test_duration:.2f} seconds.")
                     user_prompt_content += f"\n## Unit Test Results:\n"
@@ -238,33 +244,27 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
     # 4. Add question, expected result, correct answers, hints, additional context, choice explanations
     # TODO: refactor this to make it cleaner
     prompt += f"\n\n# Exercise"
-    exercice_data = exercise.exercise_data
-    if exercice_data:
-        # Support i18n question
-        try:
-            preferred_language_code = getattr(attempt.user, 'preferred_language', 'en') or 'en'
-        except Exception:
-            preferred_language_code = 'en'
-        q_map = exercice_data.get('question_i18n') if isinstance(exercice_data, dict) else None
-        question_text = None
-        if isinstance(q_map, dict):
-            question_text = q_map.get(preferred_language_code) or q_map.get('en') or next(iter(q_map.values()), None)
-        if not question_text:
-            question_text = exercice_data.get('question') if isinstance(exercice_data, dict) else None
-        if question_text:
-            prompt += f"\n\n## Question given to the student\n\n{question_text}"
+
+    # The question is now at the top-level of the exercise object.
+    q_map = getattr(exercise, 'question_i18n', {}) or {}
+    if isinstance(q_map, dict):
+        question_text = q_map.get(preferred_language_code) or q_map.get('en') or next(iter(q_map.values()), '')
+    else:
+        question_text = ''
+
+    if question_text:
+        prompt += f"\n\n## Question given to the student\n\n{question_text}"
     
-    exercise_answer_data = exercise.answer_data
-    if exercise_answer_data:
-        expected_result = exercise_answer_data.get('expected_result')
-        if expected_result:
-            prompt += f"\n\n## Expected result\n\n{expected_result}"
-        correct_answers = exercise_answer_data.get('correct_answers')
-        if correct_answers:
+    answer_data_obj = exercise.answer_data_obj
+    if answer_data_obj:
+        if answer_data_obj.expected_result:
+            prompt += f"\n\n## Expected result\n\n{answer_data_obj.expected_result}"
+        
+        if answer_data_obj.correct_answers:
             prompt += "\n\n## Correct answers\n\n"
-            for i, answer_info in enumerate(correct_answers):
-                answer = answer_info.get('answer', '')
-                explanation = answer_info.get('explanation')
+            for i, answer_info in enumerate(answer_data_obj.correct_answers):
+                answer = answer_info.answer
+                explanation = answer_info.explanation
                 prompt += f"- Solution {i+1}:\n\n"
 
                 if exercise.exercise_type in ['python', 'sql']:
@@ -274,15 +274,18 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
                 
                 if explanation:
                     prompt += f"\n  Explanation: {explanation}\n"
-        hints = exercise_answer_data.get('hints')
-        if hints:
-            prompt += f"\n\n## Hints that can be provided to help the student\n\n{hints}"
-        additional_context = exercise_answer_data.get('additional_context')
-        if additional_context:
-            prompt += f"\n\n## Additional context for this exercise\n\n{additional_context}"
+        
+        if answer_data_obj.hints:
+            prompt += f"\n\n## Hints that can be provided to help the student\n\n{answer_data_obj.hints}"
+        
+        if answer_data_obj.additional_context:
+            prompt += f"\n\n## Additional context for this exercise\n\n{answer_data_obj.additional_context}"
         
     if exercise.exercise_type == 'multiple_choice':
-        prompt += f"\n\n## Explanations for each choice\n\n{exercise_answer_data.get('choice_explanations')}"
+        # NOTE: 'choice_explanations' is not in the pydantic model, handle this
+        choice_explanations = exercise.answer_data.get('choice_explanations')
+        if choice_explanations:
+            prompt += f"\n\n## Explanations for each choice\n\n{choice_explanations}"
 
     messages.append({"role": "system", "content": prompt})
 

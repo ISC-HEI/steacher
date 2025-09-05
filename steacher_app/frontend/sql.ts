@@ -6,23 +6,7 @@ import { createApp, markRaw, defineComponent } from 'vue';
 import confetti from 'canvas-confetti';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-
-// Define the shape of our exercise data for type safety
-interface Exercise {
-    id: number;
-    title: string;
-    exercise_type: string;
-    description: string;
-    exercise_data: {
-        question: string;
-        additional_context?: string;
-        db?: string;
-        hints?: string[];
-        expected_result?: Record<string, any>[];
-        correct_answers?: { answer: string; explanation: string }[];
-        answer_template?: string;
-    };
-}
+import type { Exercise } from './utils.js';
 
 // Define the shape for the query result for type safety
 interface QueryResult {

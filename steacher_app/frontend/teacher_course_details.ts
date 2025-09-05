@@ -4,12 +4,7 @@ import { csrfFetch } from './utils.js';
 // Sortable is provided globally via CDN in base template
 declare const Sortable: any;
 
-function getCsrfToken(): string {
-    const input = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
-    if (input && input.value) return input.value;
-    const match = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
-    return match ? decodeURIComponent(match[1]!) : '';
-}
+// Exercise interface is now exported from utils.ts
 
 const TeacherCourseApp = defineComponent({
     setup() {

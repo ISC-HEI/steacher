@@ -137,10 +137,10 @@ class Command(BaseCommand):
                 module=module,
                 order=idx,
                 defaults={
-                    "title": f"test{idx}",
-                    "description": "Seeded demo exercise",
+                    "title_i18n": {"en": f"test{idx}"},
+                    "description_i18n": {"en": "Seeded demo exercise"},
                     "exercise_type": "python",
-                    "exercise_data": {"question": q},
+                    "question_i18n": {"en": q},
                     "answer_data": {"hints": [""]},
                     "visible": True,
                 },
@@ -149,13 +149,13 @@ class Command(BaseCommand):
             needs_save = False
             desired_title = f"test{idx}"
             if ex.title != desired_title:
-                ex.title = desired_title
+                ex.title_i18n = {"en": desired_title}
                 needs_save = True
             if not isinstance(ex.answer_data, dict) or "hints" not in ex.answer_data:
                 ex.answer_data = {"hints": [""]}
                 needs_save = True
             if needs_save:
-                ex.save(update_fields=["title", "answer_data"])  # safe even if some unchanged
+                ex.save(update_fields=["title_i18n", "answer_data"])  # safe even if some unchanged
             exercises.append(ex)
 
         # Cohort and memberships
