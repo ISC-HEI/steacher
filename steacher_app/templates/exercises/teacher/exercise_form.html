@@ -3,12 +3,14 @@
 
 {% block title %}{% if exercise.pk %}Edit Exercise{% else %}Create Exercise{% endif %}{% endblock %}
 
+{% block container_class %}container is-fluid{% endblock %}
+
 {% block content %}
-<div class="container mt-4" id="exercise-form-app">
+<div id="exercise-form-app" class="mt-4">
     <h1 class="title is-3 mb-3">{% if exercise.pk %}Edit Exercise: {{ exercise.sequence_label }} — {{ exercise.title }}{% else %}Create New Exercise{% endif %}</h1>
 
     <div class="columns">
-        <div class="column is-two-thirds">
+        <div class="column is-three-quarters">
             <div v-if="loading" class="notification is-info">Saving...</div>
             <div v-if="error" class="notification is-danger">[[ error ]]</div>
             
@@ -37,9 +39,9 @@
                         </ul>
                     </div>
                     <div class="buttons" style="margin-left: auto;">
-                        <button type="button" class="button is-link is-light" v-if="uiLang !== 'en'" @click="translateLanguage(uiLang)" :disabled="sending">Translate EN → [[ uiLang.toUpperCase() ]]</button>
-                        <button type="button" class="button" v-if="uiLang !== 'en'" @click="markSynced(uiLang)" :disabled="!langStale(uiLang)">Mark As Synced</button>
-                        <button type="button" class="button is-link is-light" @click="translateMissingOrStale()" :disabled="sending">Translate missing/stale</button>
+                        <button type="button" class="button is-link is-light" v-if="uiLang !== 'en'" @click="translateLanguage(uiLang)" :disabled="sending" title="Translate content from English to the selected language using an AI service.">Translate EN → [[ uiLang.toUpperCase() ]]</button>
+                        <button type="button" class="button" v-if="uiLang !== 'en'" @click="markSynced(uiLang)" :disabled="!langStale(uiLang)" title="Manually mark the content of this language tab as up-to-date with the English version.">Mark As Synced</button>
+                        <button type="button" class="button is-link is-light" @click="translateMissingOrStale()" :disabled="sending" title="Automatically translate all languages that are missing content or may be outdated.">Translate missing/stale</button>
                     </div>
                 </div>
 
@@ -53,7 +55,7 @@
             <div class="field-body">
                 <div class="field">
                     <div class="control">
-                        <input type="text" id="title" class="input" v-model="exercise.title_i18n[uiLang]" required>
+                        <input type="text" id="title" class="input" v-model="exercise.title_i18n[uiLang]" :required="uiLang === 'en'">
                     </div>
                 </div>
             </div>
@@ -61,7 +63,12 @@
 
                 <div class="field is-horizontal">
             <div class="field-label is-normal">
-                <label for="description" class="label">Description ([[ uiLang.toUpperCase() ]])</label>
+                <label for="description" class="label">Description ([[ uiLang.toUpperCase() ]])
+                    <span class="tooltip-container">
+                        <span class="tooltip-icon">?</span>
+                        <span class="tooltip-text">A brief summary of the exercise's topic or goals. This is shown to students in the exercise list.</span>
+                    </span>
+                </label>
             </div>
             <div class="field-body">
                 <div class="field">
@@ -74,12 +81,17 @@
 
                 <div class="field is-horizontal">
             <div class="field-label is-normal">
-                <label for="question" class="label">Question ([[ uiLang.toUpperCase() ]]) (Markdown supported)</label>
+                <label for="question" class="label">Question ([[ uiLang.toUpperCase() ]])
+                    <span class="tooltip-container">
+                        <span class="tooltip-icon">?</span>
+                        <span class="tooltip-text">The main problem statement or question for the student to solve. Supports Markdown for formatting.</span>
+                    </span>
+                </label>
             </div>
             <div class="field-body">
                 <div class="field">
                     <div class="control">
-                        <textarea id="question" class="textarea" v-model="exercise.question_i18n[uiLang]" rows="10"></textarea>
+                        <textarea id="question" class="textarea" v-model="exercise.question_i18n[uiLang]" rows="10" :required="uiLang === 'en'"></textarea>
                     </div>
                 </div>
             </div>
@@ -88,7 +100,12 @@
 
                 <div class="field is-horizontal" v-if="exercise.exercise_type === 'sql'">
             <div class="field-label is-normal">
-                <label for="db" class="label">Database File</label>
+                <label for="db" class="label">Database File
+                    <span class="tooltip-container">
+                        <span class="tooltip-icon">?</span>
+                        <span class="tooltip-text">For SQL exercises, select the database file (.sql) that contains the schema and data. Database files are uploaded in the course assets.</span>
+                    </span>
+                </label>
             </div>
             <div class="field-body">
                 <div class="field">
@@ -110,7 +127,12 @@
                   <!-- Exercise Type -->
                   <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                        <label class="label" for="id_exercise_type">Exercise Type</label>
+                        <label class="label" for="id_exercise_type">Exercise Type
+                            <span class="tooltip-container">
+                                <span class="tooltip-icon">?</span>
+                                <span class="tooltip-text">Determines the kind of problem and the interface the student will use (e.g., Python code editor, multiple choice).</span>
+                            </span>
+                        </label>
                     </div>
                     <div class="field-body">
                         <div class="field">
@@ -134,7 +156,12 @@
                 <!-- Answer Template (only for Python, SQL, Scala, Open Question) -->
                 <div class="field is-horizontal" v-if="['python','sql','scala','open_question'].includes(exercise.exercise_type)">
             <div class="field-label is-normal">
-                <label for="answer_template" class="label">Answer Template</label>
+                <label for="answer_template" class="label">Answer Template
+                    <span class="tooltip-container">
+                        <span class="tooltip-icon">?</span>
+                        <span class="tooltip-text">Initial content provided to the student in the answer area. Can be used as a starting point or scaffold. ATM this is not translated so choose carefully.</span>
+                    </span>
+                </label>
             </div>
             <div class="field-body">
                 <div class="field">
@@ -147,7 +174,12 @@
 
                 <div class="field is-horizontal">
             <div class="field-label is-normal">
-                <label for="expected_result" class="label">Expected Result</label>
+                <label for="expected_result" class="label">Expected Result
+                    <span class="tooltip-container">
+                        <span class="tooltip-icon">?</span>
+                        <span class="tooltip-text">For simple exercises (e.g. a single SQL query), this is the exact output for a correct answer. For complex coding exercises, prefer using Unit Tests below for more robust validation.</span>
+                    </span>
+                </label>
             </div>
             <div class="field-body">
                 <div class="field">
@@ -160,7 +192,12 @@
 
                 <div class="field is-horizontal">
             <div class="field-label is-normal">
-                <label for="hints" class="label">Hints (one per line)</label>
+                <label for="hints" class="label">Hints (one per line)
+                    <span class="tooltip-container">
+                        <span class="tooltip-icon">?</span>
+                        <span class="tooltip-text">One hint per line. These hints guide the AI tutor when assisting students. The AI will automatically translate them from English to the student's language.</span>
+                    </span>
+                </label>
             </div>
             <div class="field-body">
                 <div class="field">
@@ -173,7 +210,12 @@
 
                 <div class="field is-horizontal">
             <div class="field-label is-normal">
-                <label for="additional_context" class="label">Additional Context</label>
+                <label for="additional_context" class="label">Additional Context
+                    <span class="tooltip-container">
+                        <span class="tooltip-icon">?</span>
+                        <span class="tooltip-text">Secret instructions for the AI tutor, not visible to students. For example, you can specify topics to avoid ('don't mention recursion') or suggest a pedagogical approach.</span>
+                    </span>
+                </label>
             </div>
             <div class="field-body">
                 <div class="field">
@@ -190,7 +232,12 @@
             <div class="box">
                 <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                        <label :for="'answer-' + index" class="label">Answer</label>
+                        <label :for="'answer-' + index" class="label">Answer
+                            <span class="tooltip-container">
+                                <span class="tooltip-icon">?</span>
+                                <span class="tooltip-text">A valid, correct solution. For a coding exercise, this would be the complete, runnable code. You can add multiple correct answers if there are different ways to solve it.</span>
+                            </span>
+                        </label>
                     </div>
                     <div class="field-body">
                         <div class="field">
@@ -202,7 +249,12 @@
                 </div>
                 <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                        <label :for="'explanation-' + index" class="label">Explanation</label>
+                        <label :for="'explanation-' + index" class="label">Explanation
+                            <span class="tooltip-container">
+                                <span class="tooltip-icon">?</span>
+                                <span class="tooltip-text">An explanation of why this answer is correct. This can be shown to the student after they solve the exercise or used by the AI tutor.</span>
+                            </span>
+                        </label>
                     </div>
                     <div class="field-body">
                         <div class="field">
@@ -212,17 +264,22 @@
                         </div>
                     </div>
                 </div>
-                <button type="button" @click="removeCorrectAnswer(index)" class="button is-danger is-small">Remove</button>
+                <button type="button" @click="removeCorrectAnswer(index)" class="button is-danger is-small" title="Remove this correct answer entry.">Remove</button>
             </div>
                 </div>
-                <button type="button" @click="addCorrectAnswer" class="button is-link mb-4">Add Correct Answer</button>
+                <button type="button" @click="addCorrectAnswer" class="button is-link mb-4" title="Add another possible correct answer.">Add Correct Answer</button>
 
                 <hr>
                 <h3 class="mb-3 title is-4">Unit Tests</h3>
 
                 <div class="field is-horizontal">
             <div class="field-label is-normal">
-                <label for="setup-code" class="label">Setup Code</label>
+                <label for="setup-code" class="label">Setup Code
+                    <span class="tooltip-container">
+                        <span class="tooltip-icon">?</span>
+                        <span class="tooltip-text">Optional code that runs once before all test cases. Use it to define shared functions or import libraries needed for testing.</span>
+                    </span>
+                </label>
             </div>
             <div class="field-body">
                 <div class="field">
@@ -235,7 +292,12 @@
         
                 <div class="field is-horizontal">
             <div class="field-label is-normal">
-                <label for="timeout" class="label">Timeout (seconds)</label>
+                <label for="timeout" class="label">Timeout (seconds)
+                    <span class="tooltip-container">
+                        <span class="tooltip-icon">?</span>
+                        <span class="tooltip-text">The maximum time allowed for the student's code to run during testing to prevent infinite loops.</span>
+                    </span>
+                </label>
             </div>
             <div class="field-body">
                 <div class="field">
@@ -251,7 +313,12 @@
                 <h4 class="title is-5">Test Case [[ index + 1 ]]</h4>
                 <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                        <label :for="'desc-' + index" class="label">Description</label>
+                        <label :for="'desc-' + index" class="label">Description
+                            <span class="tooltip-container">
+                                <span class="tooltip-icon">?</span>
+                                <span class="tooltip-text">A short, human-readable description of what this test case checks.</span>
+                            </span>
+                        </label>
                     </div>
                     <div class="field-body">
                         <div class="field">
@@ -263,7 +330,12 @@
                 </div>
                 <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                        <label :for="'code-' + index" class="label">Test Code</label>
+                        <label :for="'code-' + index" class="label">Test Code
+                            <span class="tooltip-container">
+                                <span class="tooltip-icon">?</span>
+                                <span class="tooltip-text">Code that runs the student's solution to test it. It should use an 'assert' statement or 'print' to check the result. E.g., 'assert student_function(1, 2) == 3'.</span>
+                            </span>
+                        </label>
                     </div>
                     <div class="field-body">
                         <div class="field">
@@ -275,7 +347,12 @@
                 </div>
                 <div class="field is-horizontal">
                     <div class="field-label is-normal">
-                        <label :for="'output-' + index" class="label">Expected Output</label>
+                        <label :for="'output-' + index" class="label">Expected Output
+                            <span class="tooltip-container">
+                                <span class="tooltip-icon">?</span>
+                                <span class="tooltip-text">The exact text that the 'Test Code' should print to the console. This must be an exact match (including newlines) for the test to pass.</span>
+                            </span>
+                        </label>
                     </div>
                     <div class="field-body">
                         <div class="field">
@@ -285,28 +362,28 @@
                         </div>
                     </div>
                 </div>
-                <button type="button" @click="removeTestCase(index)" class="button is-danger is-small">Remove Test Case</button>
+                <button type="button" @click="removeTestCase(index)" class="button is-danger is-small" title="Remove this test case.">Remove Test Case</button>
             </div>
                 </div>
 
-                <button type="button" @click="addTestCase" class="button is-link mb-4">Add Test Case</button>
+                <button type="button" @click="addTestCase" class="button is-link mb-4" title="Add a new unit test case to validate the student's solution.">Add Test Case</button>
 
                 <hr>
                 <div class="field is-grouped">
                     <div class="control">
-                        <button type="submit" class="button is-primary">Save Exercise</button>
+                        <button type="submit" class="button is-primary" title="Save all changes and return to the course details page.">Save Exercise</button>
                     </div>
                     <div class="control">
-                        <button type="button" class="button is-info" @click="saveAndContinue">Save & Continue Editing</button>
+                        <button type="button" class="button is-info" @click="saveAndContinue" title="Save all changes and remain on this page to continue editing.">Save & Continue Editing</button>
                     </div>
                     <div class="control">
-                        <a href="{% url 'teachers:course_detail' pk=course.pk %}" class="button is-light">Cancel</a>
+                        <a href="{% url 'teachers:course_detail' pk=course.pk %}" class="button is-light" title="Discard all changes and return to the course details page.">Cancel</a>
                     </div>
                 </div>
             </form>
         </div>
 
-        <div class="column is-one-third">
+        <div class="column is-one-quarter">
             <div class="box" style="height: calc(100vh - 180px); display: flex; flex-direction: column;">
                 <h3 class="title is-5">AI Exercise Assistant</h3>
                 <div style="flex: 1; overflow: auto; border: 1px solid #eee; padding: 0.75rem; margin-bottom: 0.75rem;">
@@ -334,8 +411,8 @@
                     </div>
                 </div>
                 <div class="buttons">
-                    <button class="button is-link" :class="{ 'is-loading': sending }" :disabled="sending || !draftMessage.trim()" @click="sendAssistantMessage">Send</button>
-                    <button class="button" :disabled="!lastAppliedSnapshot" @click="undoLastAIEdit">Undo last AI edit</button>
+                    <button class="button is-link" :class="{ 'is-loading': sending }" :disabled="sending || !draftMessage.trim()" @click="sendAssistantMessage" title="Send your message to the AI assistant.">Send</button>
+                    <button class="button" :disabled="!lastAppliedSnapshot" @click="undoLastAIEdit" title="Revert the last change made by the AI assistant.">Undo last AI edit</button>
                 </div>
             </div>
         </div>

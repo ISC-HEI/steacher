@@ -83,7 +83,7 @@
         </div>
     </nav>
 
-    <div class="container mt-5">
+    <div class="{% block container_class %}container{% endblock %} mt-5">
         {% block content %}
         {% endblock %}
     </div>
