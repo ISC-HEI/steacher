@@ -5,33 +5,45 @@
   <div class="container">
     {% comment %} --- Primary Focus Box --- {% endcomment %}
     {% if next_up_exercise or last_active_exercise %}
-    <div class="box has-background-light mb-5">
-        {% with exercise=next_up_exercise|default:last_active_exercise %}
-        <h2 class="title is-4">🎯 
-            {% if next_up_exercise %}Continue where you left off{% else %}Resume your last exercise{% endif %}
-        </h2>
-        
-        <div class="content">
-            <p class="mb-1">
-                <strong>Course:</strong> 
-                <a href="{% url 'exercises:course_detail' exercise.module.course.id %}">{{ exercise.module.course.name }}</a>
-            </p>
-            <p class="mb-1">
-                <strong>Module:</strong> 
-                <a href="{% url 'exercises:course_detail' exercise.module.course.id %}">{{ exercise.module.name }}</a>
-            </p>
-            <p>
-                <strong>Exercise:</strong> 
-                <a href="{% url 'exercises:exercise_detail' exercise.id %}">{{ exercise.sequence_label }} — {{ exercise.localized_title|default:exercise.title }}</a>
-            </p>
-        </div>
+    <div class="columns mb-5">
+      <div class="column">
+        <div class="box has-background-light" style="height: 100%;">
+            {% with exercise=next_up_exercise|default:last_active_exercise %}
+            <h2 class="title is-4">🚀 
+                {% if next_up_exercise %}Continue where you left off{% else %}Resume your last exercise{% endif %}
+            </h2>
+            
+            <div class="content">
+                <p class="mb-1">
+                    <strong>Course:</strong> 
+                    <a href="{% url 'exercises:course_detail' exercise.module.course.id %}">{{ exercise.module.course.name }}</a>
+                </p>
+                <p class="mb-1">
+                    <strong>Module:</strong> 
+                    <a href="{% url 'exercises:course_detail' exercise.module.course.id %}">{{ exercise.module.name }}</a>
+                </p>
+                <p>
+                    <strong>Exercise:</strong> 
+                    <a href="{% url 'exercises:exercise_detail' exercise.id %}">{{ exercise.sequence_label }} — {{ exercise.localized_title|default:exercise.title }}</a>
+                </p>
+            </div>
 
-        <div class="buttons mt-4">
-            <a href="{% url 'exercises:exercise_detail' exercise.id %}" class="button is-primary is-medium">
-                {% if next_up_exercise %}▶ Continue Learning{% else %}💪 Resume Exercise{% endif %}
-            </a>
+            <div class="buttons mt-4">
+                <a href="{% url 'exercises:exercise_detail' exercise.id %}" class="button is-primary is-medium">
+                    {% if next_up_exercise %}▶ Continue Learning{% else %}💪 Resume Exercise{% endif %}
+                </a>
+            </div>
+            {% endwith %}
         </div>
-        {% endwith %}
+      </div>
+      <div class="column">
+        <div class="box" style="height: 100%;">
+            <h2 class="title is-4">📈 Your Progress Snapshot</h2>
+            <div class="is-flex is-justify-content-center is-align-items-center">
+                <svg id="radar-chart" width="300" height="250"></svg>
+            </div>
+        </div>
+      </div>
     </div>
     {% endif %}
     
@@ -40,7 +52,7 @@
       {% comment %} Recent Exercises {% endcomment %}
       <div class="column is-two-fifths">
         <div class="box">
-          <h3 class="title is-5">Recent Activity</h3>
+          <h3 class="title is-5">⚡ Recent Activity</h3>
           {% if recent_attempts %}
             <ul>
             {% for attempt in recent_attempts %}
@@ -130,7 +142,7 @@
 
     {% comment %} --- Course Progress (Compact) --- {% endcomment %}
     <div class="my-6">
-      <h2 class="title is-4">Your Courses</h2>
+      <h2 class="title is-4" style="margin-top: 100px;">🎓 Your Courses</h2>
     </div>
     
     {% if course_progress %}
@@ -164,6 +176,108 @@
     {% endif %}
   </div>
 </section>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const data = {
+        labels: [
+            'Problem Solving',
+            'Syntax',
+            'Algorithms',
+            'Debugging',
+            'Best Practices',
+        ],
+        datasets: [{
+            label: 'Your Progress',
+            data: [0.8, 0.6, 0.9, 0.5, 0.7], // Placeholder progress data (0 to 1)
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            borderColor: 'rgb(75, 192, 192)',
+        }]
+    };
+
+    const svg = document.getElementById('radar-chart');
+    if (!svg) return;
+
+    const width = svg.getAttribute('width');
+    const height = svg.getAttribute('height');
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const radius = Math.min(width, height) / 2 * 0.7; 
+    const numAxes = data.labels.length;
+    const angleSlice = (Math.PI * 2) / numAxes;
+
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('transform', `translate(${centerX}, ${centerY})`);
+    svg.appendChild(g);
+
+    // --- Draw Grid Lines ---
+    const gridLevels = 4;
+    for (let i = 1; i <= gridLevels; i++) {
+        const gridRadius = (radius / gridLevels) * i;
+        const gridPolygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        let points = '';
+        for (let j = 0; j < numAxes; j++) {
+            const angle = angleSlice * j - Math.PI / 2;
+            const x = gridRadius * Math.cos(angle);
+            const y = gridRadius * Math.sin(angle);
+            points += `${x},${y} `;
+        }
+        gridPolygon.setAttribute('points', points.trim());
+        gridPolygon.setAttribute('fill', 'none');
+        gridPolygon.setAttribute('stroke', '#dfe1e5');
+        gridPolygon.setAttribute('stroke-width', '1');
+        g.appendChild(gridPolygon);
+    }
+
+    // --- Draw Axis Lines and Labels ---
+    data.labels.forEach((label, i) => {
+        const angle = angleSlice * i - Math.PI / 2;
+        const x2 = radius * Math.cos(angle);
+        const y2 = radius * Math.sin(angle);
+
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', 0);
+        line.setAttribute('y1', 0);
+        line.setAttribute('x2', x2);
+        line.setAttribute('y2', y2);
+        line.setAttribute('stroke', '#dfe1e5');
+        line.setAttribute('stroke-width', '1');
+        g.appendChild(line);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        const textX = (radius * 1.15) * Math.cos(angle);
+        const textY = (radius * 1.15) * Math.sin(angle);
+        text.setAttribute('x', textX);
+        text.setAttribute('y', textY);
+        text.textContent = label;
+        text.setAttribute('font-family', 'sans-serif');
+        text.setAttribute('font-size', '11px');
+        text.setAttribute('fill', '#4a4a4a');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('alignment-baseline', 'middle');
+        g.appendChild(text);
+    });
+
+    // --- Draw Data Polygon ---
+    const dataPolygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    let dataPoints = '';
+    data.datasets[0].data.forEach((value, i) => {
+        const angle = angleSlice * i - Math.PI / 2;
+        const r = radius * value;
+        const x = r * Math.cos(angle);
+        const y = r * Math.sin(angle);
+        dataPoints += `${x},${y} `;
+    });
+    dataPolygon.setAttribute('points', dataPoints.trim());
+    dataPolygon.setAttribute('fill', data.datasets[0].backgroundColor);
+    dataPolygon.setAttribute('stroke', data.datasets[0].borderColor);
+    dataPolygon.setAttribute('stroke-width', '2');
+    g.appendChild(dataPolygon);
+});
+</script>
 {% endblock %}
 
 
