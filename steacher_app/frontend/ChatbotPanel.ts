@@ -74,9 +74,11 @@ export const ChatbotPanel = {
               class="textarea"
               v-model="question"
               placeholder="Enter your message (Shift+Enter for newline)"
-              rows="3"
+              rows="1"
               :disabled="loading"
               @keydown="handleKeydown"
+              @input="autosizeTextarea"
+              style="resize: none; max-height: 40vh"
           ></textarea>
         </p>
 
@@ -129,6 +131,13 @@ export const ChatbotPanel = {
     }
   },
   methods: {
+    autosizeTextarea(event: Event) {
+      const textarea = event.target as HTMLTextAreaElement;
+      // Reset height to auto to ensure the textarea shrinks when text is deleted
+      textarea.style.height = 'auto';
+      // Set the height to the scroll height to fit the content
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    },
     parseMessageContent(message: any): ProcessedMessage {
         // Parse the message content for buttons, using a regex.
         // The regex is a bit complex, but it's the only way to parse the message content for buttons.
@@ -211,6 +220,14 @@ export const ChatbotPanel = {
 
         // Clear the input field after asking the question
         this.question = '';
+
+        // Reset textarea height on next tick after clearing the content
+        this.$nextTick(() => {
+          const textarea = this.$el.querySelector('textarea');
+          if (textarea) {
+            textarea.style.height = 'auto';
+          }
+        });
       }
     },
     handleKeydown(this: any, event: KeyboardEvent) {

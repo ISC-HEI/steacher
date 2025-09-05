@@ -18,6 +18,60 @@ from .models import Exercise, ExerciceAsset, Course, AttemptInteraction, Attempt
 from .serializers import ExerciseFrontendSerializer
 
 
+def resolve_instructor_email(user, course=None):
+    """Return the instructor email for the user's active cohort.
+
+    Preference order:
+    - If a course is provided, return the active membership instructor for that course.
+    - Otherwise, return the most recent active membership instructor across any cohort.
+    """
+    from .models import CohortMembership, Cohort  # local import to avoid circulars on some setups
+
+    try:
+        membership = None
+        # 1) Prefer membership for this course
+        if course is not None:
+            membership = (
+                CohortMembership.objects
+                .filter(student=user, status='active', cohort__course=course)
+                .select_related('cohort__owner')
+                .order_by('-joined_at')
+                .first()
+            )
+            if membership and getattr(membership.cohort.owner, 'email', ''):
+                email = (membership.cohort.owner.email or '').strip()
+                if email:
+                    return email
+
+            # 2) If user not enrolled, fall back to any cohort for this course
+            any_course_cohort = (
+                Cohort.objects
+                .filter(course=course)
+                .select_related('owner')
+                .order_by('-updated_at')
+                .first()
+            )
+            if any_course_cohort and getattr(any_course_cohort.owner, 'email', ''):
+                email = (any_course_cohort.owner.email or '').strip()
+                if email:
+                    return email
+
+        # 3) Otherwise, use most recent active membership across any cohort
+        membership = (
+            CohortMembership.objects
+            .filter(student=user, status='active')
+            .select_related('cohort__owner')
+            .order_by('-joined_at')
+            .first()
+        )
+        if membership and getattr(membership.cohort.owner, 'email', ''):
+            email = (membership.cohort.owner.email or '').strip()
+            if email:
+                return email
+    except Exception:
+        pass
+    return None
+
 @login_required
 def dashboard(request):
     """Student dashboard showing progress per course."""
@@ -137,6 +191,12 @@ def dashboard(request):
     except Exception:
         pass
 
+    # Determine cohort instructor email to enable Teams button in navbar
+    instructor_email = resolve_instructor_email(
+        request.user,
+        course=last_active_exercise.module.course if last_active_exercise else None,
+    )
+
     return render(request, 'exercises/students/dashboard.html', {
         'course_progress': course_progress,
         'last_active_exercise': last_active_exercise,
@@ -147,7 +207,8 @@ def dashboard(request):
             'total_completed': total_completed,
             'week_completed': week_completed,
             'module': module_stats,
-        }
+        },
+        'instructor_email': instructor_email,
     })
 
 
@@ -156,16 +217,7 @@ def course_list(request):
     """Display list of all courses for students (only visible ones)."""
     courses = Course.objects.filter(visible=True)
     # Resolve instructor email from latest active cohort membership (any course)
-    instructor_email = None
-    membership = (
-        CohortMembership.objects
-        .filter(student=request.user, status='active')
-        .select_related('cohort__owner')
-        .order_by('-joined_at')
-        .first()
-    )
-    if membership and getattr(membership.cohort.owner, 'email', ''):
-        instructor_email = (membership.cohort.owner.email or '').strip() or None
+    instructor_email = resolve_instructor_email(request.user)
     return render(request, 'exercises/students/students_course_list.html', {
         'courses': courses,
         'instructor_email': instructor_email,
@@ -268,6 +320,7 @@ def course_detail(request, pk):
         'course': course,
         'modules': visible_modules,
         'completed_exercise_ids': completed_ids,
+        'instructor_email': resolve_instructor_email(request.user, course=course),
     })
 
 
@@ -351,20 +404,7 @@ def exercise_detail(request, pk):
         raise Http404(f"Unsupported exercise type: {exercise.exercise_type}")
 
     # Determine cohort instructor email for this course, if any
-    instructor_email = None
-    try:
-        course = exercise.module.course
-        membership = (
-            CohortMembership.objects
-            .filter(student=request.user, status='active', cohort__course=course)
-            .select_related('cohort__owner')
-            .order_by('-joined_at')
-            .first()
-        )
-        if membership and getattr(membership.cohort.owner, 'email', ''):
-            instructor_email = (membership.cohort.owner.email or '').strip() or None
-    except Exception:
-        instructor_email = None
+    instructor_email = resolve_instructor_email(request.user, course=exercise.module.course)
 
     return render(request, template_name, {
         'exercise': exercise,

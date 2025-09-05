@@ -22,7 +22,7 @@
             </p>
             <p>
                 <strong>Exercise:</strong> 
-                <a href="{% url 'exercises:exercise_detail' exercise.id %}">{{ exercise.sequence_label }} — "{{ exercise.localized_title|default:exercise.title }}"</a>
+                <a href="{% url 'exercises:exercise_detail' exercise.id %}">{{ exercise.sequence_label }} — {{ exercise.localized_title|default:exercise.title }}</a>
             </p>
         </div>
 
@@ -38,7 +38,7 @@
     {% comment %} --- Secondary Row (3 columns) --- {% endcomment %}
     <div class="columns">
       {% comment %} Recent Exercises {% endcomment %}
-      <div class="column is-one-third">
+      <div class="column is-two-fifths">
         <div class="box">
           <h3 class="title is-5">Recent Activity</h3>
           {% if recent_attempts %}
@@ -61,7 +61,7 @@
       </div>
 
       {% comment %} Recent Chats {% endcomment %}
-      <div class="column is-one-third">
+      <div class="column">
         <div class="box">
           <div class="level is-mobile mb-2">
             <div class="level-left">
@@ -94,7 +94,7 @@
       </div>
 
       {% comment %} Quick Stats {% endcomment %}
-      <div class="column is-one-third">
+      <div class="column">
         <div class="box">
           <h3 class="title is-5">Quick Stats</h3>
           {% if stats %}
