@@ -11,6 +11,23 @@ logger = logging.getLogger(__name__)
 MODEL_FAST = "gemini-2.5-flash"
 MODEL_PRO = "gemini-2.5-pro"
 
+
+def _strip_markdown_fences(content: str) -> str:
+    """Removes Markdown code fences (e.g., ```json) from a string."""
+    content = content.strip()
+    if content.startswith("```"):
+        # Find the first newline
+        first_newline = content.find('\n')
+        if first_newline != -1:
+            content = content[first_newline + 1:]
+        else: # Should not happen with valid markdown but handle it
+            content = content.lstrip('`')
+
+    if content.endswith("```"):
+        content = content[:-3].strip()
+    return content
+
+
 def calculate_cbm_score(selections: dict, correct_answer_ids: list[str], all_choices: list['Choice']) -> dict:
     """
     Calculates the score for a multiple-choice question using Certainty-Based Marking.
@@ -350,20 +367,16 @@ Do not provide the entire solution, but give them enough to make meaningful prog
     if debug:
         # parse the response as a JSON object, to obtain the answer and the *ambiguity*
         assistant_content_raw = llm_response.choices[0].message.content or ""
-        assistant_content_raw = assistant_content_raw.strip()
-        if assistant_content_raw.startswith("```json"):
-            assistant_content_raw = assistant_content_raw[7:].strip()
-            if assistant_content_raw.endswith("```"):
-                assistant_content_raw = assistant_content_raw[:-3].strip()
+        assistant_content_json_str = _strip_markdown_fences(assistant_content_raw)
 
         try:
-            assistant_content_json = json.loads(assistant_content_raw)
+            assistant_content_json = json.loads(assistant_content_json_str)
             answer = assistant_content_json.get("answer", "")
             ambiguity = assistant_content_json.get("ambiguity", [])
             if not isinstance(ambiguity, list):
                 ambiguity = [str(ambiguity)]
         except Exception as e:
-            answer = assistant_content_raw
+            answer = assistant_content_json_str
             ambiguity = [f"Failed to parse JSON: {str(e)}"]
     else:        
         # just return the text of the response
@@ -507,12 +520,7 @@ Do not use markdown or code fences. The exercise object MUST be the value of the
 
     content = (completion.choices[0].message.content or '').strip()
     # Strip accidental Markdown code fencing if any
-    if content.startswith("```"):
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.endswith("```"):
-            content = content[:-3]
-        content = content.strip()
+    content = _strip_markdown_fences(content)
 
     # 4) Parse JSON response
     def _looks_like_exercise(obj: dict) -> bool:
@@ -615,12 +623,7 @@ def generate_i18n_translations(*, source_lang: str, targets: list, fields: dict,
         response_format={"type": "json_object"},
     )
     content = (completion.choices[0].message.content or '').strip()
-    if content.startswith('```'):
-        if content.startswith('```json'):
-            content = content[7:]
-        if content.endswith('```'):
-            content = content[:-3]
-        content = content.strip()
+    content = _strip_markdown_fences(content)
     try:
         obj = json.loads(content) if content else {}
     except Exception:
@@ -641,3 +644,161 @@ def generate_i18n_translations(*, source_lang: str, targets: list, fields: dict,
         translations[lang] = out
 
     return translations
+
+
+def generate_learning_pathway_recommendation(*, attempt: Attempt, interactions: list) -> dict:
+    """
+    Analyzes a student's completed attempt and generates personalized feedback
+    and recommendations for the next exercise.
+    """
+    # 1. System Prompt Construction
+    system_prompt = """You are an expert pedagogical advisor in a learning platform. Your task is to provide encouraging, personalized feedback to a student who has just completed an exercise. Based on their conversation with the AI tutor, you will also recommend the best next exercise for them to tackle from a provided list.
+
+**Your analysis should be based on the following:**
+- The full conversation history between the student and the AI tutor for the just-completed exercise. Look for signs of struggle (e.g., frequent requests for hints, repeated errors, expressions of confusion) or signs of mastery (e.g., quick correct answers, clear explanations, few interactions).
+- A list of exercises in the course, including their completion status and any feedback from previous pathway recommendations.
+
+**Output Format:**
+Your response MUST be a single JSON object with the following structure. Do not include any markdown formatting or explanatory text outside of the JSON structure.
+
+```json
+{
+  "performance_feedback": {
+    "what_went_well": "A concise, encouraging sentence (max 25 words) highlighting a specific strength the student demonstrated. Example: 'You did a great job using the `GROUP BY` clause to aggregate the data correctly!'",
+    "key_learnings": "A concise, encouraging sentence (max 25 words) summarizing the main skill or concept learned in this exercise. Example: 'This exercise was a great step in mastering how to join multiple tables.' "
+  },
+  "main_recommendation": {
+    "exercise_id": "...",
+    "title": "...",
+    "what_it_is_about": "A single sentence explaining the topic of this exercise, contextualized to what the student just did. Example: 'This exercise will build on your knowledge of joins by introducing subqueries.'",
+    "why_you_should_do_it": "A single sentence justifying why this is the best next step for the student. Example: 'Based on your work with joins, this is the perfect next challenge to expand your SQL skills.'"
+  },
+  "alternatives": [
+    {
+      "exercise_id": "...",
+      "title": "...",
+      "what_it_is_about": "...",
+      "why_you_should_do_it": "...",
+      "recommendation_type": "review"
+    },
+    {
+      "exercise_id": "...",
+      "title": "...",
+      "what_it_is_about": "...",
+      "why_you_should_do_it": "...",
+      "recommendation_type": "accelerated"
+    },
+    {
+      "exercise_id": "...",
+      "title": "...",
+      "what_it_is_about": "...",
+      "why_you_should_do_it": "...",
+      "recommendation_type": "accelerated"
+    }
+  ]
+}
+```
+
+**Instructions for Selecting Exercises:**
+1. From the provided list of `course_exercises`, select one `main_recommendation`. This should typically be the next logical exercise in the sequence, unless the student showed significant struggle or mastery.
+2. Select three `alternatives`:
+    - One `review` exercise: This should be an earlier exercise (a previously uncompleted one) that reinforces a concept the student seemed to struggle with. If there is no such exercise, then skip this.
+    - Two `accelerated` exercises: These should be later exercises in the sequence. Choose these if the student demonstrated strong mastery and could handle a bigger jump. Don't select exercice that are very far in the sequence. If there are no such exercises, then skip this.
+3. Use the `title`, `description` and `question` of the exercises to guess which ones are variants or cover similar topics. Your primary goal is to create a smooth and adaptive learning path.
+4. *Important*: Never recommend an exercise that the student has already completed.
+"""
+
+    # 2. Context Gathering
+    current_exercise = attempt.exercise
+    course = current_exercise.module.course
+    
+    # Fetch the last 20 exercises in the course to provide context
+    # This includes exercises before and after the current one
+    all_course_exercises = Exercise.objects.filter(
+        module__course=course
+    ).select_related('module').order_by('module__order', 'order')
+
+    current_exercise_index = -1
+    for i, ex in enumerate(all_course_exercises):
+        if ex.id == current_exercise.id:
+            current_exercise_index = i
+            break
+
+    start_index = max(0, current_exercise_index - 10)
+    end_index = current_exercise_index + 11  # +1 for current, +10 for after
+    context_exercises = all_course_exercises[start_index:end_index]
+
+    # Get all student attempts for these exercises to determine status
+    student_attempts = Attempt.objects.filter(
+        user=attempt.user,
+        exercise__in=context_exercises
+    ).order_by('-updated_at')
+
+    attempts_map = {}
+    for sa in student_attempts:
+        if sa.exercise_id not in attempts_map:
+            attempts_map[sa.exercise_id] = sa
+
+    exercise_context_for_llm = []
+    for ex in context_exercises:
+        attempt_for_ex = attempts_map.get(ex.id)
+        feedback = None
+        if attempt_for_ex and attempt_for_ex.completion_feedback:
+            feedback = attempt_for_ex.completion_feedback.get('performance_feedback')
+
+        exercise_context_for_llm.append({
+            'exercise_id': ex.id,
+            'title': ex.title,
+            'description': ex.description,
+            'question': ex.question_i18n.get(getattr(attempt.user, 'preferred_language', 'en'), ex.question_i18n.get('en', '')),
+            'status': 'completed' if attempt_for_ex and attempt_for_ex.complete else ('attempted' if attempt_for_ex else 'not_attempted'),
+            'previous_pathway_feedback': feedback
+        })
+    
+    # 3. Construct user prompt
+    user_prompt = f"""
+## Student's Performance Context
+Here is the full conversation history for the exercise titled "{current_exercise.title}" that the student just completed.
+
+```json
+{json.dumps(interactions, indent=2)}
+```
+
+## Course Exercises Context
+Here is the list of available exercises in the course for you to choose from for your recommendations.
+
+```json
+{json.dumps(exercise_context_for_llm, indent=2)}
+```
+
+Based on all this context, please generate your response in the required JSON format.
+"""
+
+    # 4. Call LLM
+    messages_for_llm = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt}
+    ]
+
+    try:
+        completion = client.chat.completions.create(
+            model=MODEL_FAST,  # Use the light model for speed
+            messages=messages_for_llm,
+            temperature=0.3,
+            response_format={"type": "json_object"},
+        )
+        content = (completion.choices[0].message.content or '').strip()
+        
+        # Basic cleanup if the model wraps the response in markdown
+        content = _strip_markdown_fences(content)
+
+        response_data = json.loads(content)
+        return response_data
+
+    except Exception as e:
+        logger.error(f"Failed to generate learning pathway recommendation for attempt {attempt.id}: {e}")
+        # Return a sensible default or error structure if the call fails
+        return {
+            "error": "Failed to generate recommendation.",
+            "details": str(e)
+        }

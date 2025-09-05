@@ -16,6 +16,7 @@ students_urlpatterns = [
     path('', views_students.exercise_list, name='exercise_list'),
     # More specific patterns first to avoid conflicts
     path('<int:exercise_id>/attempts/<int:attempt_id>/guidance/', views_students.get_guidance, name='get_guidance'),
+    path('api/attempts/<int:attempt_id>/recommend_pathway/', views_students.recommend_learning_pathway, name='recommend_learning_pathway'),
     path('<int:exercise_id>/delete_answers/', views_students.delete_user_answers, name='delete_user_answers'),
     path('<int:exercise_id>/<str:filename>', views_students.serve_asset, name='serve_asset'),
     path('api/scala/execute/', views_students.scala_execute, name='scala_execute'),

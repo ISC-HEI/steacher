@@ -1,5 +1,7 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import confetti from 'canvas-confetti';
+import { getCsrfToken } from './utils.js';
 
 interface OptionButton {
     id: string;
@@ -16,13 +18,20 @@ interface ProcessedMessage {
 
 export const ChatbotPanel = {
   props: {
-    messages: {
-      type: Array,
-      default: () => []
-    },
+    // messages prop is removed; panel now manages its own state
     loading: {  // used to disable the question input field while loading
       type: Boolean,
       default: false,
+    },
+    attemptId: {
+        type: Number,
+        required: true,
+    },
+    // We need to know if there's a next exercise to determine
+    // whether to show the course completion celebration.
+    nextExerciseUrl: {
+        type: String,
+        default: '',
     }
   },
   // language=HTML
@@ -45,7 +54,7 @@ export const ChatbotPanel = {
                 </div>
                 <div v-if="message.buttons.length > 0" class="mb-3" :key="'assistant-buttons-' + index">
                     <div v-for="button in message.buttons" :key="button.id" class="mb-2">
-                        <button @click="selectOption(button)" class="button is-info is-fullwidth">
+                        <button @click="selectOption(button)" class="button is-success is-light">
                             {{ button.title }}
                         </button>
                         <p class="help has-text-centered" v-if="button.comment">{{ button.comment }}</p>
@@ -55,6 +64,51 @@ export const ChatbotPanel = {
           </template>
         </div>
       </div>
+
+      <!-- Pathway Recommendation UI -->
+      <div v-if="pathwayLoading" class="pathway-loading box">
+        <div class="typing-indicator" aria-label="Assistant is thinking">
+          <span class="dot" style="--ti-delay: 0ms;"></span>
+          <span class="dot" style="--ti-delay: 150ms;"></span>
+          <span class="dot" style="--ti-delay: 300ms;"></span>
+          <span class="helper-text has-text-danger">Recommending next exercise... Hold on!</span>
+        </div>
+      </div>
+
+      <div v-if="pathwayData" class="pathway-recommendation box">
+        <!-- Performance Feedback -->
+        <div class="feedback-section content">
+            <p v-if="pathwayData.performance_feedback.what_went_well">
+                <strong>What Went Well:</strong> {{ pathwayData.performance_feedback.what_went_well }}
+            </p>
+            <p v-if="pathwayData.performance_feedback.key_learnings">
+                <strong>Key Learnings:</strong> {{ pathwayData.performance_feedback.key_learnings }}
+            </p>
+        </div>
+        <hr>
+        <!-- Main Recommendation -->
+        <div class="recommendation-card main-recommendation">
+            <h3 class="title is-5">Recommended Next Step</h3>
+            <p><strong><a :href="getExerciseUrl(pathwayData.main_recommendation.exercise_id)">{{ pathwayData.main_recommendation.title }}</a></strong></p>
+            <p class="is-size-7"><em>{{ pathwayData.main_recommendation.what_it_is_about }}</em></p>
+            <p class="is-size-7 has-text-weight-semibold">{{ pathwayData.main_recommendation.why_you_should_do_it }}</p>
+            <a :href="getExerciseUrl(pathwayData.main_recommendation.exercise_id)" class="button is-primary is-fullwidth mt-2">Start This Exercise</a>
+        </div>
+        <hr>
+        <!-- Alternatives -->
+        <div class="alternatives-section">
+            <h3 class="title is-5">Other exercises to explore</h3>
+            <div class="alternative-recommendations mt-3">
+                <div v-for="alt in pathwayData.alternatives" :key="alt.exercise_id" class="recommendation-card">
+                    <p><strong><a :href="getExerciseUrl(alt.exercise_id)">{{ alt.title }}</a></strong></p>
+                    <p class="is-size-7"><em>{{ alt.what_it_is_about }}</em></p>
+                    <p class="is-size-7 has-text-weight-semibold">{{ alt.why_you_should_do_it }}</p>
+                    <a :href="getExerciseUrl(alt.exercise_id)" class="button is-success is-light is-fullwidth is-small mt-2">Try this one</a>
+                </div>
+            </div>
+        </div>
+      </div>
+
 
       <!-- Typing indicator (while waiting for AI) -->
       <div v-if="loading" style="margin-bottom: 0.75rem;">
@@ -75,7 +129,7 @@ export const ChatbotPanel = {
               v-model="question"
               placeholder="Enter your message (Shift+Enter for newline)"
               rows="1"
-              :disabled="loading"
+              :disabled="loading || pathwayLoading || pathwayData"
               @keydown="handleKeydown"
               @input="autosizeTextarea"
               style="resize: none; max-height: 40vh"
@@ -84,7 +138,7 @@ export const ChatbotPanel = {
 
         <!-- Ask Question Button -->
         <p class="control">
-          <button class="button is-info" @click="askQuestion" :disabled="loading">
+          <button class="button is-info" @click="askQuestion" :disabled="loading || pathwayLoading || pathwayData">
             <span class="icon">
               <i class="fas fa-question-circle"></i>
             </span>
@@ -93,11 +147,30 @@ export const ChatbotPanel = {
         </p>
 
       </div>
+
+       <!-- Course Completion Modal -->
+        <div class="modal" :class="{ 'is-active': showCompletionModal }">
+          <div class="modal-background" @click="showCompletionModal = false"></div>
+          <div class="modal-content has-text-centered">
+            <div class="box">
+                <p class="is-size-1">🏆🎉🥳</p>
+                <h2 class="title">Course Complete!</h2>
+                <p class="subtitle">Congratulations on finishing all the exercises in this course!</p>
+                <a href="/exercises/dashboard/" class="button is-primary">Back to Dashboard</a>
+            </div>
+          </div>
+          <button class="modal-close is-large" aria-label="close" @click="showCompletionModal = false"></button>
+        </div>
+
     </div>
   `,
   data() {
     return {
       question: '',
+      messages: [], // Panel now manages its own messages
+      pathwayLoading: false,
+      pathwayData: null,
+      showCompletionModal: false,
     };
   },
   computed: {
@@ -131,6 +204,82 @@ export const ChatbotPanel = {
     }
   },
   methods: {
+    displayMessage(message: any) {
+        const isComplete = message.role === 'assistant' && message.content.includes('<exercise_completed>');
+
+        // Always clean the tag from the message before displaying it
+        const messageToDisplay = isComplete
+            ? { ...message, content: message.content.replace('<exercise_completed>', '').trim() }
+            : message;
+        // @ts-ignore
+        this.messages.push(messageToDisplay);
+
+        if (isComplete) {
+            // @ts-ignore
+            if (this.pathwayData || this.pathwayLoading) {
+                return; // A recommendation is already loaded/loading. Do not fire confetti or re-trigger.
+            }
+
+            // If we reach here, it's the first time processing completion.
+            // Fire confetti and log for debugging.
+            console.log('Exercise complete: Firing confetti! 🎊');
+            confetti({ particleCount: 200, spread: 150, origin: { y: 0.6 } });
+
+            // Trigger pathway logic
+            // @ts-ignore
+            if (this.nextExerciseUrl) {
+                // @ts-ignore
+                this.fetchPathwayRecommendation();
+            } else {
+                // This is the last exercise, show celebration
+                // @ts-ignore
+                this.showCompletionModal = true;
+            }
+        }
+    },
+
+    displayRecommendation(pathwayData: any) {
+        // Public method to show pre-existing pathway data on page load
+        if (pathwayData) {
+            // @ts-ignore
+            this.pathwayData = pathwayData;
+        }
+    },
+
+    async fetchPathwayRecommendation() {
+        // @ts-ignore
+        this.pathwayLoading = true;
+        try {
+            // @ts-ignore
+            const response = await fetch(`/exercises/api/attempts/${this.attemptId}/recommend_pathway/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken(),
+                },
+            });
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            const result = await response.json();
+            if (result.status === 'success') {
+                // @ts-ignore
+                this.pathwayData = result.data;
+            } else {
+                console.error('Failed to get pathway recommendation:', result.message);
+            }
+        } catch (error) {
+            console.error('Error fetching pathway recommendation:', error);
+        } finally {
+            // @ts-ignore
+            this.pathwayLoading = false;
+        }
+    },
+
+    getExerciseUrl(exerciseId: number) {
+        return `/exercises/${exerciseId}/`;
+    },
+
     autosizeTextarea(event: Event) {
       const textarea = event.target as HTMLTextAreaElement;
       // Reset height to auto to ensure the textarea shrinks when text is deleted

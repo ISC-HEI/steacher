@@ -11,7 +11,6 @@ interface OpenQuestionDataContext {
     userAnswer: string;
     queryError: string | null;
     loadingState: 'idle' | 'getting-guidance';
-    chatMessages: any[];
     start_timestamp: string;
 }
 
@@ -61,9 +60,31 @@ document.addEventListener('DOMContentLoaded', function() {
                 userAnswer: lastAnswer || (exerciseData.exercise_data && exerciseData.exercise_data.answer_template) || '',
                 queryError: null,
                 loadingState: 'idle',
-                chatMessages: initialMessages,
                 start_timestamp: new Date().toISOString(),
             };
+        },
+        async mounted() {
+            // @ts-ignore
+            const chatbotPanel = this.$refs.chatbotPanel as any;
+
+            // IMPORTANT: Check for and display pre-existing feedback FIRST.
+            // This ensures the trigger guard in displayMessage works correctly.
+            const feedbackScript = document.getElementById('completion-feedback-data');
+            if (feedbackScript && feedbackScript.textContent) {
+                try {
+                    const feedbackData = JSON.parse(feedbackScript.textContent);
+                    if (feedbackData && chatbotPanel) {
+                        chatbotPanel.displayRecommendation(feedbackData);
+                    }
+                } catch (e) {
+                    console.error("Failed to parse completion feedback data", e);
+                }
+            }
+
+            // Now, display the initial chat messages
+            if (chatbotPanel) {
+                initialMessages.forEach(msg => chatbotPanel.displayMessage(msg));
+            }
         },
         methods: {
             renderMarkdown(this: any, content: string) {
@@ -96,16 +117,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     const result = await response.json();
+
+                    // @ts-ignore
+                    const chatbotPanel = this.$refs.chatbotPanel as any;
+                    if (!chatbotPanel) return;
+
                     if (result.user_submission) {
-                        this.chatMessages.push(result.user_submission);
+                        chatbotPanel.displayMessage(result.user_submission);
                     }
                     if (result.guidance) {
                         let guidanceText = result.guidance;
                         if (guidanceText.includes('<exercise_completed>')) {
-                            confetti({ particleCount: 200, spread: 150, origin: { y: 0.6 } });
-                            guidanceText = guidanceText.replace('<exercise_completed>', '').trim();
+                            // Confetti is now handled by the chatbot panel
                         }
-                        this.chatMessages.push({ role: 'assistant', content: guidanceText });
+                        chatbotPanel.displayMessage({ role: 'assistant', content: guidanceText });
                     }
                 } catch (error) {
                     this.queryError = `Error communicating with the server: ${error}`;

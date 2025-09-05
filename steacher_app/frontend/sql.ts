@@ -47,7 +47,6 @@ interface SqlDataContext {
     databaseSchema: DatabaseSchema | null;
     schemaError: string | null;
     guidance: string | null;
-    chatMessages: any[];
     start_timestamp: string;
     foreignKeysByTable?: Record<string, ForeignKeyInfo[]>;
     isPreview?: boolean;
@@ -120,7 +119,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 databaseSchema: null,
                 schemaError: null,
                 guidance: null,
-                chatMessages: initialMessages,
                 start_timestamp: new Date().toISOString(),
                 foreignKeysByTable: {},
                 isPreview: false,
@@ -129,6 +127,28 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         
         async mounted() {
+            // @ts-ignore
+            const chatbotPanel = this.$refs.chatbotPanel as any;
+
+            // IMPORTANT: Check for and display pre-existing feedback FIRST.
+            // This ensures the trigger guard in displayMessage works correctly.
+            const feedbackScript = document.getElementById('completion-feedback-data');
+            if (feedbackScript && feedbackScript.textContent) {
+                try {
+                    const feedbackData = JSON.parse(feedbackScript.textContent);
+                    if (feedbackData && chatbotPanel) {
+                        chatbotPanel.displayRecommendation(feedbackData);
+                    }
+                } catch (e) {
+                    console.error("Failed to parse completion feedback data", e);
+                }
+            }
+            
+            // Now, display the initial chat messages
+            if (chatbotPanel) {
+                initialMessages.forEach(msg => chatbotPanel.displayMessage(msg));
+            }
+
             // Initialize database
             await this.loadDatabase();
         },
@@ -205,27 +225,24 @@ document.addEventListener('DOMContentLoaded', function() {
                     const result = await response.json();
                     this.guidance = result.guidance; // Store the guidance
 
+                    // @ts-ignore
+                    const chatbotPanel = this.$refs.chatbotPanel as any;
+                    if (!chatbotPanel) return;
+
                     // Add the user submission to the chat history
                     if (result.user_submission) {
-                        this.chatMessages.push(result.user_submission);
+                        chatbotPanel.displayMessage(result.user_submission);
                     }
 
                     // Add the assistant's response to the chat
                     if (result.guidance) {
                         let guidanceText = result.guidance;
                         if (guidanceText.includes('<exercise_completed>')) {
-                            // Trigger confetti when exercise is completed
-                            confetti({
-                                particleCount: 200,
-                                spread: 150,
-                                origin: { y: 0.6 }
-                            });
-                            // Remove the tag from the message
-                            guidanceText = guidanceText.replace('<exercise_completed>', '').trim();
+                            // Confetti is now handled by the chatbot panel
                             this.updateStatusIcon();
                         }
                         const assistantMessage = { role: 'assistant', content: guidanceText };
-                        this.chatMessages.push(assistantMessage);
+                        chatbotPanel.displayMessage(assistantMessage);
                     }
 
                 } catch (error) {

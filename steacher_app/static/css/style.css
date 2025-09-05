@@ -316,3 +316,38 @@
 .collapsible-message summary::marker {
     font-size: 1.5em; /* Make the disclosure arrow bigger */
 }
+
+/* Pathway Recommendation Styling */
+.pathway-loading, .pathway-recommendation {
+    border-top: 1px solid #dbdbdb;
+    padding: 1.5rem;
+    background-color: #fafafa;
+}
+
+.pathway-recommendation .feedback-section p {
+    margin-bottom: 0.5rem;
+}
+
+.pathway-recommendation hr {
+    margin: 1rem 0;
+}
+
+.recommendation-card {
+    padding: 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+}
+
+.recommendation-card.main-recommendation {
+    background-color: #eff5fb;
+    border: 1px solid #b5d6f0;
+}
+
+.alternative-recommendations .recommendation-card {
+    background-color: #ffffff;
+    border: 1px solid #dbdbdb;
+}
+
+.alternative-recommendations .recommendation-card:not(:last-child) {
+    margin-bottom: 0.75rem;
+}

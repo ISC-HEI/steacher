@@ -221,6 +221,7 @@ class Attempt(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     system_prompt = models.TextField(null=True, blank=True, help_text="The system prompt sent to the LLM for this attempt, if debugging is enabled.")
+    completion_feedback = models.JSONField(null=True, blank=True, help_text="The structured feedback and next exercise recommendations from the LLM upon completing an exercise.")
 
     objects = AttemptManager()
 

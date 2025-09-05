@@ -63,6 +63,9 @@
 {{ exercise_json|json_script:"exercise-data" }}
 {{ interactions|json_script:"interactions-data" }}
 {{ attempt_id|json_script:"attempt-id" }}
+{% if completion_feedback %}
+{{ completion_feedback|json_script:"completion-feedback-data" }}
+{% endif %}
 {% endblock %}
 
 

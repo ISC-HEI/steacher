@@ -128,9 +128,9 @@ document.addEventListener('DOMContentLoaded', function() {
             deepClone<T>(obj: T): T {
                 return JSON.parse(JSON.stringify(obj));
             },
-            asciiSum(s: string): number {
+            asciiSum(s: string): number {  // hacky way to check if the 'en' text has changed
                 let total = 0;
-                for (let i = 0; i < s.length; i++) total += s.charCodeAt(i);
+                for (let i = 0; i < s.length; i++) total += i * s.charCodeAt(i);
                 return total >>> 0;
             },
             computeEnSum(): number {

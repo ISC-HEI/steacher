@@ -22,7 +22,6 @@ interface MultipleChoiceDataContext {
     queryError: string | null;
     loadingState: 'idle' | 'getting-guidance';
     guidance: string | null;
-    chatMessages: any[];
     start_timestamp: string;
     isSubmitted: boolean;
     feedback: any | null; // Will hold the CBM result from the backend
@@ -98,10 +97,33 @@ document.addEventListener('DOMContentLoaded', function() {
                 queryError: null as string | null,
                 loadingState: 'idle', // 'idle', 'getting-guidance'
                 guidance: null,
-                chatMessages: initialMessages,
                 start_timestamp: new Date().toISOString(),
                 isSubmitted: isAlreadySubmitted,
                 feedback: initialFeedback
+            }
+        },
+
+        async mounted() {
+            // @ts-ignore
+            const chatbotPanel = this.$refs.chatbotPanel as any;
+
+            // IMPORTANT: Check for and display pre-existing feedback FIRST.
+            // This ensures the trigger guard in displayMessage works correctly.
+            const feedbackScript = document.getElementById('completion-feedback-data');
+            if (feedbackScript && feedbackScript.textContent) {
+                try {
+                    const feedbackData = JSON.parse(feedbackScript.textContent);
+                    if (feedbackData && chatbotPanel) {
+                        chatbotPanel.displayRecommendation(feedbackData);
+                    }
+                } catch (e) {
+                    console.error("Failed to parse completion feedback data", e);
+                }
+            }
+            
+            // Now, display the initial chat messages
+            if (chatbotPanel) {
+                initialMessages.forEach(msg => chatbotPanel.displayMessage(msg));
             }
         },
 
@@ -178,24 +200,23 @@ document.addEventListener('DOMContentLoaded', function() {
                         this.feedback = result.cbm_result;
                     }
 
+                    // @ts-ignore
+                    const chatbotPanel = this.$refs.chatbotPanel as any;
+                    if (!chatbotPanel) return;
+
                     // Add the user submission to the chat history
                     if (result.user_submission) {
-                        this.chatMessages.push(result.user_submission);
+                        chatbotPanel.displayMessage(result.user_submission);
                     }
                     
                     // Add the assistant's response to the chat
                     if (result.guidance) {
                         let guidanceText = result.guidance;
                         if (guidanceText.includes('<exercise_completed>')) {
-                            confetti({
-                                particleCount: 200,
-                                spread: 150,
-                                origin: { y: 0.6 }
-                            });
-                            guidanceText = guidanceText.replace('<exercise_completed>', '').trim();
+                            // Confetti is now handled by the chatbot panel
                             this.updateStatusIcon();
                         }
-                        this.chatMessages.push({ role: 'assistant', content: guidanceText });
+                        chatbotPanel.displayMessage({ role: 'assistant', content: guidanceText });
 
                         // If the action was submitting an answer, lock the controls
                         if (action === 'submit_answer') {

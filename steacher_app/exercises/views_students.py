@@ -373,9 +373,12 @@ def exercise_detail(request, pk):
     attempt_id = None
     interactions = []
     attempt = None
+    completion_feedback = None
     if request.user.is_authenticated:
         attempt, _ = Attempt.objects.get_or_create(user=request.user, exercise=exercise)
         attempt_id = attempt.id
+        if attempt.completion_feedback:
+            completion_feedback = attempt.completion_feedback
         logs = AttemptInteraction.objects.filter(attempt=attempt).order_by('submitted_at')
         interactions = [log.interaction for log in logs]
 
@@ -413,6 +416,7 @@ def exercise_detail(request, pk):
         'interactions': interactions,
         'attempt_id': attempt_id,
         'attempt': attempt,
+        'completion_feedback': completion_feedback,
         'previous_exercise': previous_exercise,
         'next_exercise': next_exercise,
         'instructor_email': instructor_email,
@@ -690,3 +694,43 @@ def chat_thread_delete(request, thread_id: int):
     thread = get_object_or_404(ChatThread, id=thread_id, owner=request.user)
     thread.delete()
     return JsonResponse({'status': 'success'})
+
+
+@login_required
+@require_POST
+def recommend_learning_pathway(request, attempt_id):
+    """
+    Analyzes a completed attempt and returns personalized feedback and next-step recommendations.
+    """
+    from .logic import generate_learning_pathway_recommendation
+
+    try:
+        attempt = get_object_or_404(Attempt, id=attempt_id, user=request.user)
+        if not attempt.complete:
+            return JsonResponse({'status': 'error', 'message': 'Attempt is not marked as complete.'}, status=400)
+
+        # Re-fetch interactions from the DB to ensure we have the canonical, untampered history
+        # as the single source of truth, rather than trusting client-side state.
+        interactions_qs = AttemptInteraction.objects.filter(attempt=attempt).order_by('submitted_at')
+        interactions = [log.interaction for log in interactions_qs]
+
+        # Call the core logic function to get the recommendation from the LLM
+        recommendation_data = generate_learning_pathway_recommendation(
+            attempt=attempt,
+            interactions=interactions
+        )
+
+        if "error" in recommendation_data:
+            return JsonResponse({'status': 'error', 'message': recommendation_data.get('details', 'Failed to get recommendation.')}, status=500)
+
+        # Persist the recommendation in the database
+        attempt.completion_feedback = recommendation_data
+        attempt.save(update_fields=['completion_feedback'])
+
+        return JsonResponse({'status': 'success', 'data': recommendation_data})
+
+    except Attempt.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Attempt not found.'}, status=404)
+    except Exception as e:
+        print(f"An error occurred in recommend_learning_pathway: {e}")
+        return JsonResponse({'status': 'error', 'message': 'An internal error occurred.'}, status=500)
