@@ -159,7 +159,7 @@ class ModuleAdmin(admin.ModelAdmin):
 
 @admin.register(Exercise)
 class ExerciseAdmin(admin.ModelAdmin):
-    list_display = ('module', 'order', 'title', 'exercise_type', 'updated_at')
+    list_display = ('id', 'module', 'order', 'title', 'exercise_type', 'updated_at')
     list_filter = (('module', admin.RelatedOnlyFieldListFilter), 'module__course', 'exercise_type')
     search_fields = ('title', 'description')
     ordering = ('module', 'order')

@@ -27,7 +27,7 @@ interface ExerciseFormData {
             timeout_seconds: number;
         };
         correct_answers: { answer: string; explanation: string; }[];
-        hints: string[];
+        hints: string;
     };
 }
 
@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Ensure the nested structure for unit tests exists, especially for new exercises.
     if (!initialData.answer_data) {
-        initialData.answer_data = { unit_tests: { setup_code: '', test_cases: [], timeout_seconds: 10 }, correct_answers: [], hints: [] };
+        initialData.answer_data = { unit_tests: { setup_code: '', test_cases: [], timeout_seconds: 10 }, correct_answers: [], hints: '' };
     }
     if (!initialData.answer_data.unit_tests) {
         initialData.answer_data.unit_tests = { setup_code: '', test_cases: [], timeout_seconds: 10 };
@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', function() {
         initialData.answer_data.correct_answers = [];
     }
     if (!initialData.answer_data.hints) {
-        initialData.answer_data.hints = [];
+        initialData.answer_data.hints = '';
     }
     if (!initialData.exercise_data) {
         (initialData as any).exercise_data = {};
@@ -93,22 +93,20 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         watch: {
             'exercise.exercise_type'(newType, oldType) {
-                // When switching to SQL, ensure the db property exists.
+                // Preserve common fields that we want to carry across type changes.
+                const oldAnswerTemplate = this.exercise.exercise_data?.answer_template;
+
+                // Reset exercise_data to ensure no fields from the old type are carried over.
+                this.exercise.exercise_data = {};
+
+                // Re-initialize fields for the new type.
                 if (newType === 'sql') {
-                    if (!this.exercise.exercise_data) {
-                        this.exercise.exercise_data = { question_i18n: {}, db: '' } as any;
-                    } else if (this.exercise.exercise_data.db === undefined) {
-                        this.exercise.exercise_data.db = '';
-                    }
+                    this.exercise.exercise_data.db = '';
                 }
-                // Ensure answer_template key exists for supported types
-                if (['python','sql','scala','open_question'].includes(newType)) {
-                    if (!this.exercise.exercise_data) {
-                        this.exercise.exercise_data = {} as any;
-                    }
-                    if (this.exercise.exercise_data.answer_template === undefined) {
-                        this.exercise.exercise_data.answer_template = '';
-                    }
+
+                if (['python', 'sql', 'scala', 'open_question'].includes(newType)) {
+                    // Restore answer_template if it was present and is applicable to the new type.
+                    this.exercise.exercise_data.answer_template = oldAnswerTemplate || '';
                 }
             }
         },
@@ -117,14 +115,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 const title = this.exercise.title_i18n?.['en'] || this.exercise.title_i18n?.['fr'] || this.exercise.title_i18n?.['de'] || '';
                 return this.exercise.pk ? `Edit Exercise: ${title}` : 'Create New Exercise';
             },
-            hints_text: {
-                get(): string {
-                    return this.exercise.answer_data.hints.join('\\n');
-                },
-                set(value: string) {
-                    this.exercise.answer_data.hints = value.split('\\n');
-                }
-            }
         },
         mounted() {
             // Initialize per-language sync baseline to current EN content

@@ -439,6 +439,7 @@ def get_guidance(request, exercise_id, attempt_id):
     Handles a user's request for guidance by calling the main guidance logic.
     """
     from .logic import fetch_ai_guidance  # local import to avoid circulars
+    from pydantic import ValidationError
 
     try:
         data = json.loads(request.body)
@@ -448,6 +449,11 @@ def get_guidance(request, exercise_id, attempt_id):
         response_data = fetch_ai_guidance(data, exercise, attempt, debug=True)
         return JsonResponse({'status': 'success', **response_data})
 
+    except ValidationError as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': f"Exercise data is incompatible with the current format. Please ask a teacher to update this exercise. Details: {e}"
+        }, status=400)
     except json.JSONDecodeError:
         return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
     except ValueError as e:

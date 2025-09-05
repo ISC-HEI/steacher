@@ -370,7 +370,7 @@ def exercise_form(request, course_pk, exercise_pk=None):
             exercise_type='python',
             question_i18n={"en": ""},
             exercise_data={},
-            answer_data={"unit_tests": {"setup_code": "", "test_cases": [], "timeout_seconds": 5}},
+            answer_data={"unit_tests": {"setup_code": "", "test_cases": [], "timeout_seconds": 5}, "hints": ""},
         )
 
     if request.method == 'POST':

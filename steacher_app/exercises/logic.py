@@ -3,7 +3,7 @@ import openai
 import time
 from django.conf import settings
 from .models import AttemptInteraction, Exercise, Attempt, Course
-from .schemas import Choice
+from .schemas import Choice, ExerciseData, AnswerData, get_pydantic_schema_as_string
 import logging
 
 client = openai.OpenAI(api_key=settings.GEMINI_API_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
@@ -430,13 +430,17 @@ def generate_authoring_update(*, exercise_payload: dict, messages: list, course:
     """
 
     # 1) Build system prompt specialized for authoring
-    system_prompt = ("""You are an AI exercise authoring assistant. You are given a json that contains the current exercise, including the exercise type, exercise data, expected result, test cases, hints, etc.
-Your job is to help the teacher improve the exercise.
-If you are not sure about the exercise, you can ask the teacher for clarification. Else try to improve the exercise and return the updated exercise. For exemple, you may write better hints, improve the exercise data, add more test cases, etc.
-                     
-# Output format                     
+    system_prompt = (f"""You are an AI exercise authoring assistant. You are given a json that contains the current exercise.
+Your job is to help the teacher improve the exercise. Your goal is to help a teacher create or improve an exercise. The current state of the exercise is provided to you as a JSON object under the 'Current Exercise Context' heading.
+If you are not sure about the exercise or how to improve it, ask the teacher for clarification (this is a conversation, so ask for clarification if needed). 
+Else try to improve the exercise and return the updated exercise. For example, you may write better hints, improve the exercise data, add more test cases, etc.
+Please adhere to the following JSON structure for the 'updated_exercise' Exercise object you return. **Do not invent new fields that are not defined in the schema below.**
+
+{get_pydantic_schema_as_string()}
+
+# Output format
 Your response MUST be a single JSON object with two keys:
-'assistant_message' (a string explaining your changes) and
+'assistant_message' (a friendly and concise string explaining your changes or asking for clarification) and
 'updated_exercise' (the complete, modified exercise JSON object).
 Do not use markdown or code fences. The exercise object MUST be the value of the 'updated_exercise' key."""
     )
@@ -551,9 +555,11 @@ Do not use markdown or code fences. The exercise object MUST be the value of the
         hints = updated_exercise['answer_data']['hints']
         if isinstance(hints, list) and hints and isinstance(hints[0], dict):
             # It's a list of objects, flatten it to a list of strings
-            updated_exercise['answer_data']['hints'] = [
+            updated_exercise['answer_data']['hints'] = "\n".join([
                 str(h.get('hint', h)) for h in hints
-            ]
+            ])
+        elif isinstance(hints, list):
+            updated_exercise['answer_data']['hints'] = "\n".join(hints)
 
     return {
         'assistant_message': assistant_message,
