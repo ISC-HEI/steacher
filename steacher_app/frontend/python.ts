@@ -4,6 +4,7 @@ import { createApp, defineComponent } from 'vue';
 import confetti from 'canvas-confetti';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { csrfFetch, getCsrfToken } from './utils.js';
 
 // Define the shape of our exercise data for type safety
 interface Exercise {
@@ -158,11 +159,7 @@ document.addEventListener('DOMContentLoaded', function() {
             async getGuidance(action: 'run_submission' | 'ask_hint' | 'ask_question' | 'option_selected', details: { question?: string | null, error?: string | null, output?: string | null, selected_option?: OptionButton } = {}) {
                 this.loadingState = 'getting-guidance';
                 try {
-                    const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
-                    if (!csrfTokenElement) {
-                        throw new Error('CSRF token not found!');
-                    }
-                    const csrfToken = csrfTokenElement.value;
+                    const csrfToken = getCsrfToken();
 
                     const payload = {
                         action: action,
@@ -175,11 +172,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         selected_option: details.selected_option || null,
                     };
 
-                    const response = await fetch(`/exercises/${this.exercise.id}/attempts/${attemptId}/guidance/`, {
+                    const response = await csrfFetch(`/exercises/${this.exercise.id}/attempts/${attemptId}/guidance/`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfToken,
                         },
                         body: JSON.stringify(payload),
                     });

@@ -3,6 +3,7 @@ import { createApp, defineComponent } from 'vue';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import confetti from 'canvas-confetti';
+import { csrfFetch, getCsrfToken } from './utils.js';
 
 interface Exercise {
     id: number;
@@ -83,12 +84,7 @@ document.addEventListener('DOMContentLoaded', function() {
             async getGuidance(action: 'submit_answer' | 'ask_hint' | 'ask_question', details: { question?: string | null } = {}) {
                 this.loadingState = 'getting-guidance';
                 try {
-                    const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
-                    if (!csrfTokenElement) {
-                        this.queryError = 'Could not find CSRF token on page. Cannot contact server.';
-                        return;
-                    }
-                    const csrfToken = csrfTokenElement.value;
+                    const csrfToken = getCsrfToken();
 
                     const payload: any = {
                         action: action,
@@ -98,11 +94,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         submission_timestamp: new Date().toISOString(),
                     };
 
-                    const response = await fetch(`/exercises/${this.exercise.id}/attempts/${attemptId}/guidance/`, {
+                    const response = await csrfFetch(`/exercises/${this.exercise.id}/attempts/${attemptId}/guidance/`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfToken,
                         },
                         body: JSON.stringify(payload),
                     });

@@ -1,4 +1,5 @@
 import { createApp, defineComponent, onMounted, reactive } from 'vue';
+import { csrfFetch } from './utils.js';
 
 // Sortable is provided globally via CDN in base template
 declare const Sortable: any;
@@ -6,7 +7,6 @@ declare const Sortable: any;
 function getCsrfToken(): string {
     const input = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
     if (input && input.value) return input.value;
-    // Fallback to cookie (Django default name) if needed
     const match = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
     return match ? decodeURIComponent(match[1]!) : '';
 }
@@ -20,11 +20,10 @@ const TeacherCourseApp = defineComponent({
         });
 
         const send = async (url: string, body: any) => {
-            const res = await fetch(url, {
+            const res = await csrfFetch(url, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': getCsrfToken()
                 },
                 body: JSON.stringify(body)
             });

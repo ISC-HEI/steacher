@@ -4,6 +4,7 @@ import { createApp, defineComponent } from 'vue';
 import confetti from 'canvas-confetti';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { csrfFetch, getCsrfToken } from './utils.js';
 
 interface Exercise {
     id: number;
@@ -82,9 +83,7 @@ document.addEventListener('DOMContentLoaded', function() {
             async getGuidance(action: 'run_submission' | 'ask_hint' | 'ask_question' | 'option_selected', details: { question?: string | null, error?: string | null, output?: string | null, selected_option?: OptionButton } = {}) {
                 this.loadingState = 'getting-guidance';
                 try {
-                    const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
-                    if (!csrfTokenElement) throw new Error('CSRF token not found!');
-                    const csrfToken = csrfTokenElement.value;
+                    const csrfToken = getCsrfToken();
                     const payload = {
                         action,
                         code: this.userCode,
@@ -95,9 +94,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         submission_timestamp: new Date().toISOString(),
                         selected_option: details.selected_option || null,
                     };
-                    const response = await fetch(`/exercises/${this.exercise.id}/attempts/${attemptId}/guidance/`, {
+                    const response = await csrfFetch(`/exercises/${this.exercise.id}/attempts/${attemptId}/guidance/`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload),
                     });
                     if (!response.ok) throw new Error(`Server returned an error: ${response.statusText}`);
@@ -130,12 +129,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.executionOutput = null;
                     this.durationMs = null;
 
-                    const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
-                    if (!csrfTokenElement) throw new Error('CSRF token not found!');
-
-                    const response = await fetch('/exercises/api/scala/execute/', {
+                    const response = await csrfFetch('/exercises/api/scala/execute/', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfTokenElement.value },
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ code: this.userCode }),
                     });
                     const result = await response.json();

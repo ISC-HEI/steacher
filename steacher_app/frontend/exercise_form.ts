@@ -1,4 +1,5 @@
 import { createApp, defineComponent } from 'vue';
+import { csrfFetch, getCsrfToken } from './utils.js';
 
 interface TestCase {
     description: string;
@@ -161,10 +162,7 @@ document.addEventListener('DOMContentLoaded', function() {
             markSynced(lang: 'fr'|'de') {
                 this.lastSyncedEnSumByLang[lang] = this.computeEnSum();
             },
-            getCsrfToken(): string | null {
-                const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
-                return csrfTokenElement ? csrfTokenElement.value : null;
-            },
+            getCsrfToken(): string | null { try { return getCsrfToken(); } catch { return null; } },
             buildErrorMessage(result: any, status: number): string {
                 let errorMessage = result?.message || `Server error: ${status}`;
                 if (result?.details) {
@@ -205,11 +203,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         return;
                     }
                     const teacherPath = window.location.pathname.replace(/^\/exercises\//, '/teachers/');
-                    const response = await fetch(teacherPath, {
+                    const response = await csrfFetch(teacherPath, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfToken,
                         },
                         body: JSON.stringify(this.exercise),
                     });
@@ -243,19 +240,18 @@ document.addEventListener('DOMContentLoaded', function() {
             async translateLanguage(targetLang: 'fr'|'de') {
                 this.assistantError = null;
                 this.sending = true;
-                const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
-                if (!csrfTokenElement) {
+                let csrf: string;
+                try { csrf = getCsrfToken(); } catch {
                     this.assistantError = 'CSRF token not found!';
                     this.sending = false;
                     return;
                 }
                 try {
                     console.log('[translate_i18n] sending single target', targetLang);
-                    const response = await fetch('/teachers/ai/translate_i18n/', {
+                    const response = await csrfFetch('/teachers/ai/translate_i18n/', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfTokenElement.value,
                         },
                         body: JSON.stringify({
                             source_lang: 'en',
@@ -292,19 +288,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (targets.length === 0) return;
                 this.assistantError = null;
                 this.sending = true;
-                const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
-                if (!csrfTokenElement) {
+                let csrf2: string;
+                try { csrf2 = getCsrfToken(); } catch {
                     this.assistantError = 'CSRF token not found!';
                     this.sending = false;
                     return;
                 }
                 try {
                     console.log('[translate_i18n] sending batch', targets);
-                    const response = await fetch('/teachers/ai/translate_i18n/', {
+                    const response = await csrfFetch('/teachers/ai/translate_i18n/', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfTokenElement.value,
                         },
                         body: JSON.stringify({
                             source_lang: 'en',
@@ -361,19 +356,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.messages.push(userMsg);
                 this.draftMessage = '';
 
-                const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
-                if (!csrfTokenElement) {
+                let csrf3: string;
+                try { csrf3 = getCsrfToken(); } catch {
                     this.assistantError = 'CSRF token not found!';
                     this.sending = false;
                     return;
                 }
 
                 try {
-                    const response = await fetch('/teachers/ai/authoring_assistant/', {
+                    const response = await csrfFetch('/teachers/ai/authoring_assistant/', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfTokenElement.value,
                         },
                         body: JSON.stringify({
                             exercise: this.exercise,

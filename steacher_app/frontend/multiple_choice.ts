@@ -3,6 +3,7 @@ import { createApp, defineComponent } from 'vue';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import confetti from 'canvas-confetti';
+import { csrfFetch, getCsrfToken } from './utils.js';
 
 // Define the shape of our exercise data for type safety
 interface Choice {
@@ -155,14 +156,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 try {
                     console.log(`Getting guidance for action: ${action}`);
 
-                    // 1. Get CSRF token
-                    const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
-                    if (!csrfTokenElement) {
-                        console.error('CSRF token not found!');
-                        this.queryError = 'Could not find CSRF token on page. Cannot contact server.';
-                        return;
-                    }
-                    const csrfToken = csrfTokenElement.value;
+                    const csrfToken = getCsrfToken();
 
                     // 2. Prepare payload
                     const payload = {
@@ -174,11 +168,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     };
 
                     // 3. Make API call
-                    const response = await fetch(`/exercises/${this.exercise.id}/attempts/${attemptId}/guidance/`, {
+                    const response = await csrfFetch(`/exercises/${this.exercise.id}/attempts/${attemptId}/guidance/`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfToken,
                         },
                         body: JSON.stringify(payload),
                     });

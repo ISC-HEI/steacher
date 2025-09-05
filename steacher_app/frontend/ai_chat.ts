@@ -1,5 +1,6 @@
 import { createApp, defineComponent } from 'vue';
 import { ChatbotPanel } from './ChatbotPanel.js';
+import { csrfFetch, getCsrfToken } from './utils.js';
 
 interface ThreadSummary {
     id: number;
@@ -44,11 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await this.loadThreads();
         },
         methods: {
-            getCsrf(): string {
-                const csrfEl = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
-                if (!csrfEl) throw new Error('CSRF token not found');
-                return csrfEl.value;
-            },
+            getCsrf(): string { return getCsrfToken(); },
             async loadCourses() {
                 // The select options are server-rendered; we reflect them into courseOptions for display
                 const select = document.querySelector<HTMLSelectElement>('select[v-model]') || document.querySelector<HTMLSelectElement>('select');
@@ -96,11 +93,10 @@ document.addEventListener('DOMContentLoaded', () => {
             async createThread() {
                 this.loading = true;
                 try {
-                    const resp = await fetch('/exercises/chat/threads/', {
+                    const resp = await csrfFetch('/exercises/chat/threads/', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRFToken': this.getCsrf(),
                         },
                         body: JSON.stringify({ title: 'New Chat', course_id: this.selectedCourseId }),
                     });
@@ -121,11 +117,10 @@ document.addEventListener('DOMContentLoaded', () => {
             async deleteThread(id: number) {
                 this.loading = true;
                 try {
-                    const resp = await fetch(`/exercises/chat/threads/${id}/delete/`, {
+                    const resp = await csrfFetch(`/exercises/chat/threads/${id}/delete/`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRFToken': this.getCsrf(),
                         },
                     });
                     const data = await resp.json();
@@ -145,11 +140,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!this.selectedThreadId) return;
                 this.loading = true;
                 try {
-                    const resp = await fetch(`/exercises/chat/threads/${this.selectedThreadId}/send/`, {
+                    const resp = await csrfFetch(`/exercises/chat/threads/${this.selectedThreadId}/send/`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRFToken': this.getCsrf(),
                         },
                         body: JSON.stringify({ message }),
                     });

@@ -9,6 +9,7 @@
      <!-- Favicon -->
      <link rel="shortcut icon" href="{% static 'images/favicon.ico' %}" type="image/x-icon">
      <link rel="icon" href="{% static 'images/favicon.png' %}" type="image/png">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     
     <!-- Bulma CSS from node_modules -->
     <link rel="stylesheet" href="{% static 'bulma/css/bulma.min.css' %}">

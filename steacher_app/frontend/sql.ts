@@ -1,4 +1,5 @@
 import { PGlite } from '@electric-sql/pglite';
+import { csrfFetch, getCsrfToken } from './utils.js';
 import { ChatbotPanel } from './ChatbotPanel.js';
 import { CodeMirrorEditor } from './CodeMirrorEditor.js';
 import { createApp, markRaw, defineComponent } from 'vue';
@@ -190,14 +191,7 @@ document.addEventListener('DOMContentLoaded', function() {
             async getGuidance(action: 'run_submission' | 'ask_hint' | 'ask_question' | 'option_selected', details: { question?: string | null, error?: string | null, selected_option?: OptionButton } = {}) {
                 this.loadingState = 'getting-guidance';
                 try {
-                    // 1. Get CSRF token
-                    const csrfTokenElement = document.querySelector<HTMLInputElement>('input[name="csrfmiddlewaretoken"]');
-                    if (!csrfTokenElement) {
-                        console.error('CSRF token not found!');
-                        this.queryError = 'Could not find CSRF token on page. Cannot contact server.';
-                        return;
-                    }
-                    const csrfToken = csrfTokenElement.value;
+                    const csrfToken = getCsrfToken();
 
                     // 2. Prepare payload
                     const payload = {
@@ -212,11 +206,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     };
 
                     // 3. Make API call
-                    const response = await fetch(`/exercises/${this.exercise.id}/attempts/${attemptId}/guidance/`, {
+                    const response = await csrfFetch(`/exercises/${this.exercise.id}/attempts/${attemptId}/guidance/`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
-                            'X-CSRFToken': csrfToken,
                         },
                         body: JSON.stringify(payload),
                     });

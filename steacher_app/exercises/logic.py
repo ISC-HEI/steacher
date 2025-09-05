@@ -138,7 +138,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
     # For open/free-form answers on non-MC exercises (e.g., open_question), include student's answer
     elif data.get('answer') and exercise.exercise_type != 'multiple_choice':
         user_prompt_content += (
-            "Here is my free-form answer to the exercise prompt:\n\n"
+            "Here is my submitted answer:\n\n"
             f"{data.get('answer')}\n"
         )
 
