@@ -11,12 +11,12 @@
     <div class="exercise-container">
         <div class="left-panel">
             <div class="exercise">
-                <div class="content">
+                <div class="content mb-0">
                     <div v-if="exercise.question"
                          v-html="renderMarkdown(exercise.question)"
                          class="box content mb-3 initial-question">
                     </div>
-                    <div class="field">
+                    <div class="field mb-0">
                         <div class="control">
                             <code-mirror-editor
                                 language="scala"
@@ -25,42 +25,53 @@
                                 @run-query="runCode">
                             </code-mirror-editor>
                         </div>
-                    </div>
-                </div>
-                <div class="field is-grouped exercise-controls">
-                    <div class="control">
-                        <button
-                            @click="runCode"
-                            class="button is-primary"
-                            :class="{ 'is-loading': loadingState !== 'idle' }"
-                            :disabled="!userCode.trim() || loadingState !== 'idle'">
-                            <span class="icon"><i class="fas fa-play"></i></span>
-                            <span>Run Code</span>
-                        </button>
-                    </div>
-                    <div class="control">
-                        <button
-                            @click="giveHint"
-                            class="button is-info"
-                            :class="{ 'is-loading': loadingState !== 'idle' }"
-                            :disabled="loadingState !== 'idle'">
-                            <span class="icon"><i class="fas fa-lightbulb"></i></span>
-                            <span>Gimme a Hint</span>
-                        </button>
-                    </div>
-                    <div class="control" v-if="durationMs">
-                        <span class="tag is-light is-info is-medium">[[ durationMs ]] ms</span>
-                    </div>
-                </div>
-                <div class="exercise-output mt-4">
-                    <div v-if="executionError">
-                        <div class="notification is-danger">
-                            <h6 class="title is-6">Error:</h6>
-                            <pre>[[ executionError ]]</pre>
+                        <div class="field is-grouped exercise-controls mt-2">
+                            <div class="control">
+                                <button
+                                    @click="runCode"
+                                    class="button is-primary"
+                                    :class="{ 'is-loading': loadingState !== 'idle' }"
+                                    :disabled="!userCode.trim() || loadingState !== 'idle'">
+                                    <span class="icon"><i class="fas fa-play"></i></span>
+                                    <span>Run Code</span>
+                                </button>
+                            </div>
+                            <div class="control">
+                                <button
+                                    @click="giveHint"
+                                    class="button is-info"
+                                    :class="{ 'is-loading': loadingState !== 'idle' }"
+                                    :disabled="loadingState !== 'idle'">
+                                    <span class="icon"><i class="fas fa-lightbulb"></i></span>
+                                    <span>Gimme a Hint</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <h6 class="title is-6 mt-6 mb-2">Console Output:</h6>
-                    <pre class="has-background-black has-text-white p-5 is-size-6 console-output">[[ executionOutput ]]</pre>
+                </div>
+                <div class="field has-addons mt-6 mb-0">
+                    <div class="control is-expanded">
+                        <input class="input"
+                               type="text"
+                               placeholder="// Quick test snippet"
+                               v-model="testSnippet"
+                               @keyup.enter="runTestSnippet"
+                               :disabled="loadingState !== 'idle'">
+                    </div>
+                    <div class="control">
+                        <button
+                            @click="runTestSnippet"
+                            class="button is-success"
+                            :class="{ 'is-loading': loadingState !== 'idle' }"
+                            :disabled="!testSnippet.trim() || loadingState !== 'idle'">
+                            <span class="icon"><i class="fas fa-vial"></i></span>
+                            <span>Test</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="exercise-output mt-2">
+                    <pre class="has-background-black p-5 is-size-6 console-output"
+                         :class="{ 'has-text-danger': !!executionError, 'has-text-white': !executionError }">[[ executionOutput ]]</pre>
                 </div>
             </div>
         </div>

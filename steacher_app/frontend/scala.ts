@@ -10,10 +10,10 @@ import { csrfFetch, getCsrfToken } from './utils.js';
 interface ScalaDataContext {
     exercise: Exercise;
     userCode: string;
+    testSnippet: string;
     executionOutput: string | null;
     executionError: string | null;
     loadingState: 'idle' | 'executing' | 'getting-guidance';
-    durationMs: number | null;
     start_timestamp: string;
 }
 
@@ -59,10 +59,10 @@ document.addEventListener('DOMContentLoaded', function() {
             return {
                 exercise: exerciseData,
                 userCode: lastUserCode || (exerciseData.exercise_data && exerciseData.exercise_data.answer_template) || '',
+                testSnippet: '',
                 executionOutput: null,
                 executionError: null,
                 loadingState: 'idle',
-                durationMs: null,
                 start_timestamp: new Date().toISOString(),
             };
         },
@@ -89,6 +89,28 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         },
         methods: {
+            stripAnsi(this: any, text: string | null | undefined) {
+                if (!text) return '';
+                // Remove ANSI color codes like \u001b[31m
+                return String(text).replace(/\u001b\[[0-9;]*m/g, '');
+            },
+            cleanScalaOutput(this: any, text: string | null | undefined) {
+                const cleaned = this.stripAnsi(text || '');
+                const lines = cleaned.replace(/\r\n/g, '\n').replace(/\r/g, '').split('\n');
+                const resultLines: string[] = [];
+                for (let line of lines) {
+                    if (/^\s*Compiling\b/.test(line)) {
+                        continue;
+                    }
+                    // Remove leading cmdN.sc:X: prefix
+                    line = line.replace(/^cmd\d+\.sc:\d+:\s*/, '');
+                    resultLines.push(line);
+                }
+                // Trim leading/trailing empty lines
+                while (resultLines.length > 0 && ((resultLines[0] || '').trim() === '')) resultLines.shift();
+                while (resultLines.length > 0 && (((resultLines[resultLines.length - 1]) || '').trim() === '')) resultLines.pop();
+                return resultLines.join('\n');
+            },
             renderMarkdown(this: any, content: string) {
                 if (!content) return '';
                 return DOMPurify.sanitize(marked.parse(content) as string);
@@ -144,7 +166,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.loadingState = 'executing';
                     this.executionError = null;
                     this.executionOutput = null;
-                    this.durationMs = null;
 
                     const response = await csrfFetch('/exercises/api/scala/execute/', {
                         method: 'POST',
@@ -152,22 +173,57 @@ document.addEventListener('DOMContentLoaded', function() {
                         body: JSON.stringify({ code: this.userCode }),
                     });
                     const result = await response.json();
-                    this.durationMs = typeof result.durationMs === 'number' ? result.durationMs : null;
                     if (result.success) {
-                        this.executionOutput = (result.output || '').trim();
+                        this.executionOutput = this.cleanScalaOutput(result.output || '');
+                        this.executionError = null;
                         await (this as any).$nextTick();
                         await this.getGuidance('run_submission', { output: this.executionOutput });
                     } else {
-                        const errorMessage = String(result.error || 'Unknown error');
-                        this.executionError = errorMessage;
+                        const outputText = this.cleanScalaOutput(result.output || result.error || 'Unknown error');
+                        this.executionOutput = outputText;
+                        this.executionError = outputText;
                         await (this as any).$nextTick();
-                        await this.getGuidance('run_submission', { error: errorMessage });
+                        await this.getGuidance('run_submission', { error: outputText });
                     }
                 } catch (error) {
-                    const errorMessage = String(error);
+                    const errorMessage = this.cleanScalaOutput(String(error));
+                    this.executionOutput = errorMessage;
                     this.executionError = errorMessage;
                     await (this as any).$nextTick();
                     await this.getGuidance('run_submission', { error: errorMessage });
+                } finally {
+                    this.loadingState = 'idle';
+                }
+            },
+            async runTestSnippet() {
+                if (!this.testSnippet || !this.testSnippet.trim()) {
+                    this.executionError = 'Please enter a test snippet';
+                    return;
+                }
+                const combinedCode = `${this.userCode}\n${this.testSnippet}`;
+                try {
+                    this.loadingState = 'executing';
+                    this.executionError = null;
+                    this.executionOutput = null;
+
+                    const response = await csrfFetch('/exercises/api/scala/execute/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ code: combinedCode }),
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        this.executionOutput = this.cleanScalaOutput(result.output || '');
+                        this.executionError = null;
+                    } else {
+                        const outputText = this.cleanScalaOutput(result.output || result.error || 'Unknown error');
+                        this.executionOutput = outputText;
+                        this.executionError = outputText;
+                    }
+                } catch (error) {
+                    const errorMessage = this.cleanScalaOutput(String(error));
+                    this.executionOutput = errorMessage;
+                    this.executionError = errorMessage;
                 } finally {
                     this.loadingState = 'idle';
                 }
