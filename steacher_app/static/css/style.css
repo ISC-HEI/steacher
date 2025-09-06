@@ -148,7 +148,7 @@
     flex-grow: 1; /* Allow the chatbot to fill the available space */
     display: flex;
     flex-direction: column;
-    overflow-y: auto; /* Make this container scrollable */
+    /* Container itself shouldn't scroll; let the inner messages section scroll */
 }
 
 #chatbot div p, #chatbot div li {
@@ -191,6 +191,25 @@ code {
     padding: 10px;
     font-size: 16px;
 } 
+
+/* Messages area inside chatbot; scrollable and constrained by viewport */
+#chatbot .chat-content {
+    position: relative;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    max-height: calc(100vh - 280px); /* heuristic to keep input visible; adjusted by surrounding layout */
+}
+
+/* Floating jump-to-latest button */
+#chatbot .jump-to-latest {
+    position: sticky;
+    bottom: 8px;
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
 
 /* highlight (flash) for new questions */
 .highlight-question {

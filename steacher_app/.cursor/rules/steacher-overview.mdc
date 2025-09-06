@@ -100,3 +100,7 @@ python manage.py runserver
 
 **You do not need to ask to run the Django development server.** Just assume it is running and you can use the API to get the data.
 
+
+### Preferred code formatting style
+
+Indent with 4 spaces (no tabs).

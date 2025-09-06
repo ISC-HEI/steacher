@@ -88,6 +88,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await resp.json();
                 if (data.status === 'success') {
                     this.selectedThread = data.thread as ThreadDetail;
+                    // Hydrate ChatbotPanel with thread messages
+                    // @ts-ignore
+                    const panel = this.$refs.chatbotPanel as any;
+                    if (panel) {
+                        panel.clearMessages();
+                        const msgs = (this.selectedThread?.messages || []) as Array<{ role: 'user' | 'assistant'; content: string; created_at?: string }>;
+                        for (const m of msgs) {
+                            panel.displayMessage(m);
+                        }
+                    }
                 }
             },
             async createThread() {
@@ -159,6 +169,16 @@ document.addEventListener('DOMContentLoaded', () => {
                             created_at: data.thread.created_at,
                             updated_at: data.thread.updated_at,
                         });
+                        // Rehydrate ChatbotPanel with latest messages
+                        // @ts-ignore
+                        const panel = this.$refs.chatbotPanel as any;
+                        if (panel) {
+                            panel.clearMessages();
+                            const msgs = (this.selectedThread?.messages || []) as Array<{ role: 'user' | 'assistant'; content: string; created_at?: string }>;
+                            for (const m of msgs) {
+                                panel.displayMessage(m);
+                            }
+                        }
                     }
                 } finally {
                     this.loading = false;

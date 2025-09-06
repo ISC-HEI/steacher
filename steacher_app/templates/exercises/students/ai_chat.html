@@ -45,10 +45,9 @@
         </div>
         <div class="column">
           <div v-if="selectedThread" class="box" style="min-height: 60vh; display: flex; flex-direction: column;">
-            <div style="flex: 1; overflow-y: auto; padding-right: 0.5rem;">
+            <div style="flex: 1; padding-right: 0.5rem;">
               <chatbot-panel
-                :initial-question="''"
-                :messages="selectedThread.messages"
+                ref="chatbotPanel"
                 :loading="loading"
                 @question-asked="handleAsk"
               >
@@ -70,6 +69,7 @@
     "vue": "{% static 'vue/dist/vue.esm-browser.js' %}",
     "marked": "{% static 'marked/lib/marked.esm.js' %}",
     "dompurify": "{% static 'dompurify/dist/purify.es.mjs' %}",
+    "canvas-confetti": "{% static 'canvas-confetti/dist/confetti.module.mjs' %}",
     "./ChatbotPanel.js": "{% static 'js/dist/ChatbotPanel.js' %}"
   }
 }
