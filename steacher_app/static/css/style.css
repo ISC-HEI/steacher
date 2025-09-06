@@ -121,6 +121,12 @@
     width: 100%;
 }
 
+.wide-container {
+    max-width: 1200px !important; /* Important to override the default max-width */
+    margin: 0 auto !important; /* Center the container */
+}
+
+
 .left-panel {
     width: 60%;
     padding-right: 1rem;

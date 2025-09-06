@@ -282,23 +282,73 @@ def reorder_modules(request):
 def reorder_exercises(request):
     try:
         data = json.loads(request.body)
-        exercise_ids = [int(eid) for eid in data.get('exercise_ids', [])]
-        if not exercise_ids:
-            return JsonResponse({'status': 'error', 'message': 'No exercise_ids provided'}, status=400)
+        # Strict new contract only
+        try:
+            source_module_id = int(data['source_module_id'])
+            target_module_id = int(data['target_module_id'])
+            source_exercise_ids = [int(eid) for eid in (data.get('source_exercise_ids') or [])]
+            target_exercise_ids = [int(eid) for eid in (data.get('target_exercise_ids') or [])]
+            moved_exercise_id = int(data['moved_exercise_id'])
+        except Exception:
+            return JsonResponse({'status': 'error', 'message': 'Invalid payload: require integer ids for modules and exercises'}, status=400)
 
-        module_ids = list(Exercise.objects.filter(id__in=exercise_ids).order_by().values_list('module_id', flat=True).distinct())
-        if len(module_ids) != 1:
-            return JsonResponse({'status': 'error', 'message': f"Exercises must belong to a single module. Found: {module_ids}"}, status=400)
+        # Validate memberships and apply updates
+        if source_module_id == target_module_id:
+            # Intra-module: All ids must belong to that module
+            count = Exercise.objects.filter(id__in=target_exercise_ids, module_id=source_module_id).count()
+            if count != len(target_exercise_ids):
+                return JsonResponse({'status': 'error', 'message': 'Exercise IDs must belong to the same module'}, status=400)
 
-        module_id = module_ids[0]
-        all_ids_in_module = list(Exercise.objects.filter(module_id=module_id).order_by('order').values_list('id', flat=True))
-        ordered_ids = exercise_ids + [eid for eid in all_ids_in_module if eid not in exercise_ids]
+            # Bulk CASE reorder with offset trick
+            all_ids_in_module = list(
+                Exercise.objects.filter(module_id=source_module_id).order_by('order').values_list('id', flat=True)
+            )
+            ordered_ids = target_exercise_ids + [eid for eid in all_ids_in_module if eid not in target_exercise_ids]
 
-        big_offset = 1000000
-        temp_when = [models.When(id=eid, then=big_offset + idx) for idx, eid in enumerate(ordered_ids)]
-        Exercise.objects.filter(id__in=ordered_ids).update(order=models.Case(*temp_when))
-        final_when = [models.When(id=eid, then=idx) for idx, eid in enumerate(ordered_ids)]
-        Exercise.objects.filter(id__in=ordered_ids).update(order=models.Case(*final_when))
+            big_offset = 1000000
+            temp_when = [models.When(id=eid, then=big_offset + idx) for idx, eid in enumerate(ordered_ids)]
+            Exercise.objects.filter(id__in=ordered_ids).update(order=models.Case(*temp_when))
+            final_when = [models.When(id=eid, then=idx) for idx, eid in enumerate(ordered_ids)]
+            Exercise.objects.filter(id__in=ordered_ids).update(order=models.Case(*final_when))
+        else:
+            # Cross-module: ensure payload shape and prevent unique constraint collisions
+            if moved_exercise_id not in target_exercise_ids:
+                return JsonResponse({'status': 'error', 'message': 'moved_exercise_id must be present in target_exercise_ids'}, status=400)
+
+            # Lock the two modules to avoid concurrent reorder conflicts
+            Module.objects.select_for_update().filter(id__in=[source_module_id, target_module_id]).order_by('id').values_list('id', flat=True)
+
+            # Validate source and target memberships (allow moved exercise to be absent from target until we move it)
+            src_count = Exercise.objects.filter(id__in=source_exercise_ids, module_id=source_module_id).count()
+            if src_count != len(source_exercise_ids):
+                return JsonResponse({'status': 'error', 'message': 'Source exercise IDs do not match source module'}, status=400)
+
+            target_ids_wo_moved = [eid for eid in target_exercise_ids if eid != moved_exercise_id]
+            tgt_count = Exercise.objects.filter(id__in=target_ids_wo_moved, module_id=target_module_id).count()
+            if tgt_count != len(target_ids_wo_moved):
+                return JsonResponse({'status': 'error', 'message': 'Target exercise IDs (excluding moved) do not match target module'}, status=400)
+
+            big_offset = 1000000
+
+            # 1) Temporarily shift orders away in both modules to avoid collisions
+            if source_exercise_ids:
+                src_temp = [models.When(id=eid, then=big_offset + 10 + idx) for idx, eid in enumerate(source_exercise_ids)]
+                Exercise.objects.filter(id__in=source_exercise_ids).update(order=models.Case(*src_temp))
+
+            if target_ids_wo_moved:
+                tgt_temp = [models.When(id=eid, then=big_offset + 20 + idx) for idx, eid in enumerate(target_ids_wo_moved)]
+                Exercise.objects.filter(id__in=target_ids_wo_moved).update(order=models.Case(*tgt_temp))
+
+            # 2) Move the exercise to target module with a unique temporary order distinct from others
+            Exercise.objects.filter(pk=moved_exercise_id).update(module_id=target_module_id, order=big_offset + 1)
+
+            # 3) Apply final orders
+            if source_exercise_ids:
+                src_final = [models.When(id=eid, then=idx) for idx, eid in enumerate(source_exercise_ids)]
+                Exercise.objects.filter(id__in=source_exercise_ids).update(order=models.Case(*src_final))
+
+            tgt_final = [models.When(id=eid, then=idx) for idx, eid in enumerate(target_exercise_ids)]
+            Exercise.objects.filter(id__in=target_exercise_ids).update(order=models.Case(*tgt_final))
 
         return JsonResponse({'status': 'success'})
     except Exception as e:
@@ -345,6 +395,72 @@ def set_exercise_visibility(request, exercise_id):
             'exercise_id': exercise.id,
             'visible': exercise.visible,
         })
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
+@teacher_required
+@require_POST
+@transaction.atomic
+def duplicate_exercise(request, exercise_id):
+    try:
+        original = get_object_or_404(Exercise.objects.select_related('module'), pk=exercise_id)
+        module = original.module
+
+        # Lock the module's exercises to avoid concurrent reorder conflicts
+        Module.objects.select_for_update().filter(pk=module.pk).values_list('id', flat=True)
+
+        # Snapshot existing exercises order within the module
+        existing = list(
+            Exercise.objects
+            .filter(module=module)
+            .order_by('order', 'id')
+            .values('id')
+        )
+        existing_ids = [row['id'] for row in existing]
+        if original.id not in existing_ids:
+            return JsonResponse({'status': 'error', 'message': 'Original exercise not found in its module ordering'}, status=400)
+
+        original_index = existing_ids.index(original.id)
+
+        # 1) Temporarily shift all orders away to avoid unique (module, order) collisions
+        big_offset = 1000000
+        # Leave a small gap so we can place the duplicate at a distinct temporary order
+        temp_when = [models.When(id=eid, then=big_offset + 10 + idx) for idx, eid in enumerate(existing_ids)]
+        if temp_when:
+            Exercise.objects.filter(id__in=existing_ids).update(order=models.Case(*temp_when))
+
+        # 2) Create the duplicated exercise with a temporary distinct order
+        title_copy = dict(original.title_i18n or {})
+        try:
+            # Append " (copy)" to English title for clarity
+            base_en = title_copy.get('en') or original.title or ''
+            title_copy['en'] = (base_en + ' (copy)').strip()
+        except Exception:
+            # Fallback: ensure at least an English marker
+            title_copy['en'] = (original.title or 'Exercise') + ' (copy)'
+
+        duplicate = Exercise(
+            module=module,
+            title_i18n=title_copy,
+            description_i18n=dict(original.description_i18n or {}),
+            question_i18n=dict(original.question_i18n or {}),
+            exercise_type=original.exercise_type,
+            # Use a unique temporary order that won't collide with shifted ones
+            order=big_offset + 1,
+            exercise_data=dict(original.exercise_data or {}),
+            answer_data=dict(original.answer_data or {}),
+            visible=original.visible,
+        )
+        duplicate.save()
+
+        # 3) Apply final contiguous orders inserting the duplicate right after the original
+        final_ids = existing_ids[: original_index + 1] + [duplicate.id] + existing_ids[original_index + 1 :]
+        final_when = [models.When(id=eid, then=idx) for idx, eid in enumerate(final_ids)]
+        Exercise.objects.filter(id__in=final_ids).update(order=models.Case(*final_when))
+
+        return JsonResponse({'status': 'success', 'new_exercise_id': duplicate.id})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 

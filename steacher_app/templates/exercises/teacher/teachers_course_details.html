@@ -46,6 +46,9 @@
                       :class="{ 'has-text-success': moduleVisible['{{ module.pk }}'], 'has-text-grey': !moduleVisible['{{ module.pk }}'] }">
                     <span class="icon"><i class="fas" :class="moduleVisible['{{ module.pk }}'] ? 'fa-eye' : 'fa-eye-slash'"></i></span>
                 </span>
+                <a class="card-header-icon" aria-label="analyze module" href="{% url 'teachers:dashboard' %}" title="AI module analysis">
+                    <button class="button is-small is-primary" disabled>AI module analysis</button>
+                </a>
                 <a class="card-header-icon" aria-label="add exercise" href="{% url 'teachers:exercise_add' course_pk=course.pk %}?module={{ module.pk }}" title="Add exercise to this module">
                     <button class="button is-small is-primary">Add exercise</button>
                 </a>
@@ -72,6 +75,9 @@
                                             <a href="{% url 'teachers:exercise_edit' course_pk=course.pk exercise_pk=exercise.pk %}" class="mr-2">
                                                 <span class="icon"><i class="fas fa-pencil-alt"></i></span>
                                             </a>
+                                            <button class="button is-white is-small mr-2" title="Duplicate exercise" @click="duplicateExercise('{{ exercise.pk }}')">
+                                              <span class="icon"><i class="fas fa-clone"></i></span>
+                                            </button>
                                             <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" class="mr-2">
                                               <span class="exercise-title">{{ exercise.title }}</span>
                                             </a>
@@ -115,6 +121,19 @@
 .is-greyed { color: #9a9a9a; }
 .is-greyed a, .is-greyed .tag { color: #b5b5b5; }
 .is-greyed .exercise-title { text-decoration: line-through; }
+.exercise-list {
+    min-height: 50px; /* Make empty lists droppable */
+    border: 1px dashed #dbdbdb;
+    border-radius: 4px;
+    padding: 10px;
+}
+.exercise-list:empty {
+    background-color: #fafafa;
+}
+.exercise-list p {
+    color: #7a7a7a;
+    text-align: center;
+}
 </style>
 {{ block.super }}
 <script type="importmap">

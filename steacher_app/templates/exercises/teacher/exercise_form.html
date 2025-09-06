@@ -3,7 +3,8 @@
 
 {% block title %}{% if exercise.pk %}Edit Exercise{% else %}Create Exercise{% endif %}{% endblock %}
 
-{% block container_class %}container is-fluid{% endblock %}
+{% block container_class %}container is-fluid wide-container{% endblock %}
+
 
 {% block content %}
 <div id="exercise-form-app" class="mt-4">
@@ -139,12 +140,12 @@
                             <div class="control">
                                 <div class="select">
                                     <select id="id_exercise_type" v-model="exercise.exercise_type">
-                                        <option value="python">Python</option>
-                                        <option value="multiple_choice">Multiple Choice</option>
-                                        <option value="sql">SQL</option>
-                                        <!-- <option value="turtle">Turtle</option> -->
                                         <option value="open_question">Open Question</option>
+                                        <option value="python">Python</option>
                                         <option value="scala">Scala</option>
+                                        <option value="sql">SQL</option>
+                                        <!-- <option value="multiple_choice">Multiple Choice</option> buggy for now. using open question instead -->
+                                        <!-- <option value="turtle">Turtle</option> not really implemented yet -->                                        
                                     </select>
                                 </div>
                             </div>

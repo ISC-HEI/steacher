@@ -14,6 +14,8 @@ const TeacherCourseApp = defineComponent({
             exerciseVisible: {} as Record<string, boolean>
         });
 
+        let isReordering = false;
+
         const send = async (url: string, body: any) => {
             const res = await csrfFetch(url, {
                 method: 'POST',
@@ -69,18 +71,114 @@ const TeacherCourseApp = defineComponent({
             document.querySelectorAll('.exercise-list').forEach(exList => {
                 // eslint-disable-next-line no-new
                 new Sortable(exList, {
+                    group: 'exercises', // group for cross-module dragging
                     animation: 150,
                     handle: '.handle',
                     ghostClass: 'sortable-ghost',
-                    onEnd: () => {
-                        const exerciseIds = Array.from(exList.querySelectorAll('.sortable-item'))
-                            .map(el => (el as HTMLElement).dataset.id);
-                        send('/teachers/api/reorder_exercises/', { exercise_ids: exerciseIds });
+                    onEnd: async (evt: any) => {
+                        // Prevent overlapping saves
+                        if (isReordering) {
+                            return;
+                        }
+                        isReordering = true;
 
-                        // Update the order numbers in the UI
-                        exList.querySelectorAll('.order-number').forEach((el, index) => {
-                            el.textContent = `${index + 1}.`;
-                        });
+                        const toInt = (v: string | undefined | null) => {
+                            const n = parseInt(v || '', 10);
+                            return Number.isFinite(n) ? n : NaN;
+                        };
+
+                        const fromModuleId = toInt(evt.from.dataset.moduleId);
+                        const toModuleId = toInt(evt.to.dataset.moduleId);
+                        const movedExerciseId = toInt(evt.item.dataset.id);
+
+                        const sourceExerciseIds = Array.from(evt.from.querySelectorAll('.sortable-item'))
+                            .map(el => toInt((el as HTMLElement).dataset.id))
+                            .filter(n => Number.isFinite(n));
+                        const targetExerciseIds = Array.from(evt.to.querySelectorAll('.sortable-item'))
+                            .map(el => toInt((el as HTMLElement).dataset.id))
+                            .filter(n => Number.isFinite(n));
+
+                        const payload = {
+                            source_module_id: fromModuleId,
+                            target_module_id: toModuleId,
+                            source_exercise_ids: sourceExerciseIds,
+                            target_exercise_ids: targetExerciseIds,
+                            moved_exercise_id: movedExerciseId,
+                        };
+
+                        const fromInstance = Sortable.get(evt.from);
+                        const toInstance = Sortable.get(evt.to);
+                        try {
+                            fromInstance?.option('disabled', true);
+                            toInstance?.option('disabled', true);
+
+                            await send('/teachers/api/reorder_exercises/', payload);
+
+                            // Update UI for empty/non-empty lists
+                            if (evt.from !== evt.to) {
+                                // Target is no longer empty, remove placeholder if it exists
+                                const emptyMsg = evt.to.querySelector('p');
+                                if (emptyMsg && emptyMsg.parentElement === evt.to) {
+                                    evt.to.removeChild(emptyMsg);
+                                }
+
+                                // Source might be empty now, add placeholder if needed
+                                if (evt.from.querySelectorAll('.sortable-item').length === 0) {
+                                    const p = document.createElement('p');
+                                    p.textContent = 'This module does not have any exercises yet.';
+                                    evt.from.appendChild(p);
+                                }
+                            }
+
+                            // Update the order numbers in the UI
+                            evt.from.querySelectorAll('.order-number').forEach((el, index) => {
+                                el.textContent = `${index + 1}.`;
+                            });
+                            if (evt.from !== evt.to) {
+                                evt.to.querySelectorAll('.order-number').forEach((el, index) => {
+                                    el.textContent = `${index + 1}.`;
+                                });
+                            }
+                        } catch (e) {
+                            // Revert DOM move on error
+                            const itemEl = evt.item as HTMLElement;
+                            const oldFrom: HTMLElement = evt.from;
+                            const oldIndex: number = evt.oldIndex;
+                            if (evt.from !== evt.to) {
+                                const ref = oldFrom.querySelectorAll('.sortable-item')[oldIndex] || null;
+                                oldFrom.insertBefore(itemEl, ref);
+                            } else {
+                                const ref = oldFrom.querySelectorAll('.sortable-item')[oldIndex] || null;
+                                oldFrom.insertBefore(itemEl, ref);
+                            }
+                            // Restore placeholders after revert
+                            if (evt.from !== evt.to) {
+                                if (evt.to.querySelectorAll('.sortable-item').length === 0) {
+                                    const p = document.createElement('p');
+                                    p.textContent = 'This module does not have any exercises yet.';
+                                    evt.to.appendChild(p);
+                                }
+                                const emptyMsg = evt.from.querySelector('p');
+                                if (emptyMsg && emptyMsg.parentElement === evt.from) {
+                                    evt.from.removeChild(emptyMsg);
+                                }
+                            }
+                            // Update order numbers after revert
+                            oldFrom.querySelectorAll('.order-number').forEach((el, index) => {
+                                el.textContent = `${index + 1}.`;
+                            });
+                            if (evt.from !== evt.to) {
+                                evt.to.querySelectorAll('.order-number').forEach((el, index) => {
+                                    el.textContent = `${index + 1}.`;
+                                });
+                            }
+                            // eslint-disable-next-line no-console
+                            console.error(e);
+                        } finally {
+                            fromInstance?.option('disabled', false);
+                            toInstance?.option('disabled', false);
+                            isReordering = false;
+                        }
                     }
                 });
             });
@@ -116,6 +214,18 @@ const TeacherCourseApp = defineComponent({
                 console.error(e);
             }
         };
+        
+        const duplicateExercise = async (exerciseId: string) => {
+            try {
+                await send(`/teachers/api/exercises/${exerciseId}/duplicate/`, {});
+                window.location.reload();
+            } catch (e) {
+                // eslint-disable-next-line no-alert
+                alert(`Failed to duplicate exercise: ${e}`);
+                // eslint-disable-next-line no-console
+                console.error(e);
+            }
+        };
 
         return {
             moduleVisible: state.moduleVisible,
@@ -123,7 +233,8 @@ const TeacherCourseApp = defineComponent({
             exerciseVisible: state.exerciseVisible,
             toggleModuleExpanded,
             toggleModuleVisibility,
-            toggleExerciseVisibility
+            toggleExerciseVisibility,
+            duplicateExercise
         };
     }
 });
