@@ -3,6 +3,12 @@
 This project provides a simple REST server that can execute arbitrary Scala code using the Ammonite interpreter. The goal is to have a sub 100ms latency for the execution of the code, in a failsafe way (kinda detect fraudulent code, and restart the service on failure.
 
 
+## How to use locally
+
+    sbt run
+
+    curl -s -X POST http://localhost:8642/execute -H 'Content-Type: application/json' -d '{"code":"println(someUndefinedVariable)"}'
+
 
 ## How to use with Docker
 
@@ -13,4 +19,6 @@ Needed to code locally.
     docker run -d -p 8642:8642 --name scala-interpreter-container scala-interpreter-container
     docker logs --tail 50 scala-interpreter-container | cat
     python test_server.py
+
+    curl -s -X POST http://localhost:8642/execute -H 'Content-Type: application/json' -d '{"code":"println(someUndefinedVariable)"}'
 

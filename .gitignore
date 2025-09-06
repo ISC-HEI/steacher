@@ -21,3 +21,6 @@ media_data/
 __pycache__/
 *.pyc
 PRIVATE.md
+scala_interpreter/project/project/target
+scala_interpreter/project/target
+scala_interpreter/target

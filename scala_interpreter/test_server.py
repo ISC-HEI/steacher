@@ -4,10 +4,10 @@ import time
 
 BASE_URL = "http://localhost:8642"
 
-def run_test(name, code, expected_success, expected_output_contains="", expected_error_contains=""):
+def run_test(name, code, expected_success, expected_output_contains="", expected_error_contains="", expected_error_contains_any=None, timeout=2000):
     print(f"--- Running test: {name} ---")
     try:
-        response = requests.post(f"{BASE_URL}/execute", json={"code": code})
+        response = requests.post(f"{BASE_URL}/execute", json={"code": code, "timeoutMs": timeout})
         response.raise_for_status()
         
         data = response.json()
@@ -20,9 +20,19 @@ def run_test(name, code, expected_success, expected_output_contains="", expected
             output = data.get("output", "")
             assert expected_output_contains in output, f"Expected output to contain '{expected_output_contains}', but got '{output}'"
 
-        if expected_error_contains:
-            error = data.get("error", "")
+        error = data.get("error", "")
+        # All-of semantics
+        if isinstance(expected_error_contains, list) and expected_error_contains:
+            missing = [s for s in expected_error_contains if s not in error]
+            assert not missing, f"Expected all of {expected_error_contains} in error, missing: {missing}. Got: '{error}'"
+        elif isinstance(expected_error_contains, str) and expected_error_contains:
             assert expected_error_contains in error, f"Expected error to contain '{expected_error_contains}', but got '{error}'"
+
+        # Any-of semantics
+        if expected_error_contains_any:
+            assert any(s in error for s in expected_error_contains_any), (
+                f"Expected error to contain ANY of {expected_error_contains_any}, but got '{error}'"
+            )
 
         print(f"✅ Test '{name}' PASSED")
 
@@ -42,16 +52,30 @@ if __name__ == "__main__":
     success_code = "val x = 5 * 10; println(s\"The result is $x\")"
     run_test("Successful Execution", success_code, True, expected_output_contains="The result is 50")
 
-    # Test 2: Execution that results in a compilation error
+    # Test 2: Execution that results in a compilation error (concise message)
     error_code = "println(someUndefinedVariable)"
-    run_test("Compilation Error", error_code, False)
+    run_test(
+        "Compilation Error (concise)",
+        error_code,
+        False,
+        expected_error_contains=[
+            "println(someUndefinedVariable)",
+            "^",
+            "not found",
+        ],
+    )
 
     # Test 3: Code that throws a runtime exception
     exception_code = """
     def divide(a: Int, b: Int): Int = a / b
     println(divide(10, 0))
     """
-    run_test("Runtime Exception", exception_code, False)
+    run_test(
+        "Runtime Exception",
+        exception_code,
+        False,
+        expected_error_contains_any=["ArithmeticException", "/ by zero"],
+    )
 
     # Test 4: Empty code string
     run_test("Empty Code", "", True, expected_output_contains="")
@@ -61,8 +85,8 @@ if __name__ == "__main__":
     run_test("Dangerous Code", dangerous_code, False)
 
     # Test 6: Code that takes too long to execute
-    long_code = "for (i <- 1 to 10000000) { println(i) }"
-    run_test("Long Code", long_code, False, expected_error_contains="Timeout after 2000ms")
+    long_code = "Thread.sleep(2000)"
+    run_test("Long Code", long_code, False, expected_error_contains="Timeout after 20ms", timeout=20)
 
     # measure time it takes over 20 requests
     start_time = time.time()

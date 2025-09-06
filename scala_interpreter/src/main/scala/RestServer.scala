@@ -7,6 +7,32 @@ object Server extends App {
   port(sys.env.get("PORT").map(_.toInt).getOrElse(8642))
   ipAddress("0.0.0.0")
 
+  // Hard limit for returned output/error size to avoid flooding clients/logs
+  private val MaxReturnChars: Int = 4000
+  private def truncateWithNotice(s: String, limit: Int = MaxReturnChars): String = {
+    if (s == null) ""
+    else if (s.length <= limit) s
+    else s.take(limit) + s"\n... [truncated ${s.length - limit} chars]"
+  }
+
+  // Strip ANSI color sequences from logs
+  def stripAnsi(s: String): String = s.replaceAll("\u001B\\[[;\\d]*m", "")
+
+  // Extract concise compiler error: code line, caret line, and message
+  def compressCompilerError(output: String): Option[String] = {
+    val clean = stripAnsi(output)
+    val lines = clean.split("\r?\n").toList
+    val idx = lines.indexWhere(_.matches("^[^:]+:\\d+:\\s+.*$"))
+    if (idx >= 0) {
+      val header = lines(idx)
+      val codeLine = lines.lift(idx + 1).getOrElse("")
+      val caretLine = lines.lift(idx + 2).getOrElse("")
+      val msg = header.replaceFirst("^[^:]+:\\d+:\\s*", "").trim
+      val parts = List(codeLine, caretLine, msg).filter(_.trim.nonEmpty)
+      Some(parts.mkString("\n"))
+    } else None
+  }
+
   // List of potentially dangerous patterns to check
   val dangerousPatterns: List[String] = List(
     "Runtime.getRuntime()",
@@ -24,18 +50,22 @@ object Server extends App {
     res.`type`("application/json")
 
     val body = req.body()
-    val codeStr = try {
-      val v = ujson.read(body)
-      v.obj.get("code").map(_.str).getOrElse("")
-    } catch {
-      case _: Throwable => ""
-    }
+    val parsedJsonOpt: Option[ujson.Value] = try { Some(ujson.read(body)) } catch { case _: Throwable => None }
+    val codeStr = parsedJsonOpt.flatMap(v => v.obj.get("code")).map(_.str).getOrElse("")
 
     // Optional per-request timeout in milliseconds via query param ?timeoutMs=...
-    val timeoutMs: Long = try {
-      val p = req.queryParams("timeoutMs")
-      if (p == null) 2000L else p.toLong
-    } catch { case _: Throwable => 2000L }
+    val timeoutMs: Long = (
+      parsedJsonOpt
+        .flatMap(v => v.obj.get("timeoutMs"))
+        .flatMap {
+          case ujson.Num(n) => Some(n.toLong)
+          case ujson.Str(s) => scala.util.Try(s.toLong).toOption
+          case _ => None
+        }
+      ).orElse({
+        val p = req.queryParams("timeoutMs")
+        if (p == null) None else scala.util.Try(p.toLong).toOption
+      }).getOrElse(2000L)
 
     if (containsDangerousCode(codeStr)) {
       ujson.Obj("success" -> false, "error" -> "Dangerous code detected").render()
@@ -46,30 +76,59 @@ object Server extends App {
       try {
         val future = executor.submit(new Callable[ujson.Obj] {
           override def call(): ujson.Obj = {
-            Main().instantiateInterpreter() match {
-              case Right(interp) =>
-                val outCapture = new java.io.ByteArrayOutputStream
-                val printStream = new java.io.PrintStream(outCapture)
+            // Prepare capture BEFORE interpreter creation so Ammonite binds to these streams
+            val outCapture = new java.io.ByteArrayOutputStream
+            val printStream = new java.io.PrintStream(outCapture)
 
-                var line = 0
-                def nextLine(): Unit = line += 1
+            val originalOut = System.out
+            val originalErr = System.err
+            System.setOut(printStream)
+            System.setErr(printStream)
 
-                val result = Console.withOut(printStream) {
-                  Console.withErr(printStream) {
-                    interp.processExec(codeStr, line, nextLine)
+            try {
+              Main().instantiateInterpreter() match {
+                case Right(interp) =>
+                  var line = 0
+                  def nextLine(): Unit = line += 1
+
+                  val result = Console.withOut(printStream) {
+                    Console.withErr(printStream) {
+                      interp.processExec(codeStr, line, nextLine)
+                    }
                   }
-                }
 
-                val output = outCapture.toString()
+                  val output = outCapture.toString()
+                  val safeOutput = truncateWithNotice(output)
 
-                result match {
-                  case Res.Success(_) => ujson.Obj("success" -> true, "output" -> output)
-                  case Res.Failure(msg) => ujson.Obj("success" -> false, "error" -> msg, "output" -> output)
-                  case Res.Exception(ex, _) => ujson.Obj("success" -> false, "error" -> ex.getMessage, "output" -> output)
-                  case other => ujson.Obj("success" -> false, "error" -> s"Other: $other", "output" -> output)
-                }
-              case Left((failing, _)) =>
-                ujson.Obj("success" -> false, "error" -> s"Failed to create interpreter: $failing")
+                  result match {
+                    case Res.Success(_) =>
+                      ujson.Obj("success" -> true, "output" -> safeOutput)
+                    case Res.Failure(msg) =>
+                      val detailed = compressCompilerError(output).getOrElse {
+                        if (output.trim.isEmpty) msg else s"$msg\n$output"
+                      }
+                      val safeError = truncateWithNotice(detailed)
+                      ujson.Obj("success" -> false, "error" -> safeError, "output" -> safeOutput)
+                    case Res.Exception(ex, _) =>
+                      val sw = new java.io.StringWriter
+                      ex.printStackTrace(new java.io.PrintWriter(sw))
+                      val stack = sw.toString
+                      val header = s"${ex.getClass.getName}: ${Option(ex.getMessage).getOrElse("")}"
+                      val detailed = List(header, output, stack).filter(_.trim.nonEmpty).mkString("\n")
+                      val safeError = truncateWithNotice(detailed)
+                      ujson.Obj("success" -> false, "error" -> safeError, "output" -> safeOutput)
+                    case other =>
+                      val detailed = if (output.trim.isEmpty) s"Other: $other" else s"Other: $other\n$output"
+                      val safeError = truncateWithNotice(detailed)
+                      ujson.Obj("success" -> false, "error" -> safeError, "output" -> safeOutput)
+                  }
+                case Left((failing, _)) =>
+                  ujson.Obj("success" -> false, "error" -> s"Failed to create interpreter: $failing")
+              }
+            } finally {
+              try printStream.flush() finally printStream.close()
+              System.setOut(originalOut)
+              System.setErr(originalErr)
             }
           }
         })
@@ -87,4 +146,11 @@ object Server extends App {
       }
     }
   })
+
+  // Ensure the embedded server is initialized and keep the JVM alive.
+  init()
+  awaitInitialization()
+  while (true) {
+    Thread.sleep(60 * 60 * 1000) // 1 hour sleep, effectively blocks forever
+  }
 }
