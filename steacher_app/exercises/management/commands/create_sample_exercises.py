@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 
 class Command(BaseCommand):
-    help = 'Create sample multiple choice exercises'
+    help = 'Create sample exercises'
 
     def handle(self, *args, **options):
 
@@ -151,48 +151,7 @@ INSERT INTO students (first_name, last_name, age)
             course=sql_course
         )
 
-        # Multiple choice exercise
-        mc_exercise = Exercise.objects.create(
-            course=sql_course,
-            title='Database Normalization',
-            description='Understanding database design principles.',
-            exercise_type='multiple_choice',
-            order=2,
-            exercise_data={
-                'question': 'What is the main purpose of database normalization?',
-                'choices': [
-                    {
-                        'id': 'a',
-                        'text': 'To increase database size'
-                    },
-                    {
-                        'id': 'b',
-                        'text': 'To reduce data redundancy'
-                    },
-                    {
-                        'id': 'c',
-                        'text': 'To improve data integrity'
-                    },
-                    {
-                        'id': 'd',
-                        'text': 'To duplicate data across tables'
-                    }
-                ]
-            },
-            answer_data={
-                'correct_answers': ['b', 'c'],
-                'explanation': 'Database normalization is primarily used to reduce data redundancy and improve data integrity by organizing data efficiently.',
-                'choice_explanations': {
-                    'a': 'Incorrect - Normalization typically reduces database size by eliminating redundancy',
-                    'b': 'Correct - This is the main purpose of normalization',
-                    'c': 'Correct - Normalization improves data integrity by ensuring data consistency and reducing redundancy',
-                    'd': 'Incorrect - Normalization reduces data duplication, not increases it'
-                },
-                'hints': [],
-                'additional_context': ''
-            }
-        )
-
+        
         # Python course with a single exercise
         python_course = Course.objects.create(
             name='Introduction to Python',

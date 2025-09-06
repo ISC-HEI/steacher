@@ -7,7 +7,7 @@ from django.http import JsonResponse, HttpResponse, Http404
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 from django.db import models
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Max
 from django.utils import timezone
 from datetime import timedelta
 import requests
@@ -101,6 +101,37 @@ def dashboard(request):
             'total': total_exercises,
             'percent': percent,
         })
+    
+    # Order courses by most recently interacted with (attempts or chats) for the current user
+    # FIXME: only show courses where the student is part of a cohort.
+    recent_attempts_by_course = (
+        Attempt.objects
+        .filter(user=request.user)
+        .values('exercise__module__course_id')
+        .annotate(last_activity=Max('updated_at'))
+    )
+    last_attempt_map = {row['exercise__module__course_id']: row['last_activity'] for row in recent_attempts_by_course}
+
+    recent_chats_by_course = (
+        ChatThread.objects
+        .filter(owner=request.user)
+        .values('course_id')
+        .annotate(last_chat=Max('updated_at'))
+    )
+    last_chat_map = {row['course_id']: row['last_chat'] for row in recent_chats_by_course}
+
+    def most_recent_ts(course_id):
+        a = last_attempt_map.get(course_id)
+        c = last_chat_map.get(course_id)
+        if a and c:
+            return a if a >= c else c
+        return a or c  # may be None
+
+    # Sort with most recently viewed first; items with no activity go last, original name order preserved among them
+    course_progress.sort(key=lambda item: (
+        most_recent_ts(item['course'].id) is not None,
+        most_recent_ts(item['course'].id)
+    ), reverse=True)
     
     # --- Primary Focus & Recents ---
 
@@ -400,7 +431,6 @@ def exercise_detail(request, pk):
         'sql': 'exercises/students/sql.html',
         'python': 'exercises/students/python.html',
         'scala': 'exercises/students/scala.html',
-        'multiple_choice': 'exercises/students/multiple_choice.html',
         'open_question': 'exercises/students/open_question.html',
     }
     template_name = template_map.get(exercise.exercise_type)

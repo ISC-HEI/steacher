@@ -16,15 +16,9 @@ class UnitTests(BaseModel):
     timeout_seconds: int = Field(default=5, description="Timeout in seconds for the tests. To prevent infinite loops.")
 
 
-class Choice(BaseModel):
-    """Pydantic model for a multiple-choice option."""
-    id: str = Field(description="The unique identifier for the choice, e.g., 'a', 'b', 'c'.")
-    text: str = Field(description="The text of the choice.")
-
-
 class CorrectAnswer(BaseModel):
     """Pydantic model for a correct answer."""
-    answer: str = Field(description="The correct answer. For example, for a multiple choice question it would be the choice ID. For a programming exercise, this should be the complete, runnable code for a correct solution.")
+    answer: str = Field(description="The correct answer. For example, for an open question it would be the chosen answer text (with justifications if applicable). For a programming exercise, this should be the complete, runnable code for a correct solution.")
     explanation: str = Field(default="", description="An explanation of why this is the correct answer. It can include some context on why the answer is correct, or what approach has been used to find the answer.")
 
 
@@ -36,7 +30,6 @@ class ExerciseData(BaseModel):
     """
     answer_template: str = Field(default="", description="A template for the answer. It might be a starter code, a query, or a text. ATM this is not translated so choose carefully.")
     db: str = Field(default="", description="For SQL exercises only. The name of the database asset file to use.")
-    choices: List[Choice] = Field(default_factory=list, description="For Multiple Choice exercises only. A list of choices.")
 
     class Config:
         # Prevents errors if extra fields are present in the JSON

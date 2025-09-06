@@ -100,16 +100,15 @@ class CohortMembership(models.Model):
 
 class Exercise(models.Model):
     """
-    A single exercise within a @Module. Has different types (e.g. SQL, Python, multiple choice, etc.). 
+    A single exercise within a @Module. Has different types (e.g. SQL, Python, open question, etc.). 
     Inculdes metadata for the AI tutor to help the student, unit tests.
     """
 
     EXERCISE_TYPE_CHOICES = [
         ('python', 'Python'),
-        ('multiple_choice', 'Multiple Choice'),
+        ('open_question', 'Open Question'),
         ('sql', 'SQL'),
         ('turtle', 'Turtle'),
-        ('open_question', 'Open Question'),
         ('scala', 'Scala'),
     ]
 
@@ -122,7 +121,7 @@ class Exercise(models.Model):
         max_length=50,
         choices=EXERCISE_TYPE_CHOICES,
         default='python',
-        help_text="Type of the exercice, e.g. 'multiple_choice', 'text', 'turtle', etc."
+        help_text="Type of the exercice, e.g. 'open_question', 'python', 'scala', 'sql', 'turtle', etc."
     )
     order = models.PositiveIntegerField(default=0, help_text="The order of the exercice within the course.")
     exercise_data = models.JSONField(help_text="Contains fields like data-source, etc.")  # sent to frontend

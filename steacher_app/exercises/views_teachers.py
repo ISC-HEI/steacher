@@ -1,6 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 from django.db import transaction, models
 import json
@@ -459,6 +459,10 @@ def duplicate_exercise(request, exercise_id):
         final_ids = existing_ids[: original_index + 1] + [duplicate.id] + existing_ids[original_index + 1 :]
         final_when = [models.When(id=eid, then=idx) for idx, eid in enumerate(final_ids)]
         Exercise.objects.filter(id__in=final_ids).update(order=models.Case(*final_when))
+
+        # If called via form POST with redirect flag, go straight to edit page
+        if (request.POST.get('redirect') == '1'):
+            return redirect('teachers:exercise_edit', course_pk=module.course_id, exercise_pk=duplicate.id)
 
         return JsonResponse({'status': 'success', 'new_exercise_id': duplicate.id})
     except Exception as e:

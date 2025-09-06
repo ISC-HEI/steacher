@@ -29,7 +29,8 @@
     "dompurify": "^3.2.6",
     "marked": "^16.0.0",
     "pyodide": "^0.28.0",
-    "vue": "^3.4.27"
+    "vue": "^3.4.27",
+    "prismjs": "^1.29.0"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^28.0.6",

@@ -3,7 +3,7 @@ import openai
 import time
 from django.conf import settings
 from .models import AttemptInteraction, Exercise, Attempt, Course
-from .schemas import Choice, ExerciseData, AnswerData, get_pydantic_schema_as_string
+from .schemas import ExerciseData, AnswerData, get_pydantic_schema_as_string
 import logging
 
 client = openai.OpenAI(api_key=settings.GEMINI_API_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
@@ -28,49 +28,6 @@ def _strip_markdown_fences(content: str) -> str:
     return content
 
 
-def calculate_cbm_score(selections: dict, correct_answer_ids: list[str], all_choices: list['Choice']) -> dict:
-    """
-    Calculates the score for a multiple-choice question using Certainty-Based Marking.
-    """
-    score_matrix = {
-        'right': {'correct': 2, 'incorrect': -2},
-        'wrong': {'correct': -1, 'incorrect': 1},
-        'notsure': {'correct': 0, 'incorrect': 0}
-    }
-
-    results = {}
-    total_score = 0
-    max_score = 0
-
-    all_choice_ids = [choice.id for choice in all_choices]
-
-    for choice_id in all_choice_ids:
-        student_confidence = selections.get(choice_id)
-        is_correct_option = choice_id in correct_answer_ids
-
-        max_score += score_matrix['right']['correct'] if is_correct_option else score_matrix['wrong']['incorrect']
-
-        if not student_confidence:
-            score = 0
-            actual_status = 'missing'
-        else:
-            status_key = 'correct' if is_correct_option else 'incorrect'
-            score = score_matrix[student_confidence][status_key]
-        
-        results[choice_id] = {
-            'student_confidence': student_confidence,
-            'actual_status': 'correct' if is_correct_option else 'wrong',
-            'score': score
-        }
-        total_score += score
-
-    return {
-        'total_score': total_score,
-        'max_score': max_score,
-        'breakdown': results
-    }
-
-
 # used for improving the prompt
 DEBUG_TEXT = """
 **Output Format**
@@ -92,13 +49,12 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
     - data: a dict with the following keys:
         - 'action': the action performed by the user, e.g. 'ask_question', 'ask_hint', 'submit_answer', 'run_query', 'run_code'.
         - 'question': the question to ask the AI, if any.
-        - 'selections': the selections made by the user for a multiple-choice question, if any.
         - 'justification': the justification provided by the user, if any.
         - 'code': the code to run, if any.
         - 'query_result': the result of the query in the case of a SQL query, if any.
         - 'error_message': the error message, if any.
         - 'output': the output of the code, if any.
-        - 'answer': the answer provided by the user for a multiple-choice question, if any.
+        - 'answer': the answer provided by the user, if any.
     - 'debug': a boolean flag to indicate if the debug mode is enabled. If True, the LLM will return a JSON object with the keys described in DEBUG_TEXT above.
 
     # TODO: refactor this data structure to make it cleaner
@@ -122,44 +78,9 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
         user_prompt_content += f"I have a specific question: {data.get('question', '')}"
     elif action == 'ask_hint':
         user_prompt_content += "I am explicitly asking for a hint."
-    elif action == 'option_selected':
-        selected_option = data.get('selected_option', {})
-        option_id = selected_option.get('id', '')
-        option_title = selected_option.get('title', '')
-        user_prompt_content += f"I have chosen an option on how to solve the exercise. My choice is '{option_id}': {option_title}. Please provide instructions based on this choice."
-    elif action == 'submit_answer' and exercise.exercise_type == 'multiple_choice':
-        selections = data.get('selections', {})
-        justification = data.get('justification', '')
-
-        # Use Pydantic objects for safer access
-        correct_answers_obj = exercise.answer_data_obj.correct_answers
-        # correct_answers are stored as a list of {"answer": "choice_id", "explanation": "..."}
-        # we need to extract the "answer" field to get the list of correct choice IDs
-        correct_answer_ids = [ca.answer for ca in correct_answers_obj]
-        all_choices = exercise.exercise_data_obj.choices
-        
-        cbm_result = calculate_cbm_score(selections, correct_answer_ids, all_choices)
-        
-        score_breakdown = "\n".join(
-            [
-                f"- **Option {choice_id.upper()}:** I chose '{result['student_confidence']}'; the correct answer is: {result['actual_status']}. **Score: {result['score']}**"
-                for choice_id, result in cbm_result['breakdown'].items()
-            ]
-        )
-        
-        user_prompt_content += (
-            f"Here are my answers:\n"
-            f"{score_breakdown}\n\n"
-            f"**Total Score: {cbm_result['total_score']} / {cbm_result['max_score']} points.**"
-        )
-
-        if justification:
-            user_prompt_content += f"\n\nMy justification was:\n{justification}"
-        else:
-            user_prompt_content += "\n\nI did not provide a justification."
 
     # For open/free-form answers on non-MC exercises (e.g., open_question), include student's answer
-    elif data.get('answer') and exercise.exercise_type != 'multiple_choice':
+    elif data.get('answer'):
         user_prompt_content += (
             "Here is my submitted answer:\n\n"
             f"{data.get('answer')}\n"
@@ -216,13 +137,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
     if 'output' in data and data.get('output'):
         user_prompt_content += f"Output:\n```\n{data.get('output')}\n```"
 
-    if action == 'submit_answer' and exercise.exercise_type == 'multiple_choice':
-        user_prompt_content = f"I chose the answer '{data.get('answer')}'."
-        if data.get('justification'):
-            user_prompt_content += f"\nMy justification is:\n{data.get('justification')}"
-        else:
-            user_prompt_content += "\nI did not provide a justification."
-    
+   
     #else: FIXME
     #    raise ValueError(f"Invalid action: {action}")
 
@@ -267,7 +182,7 @@ Do not provide the entire solution, but give them enough to make meaningful prog
         f"If you include code snippets, keep the code itself in its original programming language and do not translate identifiers."
     )
 
-    # 4. Add question, expected result, correct answers, hints, additional context, choice explanations
+    # 4. Add question, expected result, correct answers, hints, additional context
     # TODO: refactor this to make it cleaner
     prompt += f"\n\n# Exercise"
 
@@ -307,12 +222,6 @@ Do not provide the entire solution, but give them enough to make meaningful prog
         if answer_data_obj.additional_context:
             prompt += f"\n\n## Additional context for this exercise\n\n{answer_data_obj.additional_context}"
         
-    if exercise.exercise_type == 'multiple_choice':
-        # NOTE: 'choice_explanations' is not in the pydantic model, handle this
-        choice_explanations = exercise.answer_data.get('choice_explanations')
-        if choice_explanations:
-            prompt += f"\n\n## Explanations for each choice\n\n{choice_explanations}"
-
     messages.append({"role": "system", "content": prompt})
 
     logger.debug(f"System prompt:\n{prompt}")

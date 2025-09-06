@@ -131,12 +131,12 @@ const TeacherCourseApp = defineComponent({
                             }
 
                             // Update the order numbers in the UI
-                            evt.from.querySelectorAll('.order-number').forEach((el, index) => {
-                                el.textContent = `${index + 1}.`;
+                            evt.from.querySelectorAll('.order-number').forEach((el: Element, index: number) => {
+                                (el as HTMLElement).textContent = `${index + 1}.`;
                             });
                             if (evt.from !== evt.to) {
-                                evt.to.querySelectorAll('.order-number').forEach((el, index) => {
-                                    el.textContent = `${index + 1}.`;
+                                evt.to.querySelectorAll('.order-number').forEach((el: Element, index: number) => {
+                                    (el as HTMLElement).textContent = `${index + 1}.`;
                                 });
                             }
                         } catch (e) {
@@ -164,12 +164,12 @@ const TeacherCourseApp = defineComponent({
                                 }
                             }
                             // Update order numbers after revert
-                            oldFrom.querySelectorAll('.order-number').forEach((el, index) => {
-                                el.textContent = `${index + 1}.`;
+                            oldFrom.querySelectorAll('.order-number').forEach((el: Element, index: number) => {
+                                (el as HTMLElement).textContent = `${index + 1}.`;
                             });
                             if (evt.from !== evt.to) {
-                                evt.to.querySelectorAll('.order-number').forEach((el, index) => {
-                                    el.textContent = `${index + 1}.`;
+                                evt.to.querySelectorAll('.order-number').forEach((el: Element, index: number) => {
+                                    (el as HTMLElement).textContent = `${index + 1}.`;
                                 });
                             }
                             // eslint-disable-next-line no-console

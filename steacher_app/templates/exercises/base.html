@@ -20,6 +20,23 @@
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 
+    <!-- Prism.js for syntax highlighting (Python, Scala, SQL) served locally -->
+    <link rel="stylesheet" href="{% static 'prismjs/themes/prism.min.css' %}">
+    <script defer src="{% static 'prismjs/prism.js' %}"></script>
+    <!-- Prism language components (order matters for dependencies) -->
+    <script defer src="{% static 'prismjs/components/prism-clike.min.js' %}"></script>
+    <script defer src="{% static 'prismjs/components/prism-java.min.js' %}"></script>
+    <script defer src="{% static 'prismjs/components/prism-scala.min.js' %}"></script>
+    <script defer src="{% static 'prismjs/components/prism-python.min.js' %}"></script>
+    <script defer src="{% static 'prismjs/components/prism-sql.min.js' %}"></script>
+    <script>
+    window.addEventListener('load', function() {
+        if (window.Prism && typeof window.Prism.highlightAll === 'function') {
+            window.Prism.highlightAll();
+        }
+    });
+    </script>
+
 </head>
 <body>
     <nav class="navbar is-light" role="navigation" aria-label="main navigation">

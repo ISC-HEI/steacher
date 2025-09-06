@@ -155,8 +155,13 @@
     padding-bottom: 6px; /* add space btw paragraphs */
 }
 
+/* Neutral inline code color; avoid harsh red/overrides from Bulma */
+code {
+    color: #222;
+}
+
 #chatbot code {
-    color: darkblue;
+    color: #222;
 }
 
 .user-message {
@@ -201,20 +206,6 @@
   }
 } 
 
-/* CBM Feedback Styles */
-.radio.is-correct-choice {
-    background-color: #e9f7ef;
-    border-radius: 4px;
-    padding: 0.3em 0.5em;
-    border: 1px solid #257942;
-}
-
-.radio.is-incorrect-choice {
-    background-color: #feecf0;
-    border-radius: 4px;
-    padding: 0.3em 0.5em;
-    border: 1px solid #cc0f35;
-}
 
 .is-bordered-thin {
     border: 1px solid #dbdbdb;
