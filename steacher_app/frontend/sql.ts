@@ -455,11 +455,11 @@ document.addEventListener('DOMContentLoaded', function() {
             },
 
             giveHint() {
-                this.getGuidance('ask_hint');
+                this.getGuidance('ask_hint', { error: this.queryError });
             },
             
             handleQuestion(question: string) {
-                this.getGuidance('ask_question', { question: question });
+                this.getGuidance('ask_question', { question: question, error: this.queryError });
             },
 
             handleOptionSelected(option: OptionButton) {

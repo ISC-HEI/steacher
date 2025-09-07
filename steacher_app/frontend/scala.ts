@@ -230,8 +230,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.loadingState = 'idle';
                 }
             },
-            giveHint() { this.getGuidance('ask_hint'); },
-            handleQuestion(question: string) { this.getGuidance('ask_question', { question }); },
+            giveHint() { this.getGuidance('ask_hint', { error: this.executionError, output: this.executionOutput }); },
+            handleQuestion(question: string) { this.getGuidance('ask_question', { question, error: this.executionError, output: this.executionOutput }); },
             handleOptionSelected(option: OptionButton) {
                 if (option.to) {
                     if (/^\d+$/.test(option.to)) {

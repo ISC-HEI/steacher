@@ -607,46 +607,52 @@ def exercise_authoring_assistant(request):
     try:
         result = generate_authoring_update(exercise_payload=exercise_payload, messages=messages, course=course)
 
-        # Persist authoring interaction as a Trace attached to the Exercise
-        # Only if an exercise pk is present or resolvable
+        # Persist authoring interaction as a Trace
         exercise_pk = (exercise_payload or {}).get('pk') or (exercise_payload or {}).get('id')
+
+        trace_object = None
         if exercise_pk:
             try:
-                ex = Exercise.objects.get(pk=int(exercise_pk), module__course=course)
-                # Determine if this is the first trace for this exercise
-                exercise_ct = ContentType.objects.get_for_model(Exercise, for_concrete_model=False)
-                has_any = Trace.objects.filter(content_type=exercise_ct, object_id=ex.id, channel='authoring').exists()
-
-                user_text = ''
-                try:
-                    if isinstance(messages, list) and messages:
-                        last_msg = messages[-1] or {}
-                        if (last_msg.get('role') or 'user') == 'user':
-                            user_text = str(last_msg.get('content') or '')
-                except Exception:
-                    user_text = ''
-
-                assistant_text = str(result.get('assistant_message') or '')
-                updated_exercise_payload = result.get('updated_exercise') or {}
-                fields = {
-                    'user_content': user_text,
-                    'assistant_content': assistant_text,
-                    'assistant_metadata': {
-                        'updated_exercise': updated_exercise_payload,
-                        'model': result.get('assistant_metadata', {}).get('model'),
-                        'usage': result.get('assistant_metadata', {}).get('usage'),
-                        'finish_reason': result.get('assistant_metadata', {}).get('finish_reason'),
-                    },
-                }
-                if not has_any:
-                    fields['system_prompt'] = str(result.get('system_prompt') or '')
-                create_trace_for(ex, request.user, channel='authoring', **fields)
-            except Exception:
-                # Best-effort persistence; do not fail the request on logging errors
-                pass
+                trace_object = Exercise.objects.get(pk=int(exercise_pk), module__course=course)
+            except (Exercise.DoesNotExist, ValueError, TypeError):
+                # Fallback to course if exercise not found or pk is invalid
+                trace_object = course
         else:
-            # log error
-            print(f"Error persisting authoring interaction as a Trace attached to the Exercise: {exercise_payload}")
+            trace_object = course
+        
+        try:
+            user_text = ''
+            try:
+                if isinstance(messages, list) and messages:
+                    last_msg = messages[-1] or {}
+                    if (last_msg.get('role') or 'user') == 'user':
+                        user_text = str(last_msg.get('content') or '')
+            except Exception:
+                user_text = ''
+
+            assistant_text = str(result.get('assistant_message') or '')
+            updated_exercise_payload = result.get('updated_exercise') or {}
+            fields = {
+                'user_content': user_text,
+                'assistant_content': assistant_text,
+                'assistant_metadata': {
+                    'updated_exercise': updated_exercise_payload,
+                    'model': result.get('assistant_metadata', {}).get('model'),
+                    'usage': result.get('assistant_metadata', {}).get('usage'),
+                    'finish_reason': result.get('assistant_metadata', {}).get('finish_reason'),
+                },
+            }
+            
+            trace_ct = ContentType.objects.get_for_model(trace_object, for_concrete_model=False)
+            has_any = Trace.objects.filter(content_type=trace_ct, object_id=trace_object.pk, channel='authoring').exists()
+            if not has_any:
+                fields['system_prompt'] = str(result.get('system_prompt') or '')
+            
+            create_trace_for(trace_object, request.user, channel='authoring', **fields)
+        except Exception as e:
+            # Best-effort persistence; do not fail the request on logging errors
+            print(f"Error persisting authoring interaction as a Trace: {e}")
+            pass
 
         return JsonResponse({'status': 'success', **result})
     except Exception as e:

@@ -133,7 +133,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
                 except Exception as e:
                     logger.warning(f"Scala unit tests failed to run: {e}")
 
-    if 'error_message' in data:
+    if 'error_message' in data and data.get('error_message'):
         user_prompt_content += f"Error:\n```\n{data.get('error_message')}\n```"
     if 'output' in data and data.get('output'):
         user_prompt_content += f"Output:\n```\n{data.get('output')}\n```"
@@ -259,7 +259,7 @@ Do not provide the entire solution, but give them enough to make meaningful prog
         model=MODEL_FAST,
         messages=messages,
         temperature=0.7,
-        response_format={"type": "json_object"} if not debug else None,
+        response_format={"type": "json_object"} if debug else None,
         #max_tokens=500
     )
     llm_duration = time.time() - llm_start_time
@@ -269,6 +269,7 @@ Do not provide the entire solution, but give them enough to make meaningful prog
     if debug:
         # parse the response as a JSON object, to obtain the answer and the *ambiguity*
         assistant_content_raw = llm_response.choices[0].message.content or ""
+        logger.info(f"Assistant content raw: {assistant_content_raw}")
         assistant_content_json_str = _strip_markdown_fences(assistant_content_raw)
 
         try:

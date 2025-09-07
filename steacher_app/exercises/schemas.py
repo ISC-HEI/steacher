@@ -80,8 +80,6 @@ def get_pydantic_schema_as_string() -> str:
     """
     Get the Pydantic schema as a string to be used in the exercise assistant prompt.
     """
-    exercise_data_schema = ExerciseData.model_json_schema()
-    answer_data_schema = AnswerData.model_json_schema()
 
     def format_schema(schema, indent=0):
         output = ""
@@ -103,10 +101,39 @@ def get_pydantic_schema_as_string() -> str:
             output += "\n"
         return output
 
-    prompt = "The `exercise_data` field should be an object with the following properties:\n"
-    prompt += format_schema(exercise_data_schema)
-    prompt += "\nThe `answer_data` field should be an object with the following properties:\n"
-    prompt += format_schema(answer_data_schema)
+    exercise_data_schema_str = format_schema(ExerciseData.model_json_schema())
+    answer_data_schema_str = format_schema(AnswerData.model_json_schema())
+
+    prompt = f"""
+    
+# Top-level Exercise fields
+- `pk` (integer, read-only): The primary key of the exercise. Do not modify.
+- `title_i18n` (object): The title of the exercise in English, German, and French.
+  - `en` (string): English title.
+  - `de` (string): German title.
+  - `fr` (string): French title.
+- `order` (integer, read-only): The display order of the exercise within its module.
+- `description_i18n` (object): A short description of the exercise in English, German, and French. Description should be concise and to the point. E.g. "Conditional statements and the modulo operator." instead of "An exercise to practice conditional statements and the modulo operator.".
+  - `en` (string): English description.
+  - `de` (string): German description.
+  - `fr` (string): French description.
+- `question_i18n` (object): The full question or prompt for the exercise in English, German, and French. Markdown is supported and encouraged.
+  - `en` (string): English question.
+  - `de` (string): German question.
+  - `fr` (string): French question.
+- `exercise_type` (string): The type of the exercise (e.g., "python", "sql", "open_question", "scala", "turtle"). Determines the structure of `exercise_data`. Modify only if it makes sense.
+- `available_sql_assets` (array of strings, read-only): For SQL exercises, a list of available database assets. Can be used to set up the db field in `exercise_data` below.
+- `course_pk` (integer, read-only): The primary key of the course this exercise belongs to. Do not modify.
+- `course_name` (string, read-only): The name of the course this exercise belongs to. Do not modify.
+- `course_description` (string, read-only): The description of the course this exercise belongs to. Use this to get some context about the course. Do not modify.
+
+# Exercise Data Schema (`exercise_data`)
+{exercise_data_schema_str}
+
+# Answer Data Schema (`answer_data`)
+{answer_data_schema_str}
+
+The final JSON object you return should contain all three parts: the top-level fields, `exercise_data`, and `answer_data`. """
 
     return prompt
 

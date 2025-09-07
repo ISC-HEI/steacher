@@ -300,11 +300,11 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             
             giveHint() {
-                this.getGuidance('ask_hint');
+                this.getGuidance('ask_hint', { error: this.executionError, output: this.executionOutput });
             },
             
             handleQuestion(question: string) {
-                this.getGuidance('ask_question', { question });
+                this.getGuidance('ask_question', { question, error: this.executionError, output: this.executionOutput });
             },
 
             handleOptionSelected(option: OptionButton) {
