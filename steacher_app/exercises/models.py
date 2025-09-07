@@ -258,6 +258,20 @@ class Trace(models.Model):
     object_id = models.PositiveIntegerField()
     content_object = GenericForeignKey('content_type', 'object_id')
 
+    # Channel separates different interaction streams per owner
+    CHANNEL_CHOICES = [
+        ('exercise_guidance', 'Exercise Guidance'),
+        ('learning_pathway', 'Learning Pathway'),
+        ('authoring', 'Authoring'),
+        ('study_chat', 'Study Chat'),
+    ]
+    channel = models.CharField(
+        max_length=32,
+        choices=CHANNEL_CHOICES,
+        default='exercise_guidance',
+        help_text="Logical stream for this trace (e.g., guidance vs. pathway vs. authoring)."
+    )
+
     # LLM/system message content
     system_prompt = models.TextField(null=True, blank=True, help_text="The system prompt sent to the LLM for this trace. Only set on the first trace.")
 
@@ -279,18 +293,19 @@ class Trace(models.Model):
         ordering = ['rank_order', 'id']
         indexes = [
             models.Index(fields=['content_type', 'object_id']),
+            models.Index(fields=['content_type', 'object_id', 'channel'], name='trace_ct_oid_channel_idx'),
         ]
         constraints = [
-            models.UniqueConstraint(fields=['content_type', 'object_id', 'rank_order'], name='unique_trace_rank_per_owner'),
+            models.UniqueConstraint(fields=['content_type', 'object_id', 'channel', 'rank_order'], name='unique_trace_rank_per_owner_channel'),
         ]
 
 
-def create_trace_for(owner_obj, user, **fields):
+def create_trace_for(owner_obj, user, channel: str, **fields):
     """
-    Create a Trace for the given owner_obj (e.g., Attempt, ChatThread) assigning a
-    stable sequential rank_order.
+    Create a Trace for the given owner_obj (e.g., Attempt, ChatThread) on the given
+    channel, assigning a stable sequential rank_order within that channel.
 
-    We compute next_rank as max(rank_order)+1 inside a transaction and rely on the
+    We compute next_rank as max(rank_order)+1 for the given channel inside a transaction and rely on the
     unique constraint to guard against rare races. If a concurrent insert collides,
     we retry a few times.
     """
@@ -301,7 +316,7 @@ def create_trace_for(owner_obj, user, **fields):
         with transaction.atomic():
             last = (
                 Trace.objects
-                .filter(content_type=ct, object_id=oid)
+                .filter(content_type=ct, object_id=oid, channel=channel)
                 .aggregate(m=Max('rank_order'))['m']
             )
             # We do max()+1 so that rank_order remains contiguous and append-only
@@ -311,6 +326,7 @@ def create_trace_for(owner_obj, user, **fields):
                     user=user,
                     content_type=ct,
                     object_id=oid,
+                    channel=channel,
                     rank_order=next_rank,
                     **fields
                 )
@@ -321,7 +337,7 @@ def create_trace_for(owner_obj, user, **fields):
     with transaction.atomic():
         last = (
             Trace.objects
-            .filter(content_type=ct, object_id=oid)
+            .filter(content_type=ct, object_id=oid, channel=channel)
             .aggregate(m=Max('rank_order'))['m']
         )
         next_rank = 0 if last is None else (int(last) + 1)
@@ -329,6 +345,7 @@ def create_trace_for(owner_obj, user, **fields):
             user=user,
             content_type=ct,
             object_id=oid,
+            channel=channel,
             rank_order=next_rank,
             **fields
         )

@@ -20,6 +20,7 @@ interface ChatState {
     loading: boolean;
     courseOptions: { id: number; name: string }[];
     selectedCourseId: number | null;
+    defaultThreadId: number | null;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -27,6 +28,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!el) return;
     const defaultCourseIdAttr = el.getAttribute('data-default-course-id');
     const defaultCourseId = defaultCourseIdAttr && defaultCourseIdAttr !== '' ? Number(defaultCourseIdAttr) : null;
+    const defaultThreadIdAttr = el.getAttribute('data-default-thread-id');
+    const defaultThreadId = defaultThreadIdAttr && defaultThreadIdAttr !== '' ? Number(defaultThreadIdAttr) : null;
 
     const App = defineComponent({
         delimiters: ['[[', ']]'],
@@ -38,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 loading: false,
                 courseOptions: [],
                 selectedCourseId: defaultCourseId,
+                defaultThreadId: defaultThreadId,
             };
         },
         async mounted() {
@@ -75,10 +79,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.status === 'success') {
                     this.threads = data.threads || [];
                     if (this.threads.length && !this.selectedThreadId) {
-                        const first = this.threads[0];
-                        if (first) {
-                            await this.selectThread(first.id);
+                        // Try selecting the defaultThreadId if provided and present in this course
+                        let toSelect: ThreadSummary | null = null;
+                        if (this.defaultThreadId) {
+                            toSelect = this.threads.find(t => t.id === this.defaultThreadId) || null;
                         }
+                        if (!toSelect) toSelect = this.threads[0] || null;
+                        if (toSelect) await this.selectThread(toSelect.id);
+                        // Clear default after first use
+                        this.defaultThreadId = null;
                     }
                 }
             },
@@ -88,16 +97,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await resp.json();
                 if (data.status === 'success') {
                     this.selectedThread = data.thread as ThreadDetail;
-                    // Hydrate ChatbotPanel with thread messages
-                    // @ts-ignore
-                    const panel = this.$refs.chatbotPanel as any;
-                    if (panel) {
-                        panel.clearMessages();
-                        const msgs = (this.selectedThread?.messages || []) as Array<{ role: 'user' | 'assistant'; content: string; created_at?: string }>;
-                        for (const m of msgs) {
-                            panel.displayMessage(m);
+                    // Hydrate ChatbotPanel with thread messages AFTER panel mounts
+                    this.$nextTick(() => {
+                        // @ts-ignore
+                        const panel = this.$refs.chatbotPanel as any;
+                        if (panel) {
+                            panel.clearMessages();
+                            const msgs = (this.selectedThread?.messages || []) as Array<{ role: 'user' | 'assistant'; content: string; created_at?: string }>;
+                            for (const m of msgs) {
+                                panel.displayMessage(m);
+                            }
+                            // Keep typing flow fast: focus the input after rendering
+                            setTimeout(() => {
+                                // @ts-ignore
+                                const textarea = panel.$el ? panel.$el.querySelector('textarea') as HTMLTextAreaElement | null : null;
+                                if (textarea) textarea.focus();
+                            }, 0);
                         }
-                    }
+                    });
                 }
             },
             async createThread() {
@@ -170,6 +187,15 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                         // Re-fetch the full thread so the UI shows the complete history
                         await this.selectThread(data.thread.id);
+                        // Focus input for next question after assistant reply
+                        this.$nextTick(() => {
+                            // @ts-ignore
+                            const panel = this.$refs.chatbotPanel as any;
+                            if (panel && panel.$el) {
+                                const textarea = panel.$el.querySelector('textarea') as HTMLTextAreaElement | null;
+                                if (textarea) textarea.focus();
+                            }
+                        });
                     }
                 } finally {
                     this.loading = false;

@@ -42,6 +42,35 @@ interface InitErrorMessage {
 let pyodide: any | null = null;
 let isInitializing = false;
 
+function formatPyodideErrorString(error: string): string {
+    try {
+        if (!error) return 'Unknown error';
+        const normalized = error.replace(/\r\n/g, '\n');
+        const lines = normalized.split('\n');
+        const fileExecRegex = /^\s*File\s+"<exec>",\s+line\s+\d+/;
+        let anchorIndex = -1;
+        for (let i = lines.length - 1; i >= 0; i--) {
+            const line = lines[i] ?? '';
+            if (fileExecRegex.test(line)) {
+                anchorIndex = i;
+                break;
+            }
+        }
+        if (anchorIndex !== -1) {
+            const snippet = lines.slice(anchorIndex).join('\n').trim();
+            return snippet || error.trim();
+        }
+        const tracebackIndex = lines.findIndex(l => l.includes('Traceback (most recent call last):'));
+        if (tracebackIndex !== -1) {
+            const tail = lines.slice(Math.max(lines.length - 6, tracebackIndex)).join('\n').trim();
+            return tail || error.trim();
+        }
+        return error.trim();
+    } catch (_) {
+        return String(error || 'Unknown error');
+    }
+}
+
 function dirFromUrl(url: string): string {
     try {
         const u = new URL(url, (self as any).location?.href || undefined);
@@ -161,7 +190,9 @@ self.onmessage = async (evt: MessageEvent<InMessage>) => {
         } catch (e) {
             // @ts-ignore
             console.error('[python_worker] Run error', e);
-            postResult({ type: 'result', runId, success: false, error: String(e) });
+            const raw = (e && (e as any).message) ? String((e as any).message) : String(e);
+            const formatted = formatPyodideErrorString(raw);
+            postResult({ type: 'result', runId, success: false, error: formatted });
         }
         return;
     }

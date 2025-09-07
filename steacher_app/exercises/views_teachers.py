@@ -6,7 +6,7 @@ from django.db import transaction, models
 import json
 
 from .decorators import teacher_required
-from .models import Exercise, Course, Module, ExerciceAsset, Cohort, CohortMembership, Attempt, Trace
+from .models import Exercise, Course, Module, ExerciceAsset, Cohort, CohortMembership, Attempt, Trace, create_trace_for
 from django.contrib.contenttypes.models import ContentType
 from .unit_testing import run_unit_tests
 from .logic import generate_authoring_update
@@ -587,9 +587,9 @@ def exercise_authoring_assistant(request):
     except json.JSONDecodeError:
         return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
 
-    exercise_payload = body.get('exercise') or {}
-    messages = body.get('messages') or []
-    context = body.get('context') or {}
+    exercise_payload = body.get('exercise') or {}  # the exercise object that the LLM is helping to improve
+    messages = body.get('messages') or []  # the user/assistant conversation
+    context = body.get('context') or {}  # the course object
     course_pk = context.get('course_pk')
 
     if not isinstance(messages, list):
@@ -600,11 +600,59 @@ def exercise_authoring_assistant(request):
 
     course = get_object_or_404(Course, pk=course_pk)
 
+    print(f"exercise_payload: {exercise_payload}")
+    print(f"messages: {messages}")
+    print(f"course: {course}")
+
     try:
         result = generate_authoring_update(exercise_payload=exercise_payload, messages=messages, course=course)
+
+        # Persist authoring interaction as a Trace attached to the Exercise
+        # Only if an exercise pk is present or resolvable
+        exercise_pk = (exercise_payload or {}).get('pk') or (exercise_payload or {}).get('id')
+        if exercise_pk:
+            try:
+                ex = Exercise.objects.get(pk=int(exercise_pk), module__course=course)
+                # Determine if this is the first trace for this exercise
+                exercise_ct = ContentType.objects.get_for_model(Exercise, for_concrete_model=False)
+                has_any = Trace.objects.filter(content_type=exercise_ct, object_id=ex.id, channel='authoring').exists()
+
+                user_text = ''
+                try:
+                    if isinstance(messages, list) and messages:
+                        last_msg = messages[-1] or {}
+                        if (last_msg.get('role') or 'user') == 'user':
+                            user_text = str(last_msg.get('content') or '')
+                except Exception:
+                    user_text = ''
+
+                assistant_text = str(result.get('assistant_message') or '')
+                updated_exercise_payload = result.get('updated_exercise') or {}
+                fields = {
+                    'user_content': user_text,
+                    'assistant_content': assistant_text,
+                    'assistant_metadata': {
+                        'updated_exercise': updated_exercise_payload,
+                        'model': result.get('assistant_metadata', {}).get('model'),
+                        'usage': result.get('assistant_metadata', {}).get('usage'),
+                        'finish_reason': result.get('assistant_metadata', {}).get('finish_reason'),
+                    },
+                }
+                if not has_any:
+                    fields['system_prompt'] = str(result.get('system_prompt') or '')
+                create_trace_for(ex, request.user, channel='authoring', **fields)
+            except Exception:
+                # Best-effort persistence; do not fail the request on logging errors
+                pass
+        else:
+            # log error
+            print(f"Error persisting authoring interaction as a Trace attached to the Exercise: {exercise_payload}")
+
         return JsonResponse({'status': 'success', **result})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+        
 @login_required
 @teacher_required
 @require_POST

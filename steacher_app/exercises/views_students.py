@@ -415,7 +415,7 @@ def exercise_detail(request, pk):
         attempt_ct = ContentType.objects.get_for_model(Attempt, for_concrete_model=False)
         traces = (
             Trace.objects
-            .filter(content_type=attempt_ct, object_id=attempt.id)
+            .filter(content_type=attempt_ct, object_id=attempt.id, channel='exercise_guidance')
             .order_by('rank_order', 'id')
         )
         interactions = []
@@ -564,14 +564,25 @@ def scala_execute(request):
 def chat_home(request):
     """Render the simple AI chat page with the user's threads."""
     courses = Course.objects.filter(visible=True).order_by('name')
-    # Default to last course from user's most recent attempt
-    last_attempt = Attempt.objects.get_recent_for_user(request.user)
+    # Stupid simple default: pick the highest ChatThread id for this user
     default_course_id = None
-    if last_attempt and getattr(last_attempt, 'exercise', None) and getattr(last_attempt.exercise, 'module', None):
-        default_course_id = last_attempt.exercise.module.course.id
+    default_thread_id = None
+    try:
+        last_thread = ChatThread.objects.filter(owner=request.user).order_by('-id').first()
+    except Exception:
+        last_thread = None
+    if last_thread is not None:
+        default_thread_id = last_thread.id
+        default_course_id = last_thread.course_id
+    else:
+        # Fallback to last course from user's most recent attempt
+        last_attempt = Attempt.objects.get_recent_for_user(request.user)
+        if last_attempt and getattr(last_attempt, 'exercise', None) and getattr(last_attempt.exercise, 'module', None):
+            default_course_id = last_attempt.exercise.module.course.id
     return render(request, 'exercises/students/ai_chat.html', {
         'courses': courses,
         'default_course_id': default_course_id,
+        'default_thread_id': default_thread_id,
     })
 
 
@@ -642,7 +653,7 @@ def chat_thread_detail(request, thread_id: int):
     thread_ct = ContentType.objects.get_for_model(ChatThread, for_concrete_model=False)
     traces = (
         Trace.objects
-        .filter(content_type=thread_ct, object_id=thread.id)
+        .filter(content_type=thread_ct, object_id=thread.id, channel='study_chat')
         .order_by('rank_order', 'id')
     )
     messages = []
@@ -688,7 +699,7 @@ def chat_thread_send(request, thread_id: int):
     thread_ct = ContentType.objects.get_for_model(ChatThread, for_concrete_model=False)
     existing_traces = (
         Trace.objects
-        .filter(content_type=thread_ct, object_id=thread.id)
+        .filter(content_type=thread_ct, object_id=thread.id, channel='study_chat')
         .order_by('rank_order', 'id')
     )
     # Use the entire conversation history
@@ -739,18 +750,19 @@ def chat_thread_send(request, thread_id: int):
     except Exception as e:
         assistant_text = f"Sorry, I couldn't reach the AI service. ({e})"
 
-    # Persist as Trace(s)
-    is_first = not existing_traces.exists()
+    # Persist as Trace(s) in study_chat channel, storing full message pair
+    # First study_chat trace?
+    is_first = not Trace.objects.filter(content_type=thread_ct, object_id=thread.id, channel__in=['study_chat', 'exercise_guidance']).exists()
     fields = {
         'user_content': user_text,
-        'user_metadata': {},
         'assistant_content': assistant_text,
-        'assistant_metadata': {},
+        'assistant_metadata': {
+            'assistant_message': assistant_text,
+        },
     }
     if is_first:
         fields['system_prompt'] = system_prompt
-    # Reuse generic allocator
-    create_trace_for(thread, request.user, **fields)
+    create_trace_for(thread, request.user, channel='study_chat', **fields)
 
     # Use first user line or assistant summary for title if default
     if thread.title == 'New Chat' and user_text:
@@ -797,7 +809,7 @@ def recommend_learning_pathway(request, attempt_id):
         attempt_ct = ContentType.objects.get_for_model(Attempt, for_concrete_model=False)
         traces = (
             Trace.objects
-            .filter(content_type=attempt_ct, object_id=attempt.id)
+            .filter(content_type=attempt_ct, object_id=attempt.id, channel='exercise_guidance')
             .order_by('rank_order', 'id')
         )
         interactions = [
@@ -825,7 +837,25 @@ def recommend_learning_pathway(request, attempt_id):
         if "error" in recommendation_data:
             return JsonResponse({'status': 'error', 'message': recommendation_data.get('details', 'Failed to get recommendation.')}, status=500)
 
-        # Persist the recommendation in the database
+        # Persist the recommendation as a Trace in the learning_pathway channel (and keep existing field for now)
+        try:
+            attempt_ct = ContentType.objects.get_for_model(Attempt, for_concrete_model=False)
+            # Determine if this is the first pathway trace; if so, store a minimal system prompt marker
+            has_any_pathway = Trace.objects.filter(content_type=attempt_ct, object_id=attempt.id, channel='learning_pathway').exists()
+            lp_fields = {
+                'user_content': 'request_learning_pathway',
+                'assistant_content': 'learning_pathway_recommendation',
+                'assistant_metadata': {
+                    'learning_pathway': recommendation_data,
+                },
+            }
+            if not has_any_pathway:
+                lp_fields['system_prompt'] = 'Learning pathway recommender system prompt (implicit)'
+            create_trace_for(attempt, request.user, channel='learning_pathway', **lp_fields)
+        except Exception:
+            pass
+
+        # Also persist the recommendation in the attempt for backward compatibility
         attempt.completion_feedback = recommendation_data
         attempt.save(update_fields=['completion_feedback'])
 

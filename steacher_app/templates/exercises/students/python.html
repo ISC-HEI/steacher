@@ -54,14 +54,8 @@
                     </div>
                 </div>
                 <div class="exercise-output mt-4">
-                    <div v-if="executionError">
-                        <div class="notification is-danger">
-                            <h6 class="title is-6">Error:</h6>
-                            <pre>[[ executionError ]]</pre>
-                        </div>
-                    </div>
                     <h6 class="title is-6 mt-6 mb-2">Console Output:</h6>
-                    <pre class="has-background-black has-text-white p-5 is-size-6 console-output">[[ executionOutput ]]</pre>
+                    <pre :class="['has-background-black', 'p-5', 'is-size-6', 'console-output', executionError ? 'has-text-danger' : 'has-text-white']">[[ executionError || executionOutput ]]</pre>
                 </div>
             </div>
         </div>

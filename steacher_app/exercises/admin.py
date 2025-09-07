@@ -212,8 +212,8 @@ class ExerciceAssetAdmin(admin.ModelAdmin):
 
 @admin.register(Trace)
 class TraceAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'content_type', 'object_id', 'rank_order', 'created_repr')
-    list_filter = (('user', admin.RelatedOnlyFieldListFilter), 'content_type')
+    list_display = ('id', 'user', 'content_type', 'object_id', 'channel', 'rank_order', 'created_repr')
+    list_filter = (('user', admin.RelatedOnlyFieldListFilter), 'content_type', 'channel')
     search_fields = ('user__username', 'user__email')
     ordering = ('content_type', 'object_id', 'rank_order', 'id')
     readonly_fields = ()

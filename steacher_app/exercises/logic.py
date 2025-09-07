@@ -342,7 +342,7 @@ Do not provide the entire solution, but give them enough to make meaningful prog
     if not first_trace: # if there is no first trace, then this is the first trace
         # Always store the system prompt on the first trace
         fields['system_prompt'] = prompt
-    create_trace_for(attempt, attempt.user, **fields)
+    create_trace_for(attempt, attempt.user, channel='exercise_guidance', **fields)
 
     # 8. Prepare the data to be returned to the view
     response_data = {
@@ -370,6 +370,8 @@ def generate_authoring_update(*, exercise_payload: dict, messages: list, course:
     Output dict:
     - 'assistant_message': str (short assistant reply)
     - 'updated_exercise': dict (complete DTO to apply on the form)
+    - 'system_prompt': str (the system prompt used for the LLM)
+    - 'assistant_metadata': dict (metadata about the assistant's response, like the LLM response time, model, etc.)
     """
 
     # 1) Build system prompt specialized for authoring
@@ -502,6 +504,16 @@ Do not use markdown or code fences. The exercise object MUST be the value of the
     return {
         'assistant_message': assistant_message,
         'updated_exercise': updated_exercise,
+        'system_prompt': full_system_prompt,
+        'assistant_metadata': {
+            'model': completion.model,
+            'usage': {
+                'completion_tokens': completion.usage.completion_tokens,
+                'prompt_tokens': completion.usage.prompt_tokens,
+                'total_tokens': completion.usage.total_tokens,
+            },
+            'finish_reason': completion.choices[0].finish_reason,
+        },
     }
 
 
