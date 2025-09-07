@@ -6,7 +6,8 @@ from django.db import transaction, models
 import json
 
 from .decorators import teacher_required
-from .models import Exercise, Course, Module, ExerciceAsset, Cohort, CohortMembership, Attempt, AttemptInteraction
+from .models import Exercise, Course, Module, ExerciceAsset, Cohort, CohortMembership, Attempt, Trace
+from django.contrib.contenttypes.models import ContentType
 from .unit_testing import run_unit_tests
 from .logic import generate_authoring_update
 from .logic import generate_i18n_translations
@@ -107,13 +108,18 @@ def dashboard(request):
         for a in attempts:
             attempts_by_student.setdefault(a.user_id, []).append(a)
 
-        # Fetch interactions for all attempts in one query
+        # Fetch traces for all attempts in one query
         attempt_ids = [a.id for a in attempts]
-        interactions = AttemptInteraction.objects.filter(attempt_id__in=attempt_ids).order_by('attempt_id', 'submitted_at')
-        # Map: attempt_id -> list of interactions (in order)
+        attempt_ct = ContentType.objects.get_for_model(Attempt, for_concrete_model=False)
+        traces = (
+            Trace.objects
+            .filter(content_type=attempt_ct, object_id__in=attempt_ids)
+            .order_by('object_id', 'rank_order', 'id')
+        )
+        # Map: attempt_id -> list of traces (in order)
         interactions_by_attempt = {}
-        for inter in interactions:
-            interactions_by_attempt.setdefault(inter.attempt_id, []).append(inter)
+        for tr in traces:
+            interactions_by_attempt.setdefault(tr.object_id, []).append(tr)
 
         # Compute per-student metrics
         percents = []
@@ -155,8 +161,8 @@ def dashboard(request):
 
             for a in user_attempts:
                 inters = interactions_by_attempt.get(a.id, [])
-                for log in inters:
-                    meta = (log.interaction or {}).get('user_submission', {}).get('metadata', {})
+                for tr in inters:
+                    meta = (tr.user_metadata or {})
                     action = meta.get('action')
                     # Count submissions and hints
                     if action in ('run_code', 'run_query', 'submit_answer'):

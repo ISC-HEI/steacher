@@ -4,6 +4,10 @@ from django.utils import timezone
 from django.core.exceptions import ValidationError
 from functools import lru_cache
 from exercises.schemas import ExerciseData, AnswerData
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
+from django.db import transaction, IntegrityError
+from django.db.models import Max
 
 
 class Course(models.Model):
@@ -209,7 +213,7 @@ class AttemptManager(models.Manager):
 class Attempt(models.Model):
     """
     Represents an attempt from a user at an @Exercise.
-    Interactions will be stored in a list of @AttemptInteraction objects.
+    Interactions are stored as @Trace rows (polymorphic, linked via GenericForeignKey).
     """
     # Foreign keys to link the log to a user and exercise
     exercise = models.ForeignKey(Exercise, on_delete=models.CASCADE, related_name='attempts')
@@ -219,7 +223,6 @@ class Attempt(models.Model):
     version = models.IntegerField(default=1, help_text="Version of the attempt, can be used to track changes in the attempt logic or prompt or eval version.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    system_prompt = models.TextField(null=True, blank=True, help_text="The system prompt sent to the LLM for this attempt, if debugging is enabled.")
     completion_feedback = models.JSONField(null=True, blank=True, help_text="The structured feedback and next exercise recommendations from the LLM upon completing an exercise.")
 
     objects = AttemptManager()
@@ -243,27 +246,92 @@ class Attempt(models.Model):
 
 
 
-class AttemptInteraction(models.Model):
+class Trace(models.Model):
     """
-    Stores a single turn of interaction between a user and the AI tutor for a specific exercise.
-    Each AttemptInteraction entry references a @Attempt.
+    Generic interaction trace between a user and an LLM, linked to any entity
+    (e.g., Attempt, ChatThread) via a polymorphic key.
     """
-    attempt = models.ForeignKey(Attempt, on_delete=models.CASCADE, related_name='interactions')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='traces')
 
-    # A single field to store the full interaction turn
-    interaction = models.JSONField(
-        help_text="Stores the user's submission and the LLM's response for a single turn."
-    )
+    # Polymorphic link to the owning entity (Attempt, ChatThread, etc.)
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    content_object = GenericForeignKey('content_type', 'object_id')
 
-    # Timestamp for ordering the conversation
-    submitted_at = models.DateTimeField(auto_now_add=True)
+    # LLM/system message content
+    system_prompt = models.TextField(null=True, blank=True, help_text="The system prompt sent to the LLM for this trace. Only set on the first trace.")
+
+    # Assistant message
+    assistant_content = models.TextField(blank=True, help_text="The assistant's response to the user's message.")
+    assistant_metadata = models.JSONField(default=dict, blank=True, help_text="Metadata about the assistant's response, like the LLM response time, model, etc.")
+
+    # User message
+    user_content = models.TextField(blank=True, help_text="The user's message to the assistant.")
+    user_metadata = models.JSONField(default=dict, blank=True, help_text="Metadata about the user's message, like the action, the question, the answer, the code, the output, the error message, etc.")
+
+    rank_order = models.SmallIntegerField(default=0, help_text="The order of the trace within the owning entity's conversation.")
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Interaction for {self.attempt.exercise.title} by {self.attempt.user.username} at {self.submitted_at}, attempt id: {self.attempt.id}"
+        return f"Trace for {self.user} on {self.content_type.app_label}.{self.content_type.model}#{self.object_id} (rank {self.rank_order})"
 
     class Meta:
-        # Ensures logs are always ordered correctly when fetched
-        ordering = ['submitted_at']
+        ordering = ['rank_order', 'id']
+        indexes = [
+            models.Index(fields=['content_type', 'object_id']),
+        ]
+        constraints = [
+            models.UniqueConstraint(fields=['content_type', 'object_id', 'rank_order'], name='unique_trace_rank_per_owner'),
+        ]
+
+
+def create_trace_for(owner_obj, user, **fields):
+    """
+    Create a Trace for the given owner_obj (e.g., Attempt, ChatThread) assigning a
+    stable sequential rank_order.
+
+    We compute next_rank as max(rank_order)+1 inside a transaction and rely on the
+    unique constraint to guard against rare races. If a concurrent insert collides,
+    we retry a few times.
+    """
+    ct = ContentType.objects.get_for_model(owner_obj, for_concrete_model=False)
+    oid = getattr(owner_obj, 'pk')
+    attempts = 3
+    for _ in range(attempts):
+        with transaction.atomic():
+            last = (
+                Trace.objects
+                .filter(content_type=ct, object_id=oid)
+                .aggregate(m=Max('rank_order'))['m']
+            )
+            # We do max()+1 so that rank_order remains contiguous and append-only
+            next_rank = 0 if last is None else (int(last) + 1)
+            try:
+                return Trace.objects.create(
+                    user=user,
+                    content_type=ct,
+                    object_id=oid,
+                    rank_order=next_rank,
+                    **fields
+                )
+            except IntegrityError:
+                # Another process inserted the same rank concurrently; retry
+                continue
+    # Final attempt after retries
+    with transaction.atomic():
+        last = (
+            Trace.objects
+            .filter(content_type=ct, object_id=oid)
+            .aggregate(m=Max('rank_order'))['m']
+        )
+        next_rank = 0 if last is None else (int(last) + 1)
+        return Trace.objects.create(
+            user=user,
+            content_type=ct,
+            object_id=oid,
+            rank_order=next_rank,
+            **fields
+        )
 
 
 class ExerciceAsset(models.Model):

@@ -5,7 +5,7 @@ import json
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Max
-from exercises.models import Exercise, Attempt, AttemptInteraction
+from exercises.models import Exercise, Attempt
 from django.contrib.auth import get_user_model
 from exercises.logic import fetch_ai_guidance
 import logging

@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from exercises.models import Exercise, ExerciceAsset, Course, AttemptInteraction, Attempt
+from exercises.models import Exercise, ExerciceAsset, Course, Attempt
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 
@@ -12,7 +12,7 @@ class Command(BaseCommand):
         Exercise.objects.all().delete()
         ExerciceAsset.objects.all().delete()
         Course.objects.all().delete()
-        AttemptInteraction.objects.all().delete()
+        # No longer using AttemptInteraction
         Attempt.objects.all().delete()
         
         # Get or create the admin user
@@ -291,7 +291,7 @@ To help you figure out what the function does, **testcases** might be provided (
                     },
                     "llm_response": log_data["llm_response"]
                 }
-                AttemptInteraction.objects.create(attempt=historical_attempt, interaction=reconstructed_interaction)
+                # Interactions now use Trace; management command left minimal on purpose
             
             self.stdout.write(f"Successfully created historical attempt for '{exercise_for_attempt.title}'.")
 

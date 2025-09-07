@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html, mark_safe
 from django.db.models import Count
-from .models import Exercise, Course, Module, ExerciceAsset, AttemptInteraction, Attempt, AttemptEval, UserInvite, ChatThread, Cohort, CohortMembership
+from .models import Exercise, Course, Module, ExerciceAsset, Attempt, AttemptEval, UserInvite, ChatThread, Cohort, CohortMembership, Trace
 from django_jsonform.widgets import JSONFormWidget
 
 def format_interactions(attempt):
@@ -210,20 +210,20 @@ class ExerciceAssetAdmin(admin.ModelAdmin):
             return 'Unknown'
     content_size.short_description = 'Content size'
 
-@admin.register(AttemptInteraction)
-class AttemptInteractionAdmin(admin.ModelAdmin):
-    list_display = ('get_exercise', 'get_user', 'submitted_at')
-    list_filter = ('attempt__user', 'attempt__exercise')
-    date_hierarchy = 'submitted_at'
-    ordering = ('-submitted_at',)
+@admin.register(Trace)
+class TraceAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'content_type', 'object_id', 'rank_order', 'created_repr')
+    list_filter = (('user', admin.RelatedOnlyFieldListFilter), 'content_type')
+    search_fields = ('user__username', 'user__email')
+    ordering = ('content_type', 'object_id', 'rank_order', 'id')
+    readonly_fields = ()
 
-    def get_exercise(self, obj):
-        return obj.attempt.exercise
-    get_exercise.short_description = 'Exercise'
-
-    def get_user(self, obj):
-        return obj.attempt.user
-    get_user.short_description = 'User'
+    def created_repr(self, obj):
+        try:
+            return getattr(obj, 'id', None)
+        except Exception:
+            return None
+    created_repr.short_description = 'Created'
 
 class AttemptEvalInlineForm(forms.ModelForm):
     class Meta:
@@ -262,20 +262,14 @@ class AttemptAdmin(admin.ModelAdmin):
     list_filter = (('exercise', admin.RelatedOnlyFieldListFilter), ('user', admin.RelatedOnlyFieldListFilter), 'complete', 'version', HasEvaluationFilter)
     search_fields = ('exercise__title', 'user__username')
     inlines = [AttemptEvalInline]
-    readonly_fields = ('id', 'version', 'display_interactions', 'display_full_prompt')
+    readonly_fields = ('id', 'version')
     ordering = ['id']
 
     fieldsets = (
         (None, {
             'fields': ('id', 'version', 'exercise', 'user', 'complete')
         }),
-        ('Interactions', {
-            'fields': ('display_interactions',),
-        }),
-        ('Full Prompt', {
-            'fields': ('display_full_prompt',),
-            'classes': ('collapse',)
-        }),
+        # Interactions display removed to keep admin minimal for traces
     )
 
     change_form_template = "admin/exercises/attempt/change_form.html"
@@ -326,28 +320,7 @@ class AttemptAdmin(admin.ModelAdmin):
     has_evaluation.short_description = 'Has Evaluation?'
     has_evaluation.admin_order_field = 'eval_count'
 
-    def display_interactions(self, obj):
-        return format_interactions(obj)
-    display_interactions.short_description = "Interactions"
-
-    def display_full_prompt(self, obj):
-        if not obj.system_prompt:
-            return "No system prompt was saved for this attempt (debug mode was likely off)."
-
-        full_prompt_str = f"----------------\n| ROLE:: SYSTEM | \n----------------\n{obj.system_prompt}\n\n"
-        
-        interactions = obj.interactions.order_by('submitted_at')
-        for log in interactions:
-            user_submission = log.interaction.get('user_submission')
-            if user_submission:
-                full_prompt_str += f"----------------\n| ROLE:: {user_submission.get('role', 'user')}  | \n----------------\n{user_submission.get('content', '')}\n\n"
-
-            llm_response = log.interaction.get('llm_response')
-            if llm_response:
-                full_prompt_str += f"----------------\n| ROLE:: {llm_response.get('role', 'assistant')}| \n----------------\n{llm_response.get('content', '')}\n\n"
-        
-        return format_html("<pre style='max-width: 100%; white-space: pre-wrap; word-wrap: break-word;'>{}</pre>", full_prompt_str)
-    display_full_prompt.short_description = "Full LLM Prompt"
+    # Removed custom interactions/prompt display for simplicity
 
 
 @admin.register(AttemptEval)
@@ -393,7 +366,7 @@ class UserInviteAdmin(admin.ModelAdmin):
 
 @admin.register(ChatThread)
 class ChatThreadAdmin(admin.ModelAdmin):
-    list_display = ('id', 'owner', 'title', 'messages_count', 'updated_at', 'created_at')
+    list_display = ('id', 'owner', 'title', 'messages_count', 'updated_at', 'created_date')
     list_filter = (('owner', admin.RelatedOnlyFieldListFilter),)
     search_fields = ('title', 'owner__username', 'owner__email')
     readonly_fields = ('created_at', 'updated_at')
@@ -405,6 +378,14 @@ class ChatThreadAdmin(admin.ModelAdmin):
         except Exception:
             return 0
     messages_count.short_description = 'Messages'
+
+    def created_date(self, obj):
+        try:
+            return obj.created_at.date()
+        except Exception:
+            return None
+    created_date.short_description = 'Created at'
+    created_date.admin_order_field = 'created_at'
 
 
 class CohortAdminForm(forms.ModelForm):

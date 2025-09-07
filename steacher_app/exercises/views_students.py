@@ -14,7 +14,8 @@ import requests
 import time
 import json
 
-from .models import Exercise, ExerciceAsset, Course, AttemptInteraction, Attempt, Module, UserInvite, ChatThread, CohortMembership
+from .models import Exercise, ExerciceAsset, Course, Attempt, Module, UserInvite, ChatThread, CohortMembership, Trace, create_trace_for
+from django.contrib.contenttypes.models import ContentType
 from .serializers import ExerciseFrontendSerializer
 
 
@@ -410,8 +411,27 @@ def exercise_detail(request, pk):
         attempt_id = attempt.id
         if attempt.completion_feedback:
             completion_feedback = attempt.completion_feedback
-        logs = AttemptInteraction.objects.filter(attempt=attempt).order_by('submitted_at')
-        interactions = [log.interaction for log in logs]
+        # Map traces to shape expected by frontend
+        attempt_ct = ContentType.objects.get_for_model(Attempt, for_concrete_model=False)
+        traces = (
+            Trace.objects
+            .filter(content_type=attempt_ct, object_id=attempt.id)
+            .order_by('rank_order', 'id')
+        )
+        interactions = []
+        for tr in traces:
+            interactions.append({
+                'user_submission': {
+                    'role': 'user',
+                    'content': tr.user_content or '',
+                    'metadata': tr.user_metadata or {},
+                },
+                'llm_response': {
+                    'role': 'assistant',
+                    'content': tr.assistant_content or '',
+                    'metadata': tr.assistant_metadata or {},
+                },
+            })
 
     # Determine neighbors within the same module by order
     previous_exercise = (
@@ -500,7 +520,7 @@ def get_guidance(request, exercise_id, attempt_id):
 @login_required
 def delete_user_answers(request, exercise_id):
     """
-    Deletes all AttemptInteraction entries for the current user for a specific exercise.
+    Deletes all traces for the current user's attempt for a specific exercise.
     """
     exercise = get_object_or_404(Exercise, pk=exercise_id)
     Attempt.objects.filter(user=request.user, exercise=exercise).delete()
@@ -618,12 +638,25 @@ def chat_threads(request):
 def chat_thread_detail(request, thread_id: int):
     """Return a single thread with messages (JSON)."""
     thread = get_object_or_404(ChatThread, id=thread_id, owner=request.user)
+    # Rebuild messages from Trace
+    thread_ct = ContentType.objects.get_for_model(ChatThread, for_concrete_model=False)
+    traces = (
+        Trace.objects
+        .filter(content_type=thread_ct, object_id=thread.id)
+        .order_by('rank_order', 'id')
+    )
+    messages = []
+    for tr in traces:
+        if (tr.user_content or '').strip():
+            messages.append({'role': 'user', 'content': tr.user_content, 'created_at': tr.created_at.isoformat()})
+        if (tr.assistant_content or '').strip():
+            messages.append({'role': 'assistant', 'content': tr.assistant_content, 'created_at': tr.created_at.isoformat()})
     return JsonResponse({
         'status': 'success',
         'thread': {
             'id': thread.id,
             'title': thread.title,
-            'messages': thread.messages,
+            'messages': messages,
             'course_id': thread.course_id,
             'course_name': thread.course.name,
             'updated_at': thread.updated_at.isoformat(),
@@ -651,10 +684,22 @@ def chat_thread_send(request, thread_id: int):
     # Basic limits
     user_text = user_text_raw[:4000]
 
-    # Prepare messages and append user message
-    messages = list(thread.messages or [])
-    now_iso = timezone.now().isoformat()
-    messages.append({'role': 'user', 'content': user_text, 'created_at': now_iso})
+    # Prepare context messages reconstructed from Trace
+    thread_ct = ContentType.objects.get_for_model(ChatThread, for_concrete_model=False)
+    existing_traces = (
+        Trace.objects
+        .filter(content_type=thread_ct, object_id=thread.id)
+        .order_by('rank_order', 'id')
+    )
+    # Use the entire conversation history
+    messages = []
+    for tr in existing_traces:
+        if (tr.user_content or '').strip():
+            messages.append({'role': 'user', 'content': tr.user_content})
+        if (tr.assistant_content or '').strip():
+            messages.append({'role': 'assistant', 'content': tr.assistant_content})
+    # Append current user message
+    messages.append({'role': 'user', 'content': user_text})
 
     # Build AI prompt (study mode prompt + course context)
     from .logic import client, MODEL_FAST  # reuse existing configured client
@@ -694,23 +739,31 @@ def chat_thread_send(request, thread_id: int):
     except Exception as e:
         assistant_text = f"Sorry, I couldn't reach the AI service. ({e})"
 
-    messages.append({'role': 'assistant', 'content': assistant_text, 'created_at': timezone.now().isoformat()})
-    # Trim stored history if it grows too large
-    if len(messages) > 200:
-        messages = messages[-200:]
+    # Persist as Trace(s)
+    is_first = not existing_traces.exists()
+    fields = {
+        'user_content': user_text,
+        'user_metadata': {},
+        'assistant_content': assistant_text,
+        'assistant_metadata': {},
+    }
+    if is_first:
+        fields['system_prompt'] = system_prompt
+    # Reuse generic allocator
+    create_trace_for(thread, request.user, **fields)
 
-    thread.messages = messages
     # Use first user line or assistant summary for title if default
     if thread.title == 'New Chat' and user_text:
         thread.title = (user_text.splitlines()[0] or 'New Chat')[:100]
-    thread.save(update_fields=['messages', 'title', 'updated_at'])
+    thread.save(update_fields=['title', 'updated_at'])
 
     return JsonResponse({
         'status': 'success',
         'thread': {
             'id': thread.id,
             'title': thread.title,
-            'messages': thread.messages,
+            'messages': [{'role': 'user', 'content': user_text, 'created_at': timezone.now().isoformat()},
+                         {'role': 'assistant', 'content': assistant_text, 'created_at': timezone.now().isoformat()}],
             'updated_at': thread.updated_at.isoformat(),
             'created_at': thread.created_at.isoformat(),
         }
@@ -741,8 +794,27 @@ def recommend_learning_pathway(request, attempt_id):
 
         # Re-fetch interactions from the DB to ensure we have the canonical, untampered history
         # as the single source of truth, rather than trusting client-side state.
-        interactions_qs = AttemptInteraction.objects.filter(attempt=attempt).order_by('submitted_at')
-        interactions = [log.interaction for log in interactions_qs]
+        attempt_ct = ContentType.objects.get_for_model(Attempt, for_concrete_model=False)
+        traces = (
+            Trace.objects
+            .filter(content_type=attempt_ct, object_id=attempt.id)
+            .order_by('rank_order', 'id')
+        )
+        interactions = [
+            {
+                'user_submission': {
+                    'role': 'user',
+                    'content': tr.user_content or '',
+                    'metadata': tr.user_metadata or {},
+                },
+                'llm_response': {
+                    'role': 'assistant',
+                    'content': tr.assistant_content or '',
+                    'metadata': tr.assistant_metadata or {},
+                },
+            }
+            for tr in traces
+        ]
 
         # Call the core logic function to get the recommendation from the LLM
         recommendation_data = generate_learning_pathway_recommendation(

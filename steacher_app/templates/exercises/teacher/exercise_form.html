@@ -9,17 +9,12 @@
 {% block content %}
 <div id="exercise-form-app" class="mt-4">
     <h1 class="title is-3 mb-3">{% if exercise.pk %}Edit Exercise: {{ exercise.sequence_label }} — {{ exercise.title }}{% else %}Create New Exercise{% endif %}</h1>
-
     <div class="columns">
         <div class="column is-three-quarters">
             <div v-if="loading" class="notification is-info">Saving...</div>
             <div v-if="error" class="notification is-danger">[[ error ]]</div>
-            
             <form @submit.prevent="saveExercise">
                 {% csrf_token %}
-
-              
-
                 <!-- Language Tabs and Actions (inline row) -->
                 <div class="mb-3" style="display: flex; align-items: center; gap: 0.75rem;">
                     <div class="tabs is-toggle is-small" style="margin-bottom: 0;">
@@ -27,14 +22,14 @@
                             <li :class="{ 'is-active': uiLang === 'en' }"><a @click="uiLang='en'">EN</a></li>
                             <li :class="{ 'is-active': uiLang === 'fr' }">
                                 <a @click="uiLang='fr'">FR
-                                    <span v-if="langEmpty('fr')" class="tag is-danger is-light ml-2" title="Missing fields">!</span>
-                                    <span v-else-if="langStale('fr')" class="tag is-warning is-light ml-2" title="May be outdated">⚠</span>
+                                <span v-if="langEmpty('fr')" class="tag is-danger is-light ml-2" title="Missing fields">!</span>
+                                <span v-else-if="langStale('fr')" class="tag is-warning is-light ml-2" title="May be outdated">⚠</span>
                                 </a>
                             </li>
                             <li :class="{ 'is-active': uiLang === 'de' }">
                                 <a @click="uiLang='de'">DE
-                                    <span v-if="langEmpty('de')" class="tag is-danger is-light ml-2" title="Missing fields">!</span>
-                                    <span v-else-if="langStale('de')" class="tag is-warning is-light ml-2" title="May be outdated">⚠</span>
+                                <span v-if="langEmpty('de')" class="tag is-danger is-light ml-2" title="Missing fields">!</span>
+                                <span v-else-if="langStale('de')" class="tag is-warning is-light ml-2" title="May be outdated">⚠</span>
                                 </a>
                             </li>
                         </ul>
@@ -45,329 +40,311 @@
                         <button type="button" class="button is-link is-light" @click="translateMissingOrStale()" :disabled="sending" title="Automatically translate all languages that are missing content or may be outdated.">Translate missing/stale</button>
                     </div>
                 </div>
-
                 <!-- Box with Title, Description, Question (i18n) -->
                 <div class="box">
-                <!-- Title (i18n) -->
-                <div class="field is-horizontal">
-            <div class="field-label is-normal">
-                <label for="title" class="label">Title ([[ uiLang.toUpperCase() ]])</label>
-            </div>
-            <div class="field-body">
-                <div class="field">
-                    <div class="control">
-                        <input type="text" id="title" class="input" v-model="exercise.title_i18n[uiLang]" :required="uiLang === 'en'">
-                    </div>
-                </div>
-            </div>
-                </div>
-
-                <div class="field is-horizontal">
-            <div class="field-label is-normal">
-                <label for="description" class="label">Description ([[ uiLang.toUpperCase() ]])
-                    <span class="tooltip-container">
-                        <span class="tooltip-icon">?</span>
-                        <span class="tooltip-text">A brief summary of the exercise's topic or goals. This is shown to students in the exercise list.</span>
-                    </span>
-                </label>
-            </div>
-            <div class="field-body">
-                <div class="field">
-                    <div class="control">
-                        <textarea id="description" class="textarea" v-model="exercise.description_i18n[uiLang]"></textarea>
-                    </div>
-                </div>
-            </div>
-                </div>
-
-                <div class="field is-horizontal">
-            <div class="field-label is-normal">
-                <label for="question" class="label">Question ([[ uiLang.toUpperCase() ]])
-                    <span class="tooltip-container">
-                        <span class="tooltip-icon">?</span>
-                        <span class="tooltip-text">The main problem statement or question for the student to solve. Supports Markdown for formatting.</span>
-                    </span>
-                </label>
-            </div>
-            <div class="field-body">
-                <div class="field">
-                    <div class="control">
-                        <textarea id="question" class="textarea" v-model="exercise.question_i18n[uiLang]" rows="10" :required="uiLang === 'en'"></textarea>
-                    </div>
-                </div>
-            </div>
-                </div>
-                </div>
-
-                <div class="field is-horizontal" v-if="exercise.exercise_type === 'sql'">
-            <div class="field-label is-normal">
-                <label for="db" class="label">Database File
-                    <span class="tooltip-container">
-                        <span class="tooltip-icon">?</span>
-                        <span class="tooltip-text">For SQL exercises, select the database file (.sql) that contains the schema and data. Database files are uploaded in the course assets.</span>
-                    </span>
-                </label>
-            </div>
-            <div class="field-body">
-                <div class="field">
-                    <div class="control">
-                        <div class="select is-fullwidth">
-                            <select id="db" v-model="exercise.exercise_data.db">
-                                <option disabled value="">Select a database asset</option>
-                                <option v-for="asset in available_sql_assets" :key="asset" :value="asset">[[ asset ]]</option>
-                            </select>
+                    <!-- Title (i18n) -->
+                    <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                            <label for="title" class="label">Title ([[ uiLang.toUpperCase() ]])</label>
                         </div>
-                    </div>
-                    <p class="help" v-if="available_sql_assets.length === 0">No .sql assets are available for this course. Upload an asset first.</p>
-                </div>
-            </div>
-                </div>
-        
-                <div class="box">
-                
-                  <!-- Exercise Type -->
-                  <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                        <label class="label" for="id_exercise_type">Exercise Type
-                            <span class="tooltip-container">
-                                <span class="tooltip-icon">?</span>
-                                <span class="tooltip-text">Determines the kind of problem and the interface the student will use (e.g., Python code editor, Open Question).</span>
-                            </span>
-                        </label>
-                    </div>
-                    <div class="field-body">
-                        <div class="field">
-                            <div class="control">
-                                <div class="select">
-                                    <select id="id_exercise_type" v-model="exercise.exercise_type">
-                                        <option value="open_question">Open Question</option>
-                                        <option value="python">Python</option>
-                                        <option value="scala">Scala</option>
-                                        <option value="sql">SQL</option>
-                                        <!-- <option value="turtle">Turtle</option> not really implemented yet -->                                        
-                                    </select>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <input type="text" id="title" class="input" v-model="exercise.title_i18n[uiLang]" :required="uiLang === 'en'">
                                 </div>
                             </div>
                         </div>
                     </div>
+                    <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                            <label for="description" class="label">Description ([[ uiLang.toUpperCase() ]])
+                            <span class="tooltip-container">
+                            <span class="tooltip-icon">?</span>
+                            <span class="tooltip-text">A brief summary of the exercise's topic or goals. This is shown to students in the exercise list.</span>
+                            </span>
+                            </label>
                         </div>
-
-
-                <!-- Answer Template (only for Python, SQL, Scala, Open Question) -->
-                <div class="field is-horizontal" v-if="['python','sql','scala','open_question'].includes(exercise.exercise_type)">
-            <div class="field-label is-normal">
-                <label for="answer_template" class="label">Answer Template
-                    <span class="tooltip-container">
-                        <span class="tooltip-icon">?</span>
-                        <span class="tooltip-text">Initial content provided to the student in the answer area. Can be used as a starting point or scaffold. ATM this is not translated so choose carefully.</span>
-                    </span>
-                </label>
-            </div>
-            <div class="field-body">
-                <div class="field">
-                    <div class="control">
-                        <textarea id="answer_template" class="textarea" v-model="exercise.exercise_data.answer_template" rows="6" placeholder="Optional default content shown to students when they start."></textarea>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <textarea id="description" class="textarea" v-model="exercise.description_i18n[uiLang]"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                            <label for="question" class="label">Question ([[ uiLang.toUpperCase() ]])
+                            <span class="tooltip-container">
+                            <span class="tooltip-icon">?</span>
+                            <span class="tooltip-text">The main problem statement or question for the student to solve. Supports Markdown for formatting.</span>
+                            </span>
+                            </label>
+                        </div>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <textarea id="question" class="textarea" v-model="exercise.question_i18n[uiLang]" rows="10" :required="uiLang === 'en'"></textarea>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-                </div>
-
-                <div class="field is-horizontal">
-            <div class="field-label is-normal">
-                <label for="expected_result" class="label">Expected Result
-                    <span class="tooltip-container">
+                <div class="field is-horizontal" v-if="exercise.exercise_type === 'sql'">
+                    <div class="field-label is-normal">
+                        <label for="db" class="label">Database File
+                        <span class="tooltip-container">
                         <span class="tooltip-icon">?</span>
-                        <span class="tooltip-text">For simple exercises (e.g. a single SQL query), this is the exact output for a correct answer. For complex coding exercises, prefer using Unit Tests below for more robust validation.</span>
-                    </span>
-                </label>
-            </div>
-            <div class="field-body">
-                <div class="field">
-                    <div class="control">
-                        <input type="text" id="expected_result" class="input" v-model="exercise.answer_data.expected_result">
+                        <span class="tooltip-text">For SQL exercises, select the database file (.sql) that contains the schema and data. Database files are uploaded in the course assets.</span>
+                        </span>
+                        </label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <div class="select is-fullwidth">
+                                    <select id="db" v-model="exercise.exercise_data.db">
+                                        <option disabled value="">Select a database asset</option>
+                                        <option v-for="asset in available_sql_assets" :key="asset" :value="asset">[[ asset ]]</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <p class="help" v-if="available_sql_assets.length === 0">No .sql assets are available for this course. Upload an asset first.</p>
+                        </div>
                     </div>
                 </div>
-            </div>
-                </div>
-
-                <div class="field is-horizontal">
-            <div class="field-label is-normal">
-                <label for="hints" class="label">Hints (one per line)
-                    <span class="tooltip-container">
-                        <span class="tooltip-icon">?</span>
-                        <span class="tooltip-text">One hint per line. These hints guide the AI tutor when assisting students. The AI will automatically translate them from English to the student's language.</span>
-                    </span>
-                </label>
-            </div>
-            <div class="field-body">
-                <div class="field">
-                    <div class="control">
-                        <textarea id="hints" class="textarea" v-model="exercise.answer_data.hints" rows="3"></textarea>
+                <div class="box">
+                    <!-- Exercise Type -->
+                    <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                            <label class="label" for="id_exercise_type">Exercise Type
+                            <span class="tooltip-container">
+                            <span class="tooltip-icon">?</span>
+                            <span class="tooltip-text">Determines the kind of problem and the interface the student will use (e.g., Python code editor, Open Question).</span>
+                            </span>
+                            </label>
+                        </div>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <div class="select">
+                                        <select id="id_exercise_type" v-model="exercise.exercise_type">
+                                            <option value="open_question">Open Question</option>
+                                            <option value="python">Python</option>
+                                            <option value="scala">Scala</option>
+                                            <option value="sql">SQL</option>
+                                            <!-- <option value="turtle">Turtle</option> not really implemented yet -->                                        
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Answer Template (only for Python, SQL, Scala, Open Question) -->
+                    <div class="field is-horizontal" v-if="['python','sql','scala','open_question'].includes(exercise.exercise_type)">
+                        <div class="field-label is-normal">
+                            <label for="answer_template" class="label">Answer Template
+                            <span class="tooltip-container">
+                            <span class="tooltip-icon">?</span>
+                            <span class="tooltip-text">Initial content provided to the student in the answer area. Can be used as a starting point or scaffold. ATM this is not translated so choose carefully.</span>
+                            </span>
+                            </label>
+                        </div>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <textarea id="answer_template" class="textarea" v-model="exercise.exercise_data.answer_template" rows="6" placeholder="Optional default content shown to students when they start."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                            <label for="expected_result" class="label">Expected Result
+                            <span class="tooltip-container">
+                            <span class="tooltip-icon">?</span>
+                            <span class="tooltip-text">For simple exercises (e.g. a single SQL query), this is the exact output for a correct answer. For complex coding exercises, prefer using Unit Tests below for more robust validation.</span>
+                            </span>
+                            </label>
+                        </div>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <input type="text" id="expected_result" class="input" v-model="exercise.answer_data.expected_result">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                            <label for="hints" class="label">Hints (one per line)
+                            <span class="tooltip-container">
+                            <span class="tooltip-icon">?</span>
+                            <span class="tooltip-text">One hint per line. These hints guide the AI tutor when assisting students. The AI will automatically translate them from English to the student's language.</span>
+                            </span>
+                            </label>
+                        </div>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <textarea id="hints" class="textarea" v-model="exercise.answer_data.hints" rows="3"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                            <label for="additional_context" class="label">Additional Context
+                            <span class="tooltip-container">
+                            <span class="tooltip-icon">?</span>
+                            <span class="tooltip-text">Secret instructions for the AI tutor, not visible to students. For example, you can specify topics to avoid ('don't mention recursion') or suggest a pedagogical approach.</span>
+                            </span>
+                            </label>
+                        </div>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <textarea id="additional_context" class="textarea" v-model="exercise.answer_data.additional_context" rows="3"></textarea>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-                </div>
-
-                <div class="field is-horizontal">
-            <div class="field-label is-normal">
-                <label for="additional_context" class="label">Additional Context
-                    <span class="tooltip-container">
-                        <span class="tooltip-icon">?</span>
-                        <span class="tooltip-text">Secret instructions for the AI tutor, not visible to students. For example, you can specify topics to avoid ('don't mention recursion') or suggest a pedagogical approach.</span>
-                    </span>
-                </label>
-            </div>
-            <div class="field-body">
-                <div class="field">
-                    <div class="control">
-                        <textarea id="additional_context" class="textarea" v-model="exercise.answer_data.additional_context" rows="3"></textarea>
-                    </div>
-                </div>
-            </div>
-                </div>
-                </div>
-        
                 <h4 class="title is-5 mt-4">Correct Answers</h4>
                 <div class="mb-4" v-for="(answer, index) in exercise.answer_data.correct_answers" :key="index">
-            <div class="box">
-                <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                        <label :for="'answer-' + index" class="label">Answer
-                            <span class="tooltip-container">
+                    <div class="box">
+                        <div class="field is-horizontal">
+                            <div class="field-label is-normal">
+                                <label :for="'answer-' + index" class="label">Answer
+                                <span class="tooltip-container">
                                 <span class="tooltip-icon">?</span>
                                 <span class="tooltip-text">A valid, correct solution. For a coding exercise, this would be the complete, runnable code. You can add multiple correct answers if there are different ways to solve it.</span>
-                            </span>
-                        </label>
-                    </div>
-                    <div class="field-body">
-                        <div class="field">
-                            <div class="control">
-                                <textarea :id="'answer-' + index" class="textarea" v-model="answer.answer" rows="10"></textarea>
+                                </span>
+                                </label>
+                            </div>
+                            <div class="field-body">
+                                <div class="field">
+                                    <div class="control">
+                                        <textarea :id="'answer-' + index" class="textarea" v-model="answer.answer" rows="10"></textarea>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-                <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                        <label :for="'explanation-' + index" class="label">Explanation
-                            <span class="tooltip-container">
+                        <div class="field is-horizontal">
+                            <div class="field-label is-normal">
+                                <label :for="'explanation-' + index" class="label">Explanation
+                                <span class="tooltip-container">
                                 <span class="tooltip-icon">?</span>
                                 <span class="tooltip-text">An explanation of why this answer is correct. This can be shown to the student after they solve the exercise or used by the AI tutor.</span>
-                            </span>
-                        </label>
-                    </div>
-                    <div class="field-body">
-                        <div class="field">
-                            <div class="control">
-                                <textarea :id="'explanation-' + index" class="textarea" v-model="answer.explanation" rows="2"></textarea>
+                                </span>
+                                </label>
+                            </div>
+                            <div class="field-body">
+                                <div class="field">
+                                    <div class="control">
+                                        <textarea :id="'explanation-' + index" class="textarea" v-model="answer.explanation" rows="2"></textarea>
+                                    </div>
+                                </div>
                             </div>
                         </div>
+                        <button type="button" @click="removeCorrectAnswer(index)" class="button is-danger is-small" title="Remove this correct answer entry.">Remove</button>
                     </div>
-                </div>
-                <button type="button" @click="removeCorrectAnswer(index)" class="button is-danger is-small" title="Remove this correct answer entry.">Remove</button>
-            </div>
                 </div>
                 <button type="button" @click="addCorrectAnswer" class="button is-link mb-4" title="Add another possible correct answer.">Add Correct Answer</button>
-
                 <hr>
                 <h3 class="mb-3 title is-4">Unit Tests</h3>
-
                 <div class="field is-horizontal">
-            <div class="field-label is-normal">
-                <label for="setup-code" class="label">Setup Code
-                    <span class="tooltip-container">
+                    <div class="field-label is-normal">
+                        <label for="setup-code" class="label">Setup Code
+                        <span class="tooltip-container">
                         <span class="tooltip-icon">?</span>
                         <span class="tooltip-text">Optional code that runs once before all test cases. Use it to define shared functions or import libraries needed for testing.</span>
-                    </span>
-                </label>
-            </div>
-            <div class="field-body">
-                <div class="field">
-                    <div class="control">
-                        <textarea id="setup-code" class="textarea" v-model="exercise.answer_data.unit_tests.setup_code" rows="5"></textarea>
+                        </span>
+                        </label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <textarea id="setup-code" class="textarea" v-model="exercise.answer_data.unit_tests.setup_code" rows="5"></textarea>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-                </div>
-        
                 <div class="field is-horizontal">
-            <div class="field-label is-normal">
-                <label for="timeout" class="label">Timeout (seconds)
-                    <span class="tooltip-container">
+                    <div class="field-label is-normal">
+                        <label for="timeout" class="label">Timeout (seconds)
+                        <span class="tooltip-container">
                         <span class="tooltip-icon">?</span>
                         <span class="tooltip-text">The maximum time allowed for the student's code to run during testing to prevent infinite loops.</span>
-                    </span>
-                </label>
-            </div>
-            <div class="field-body">
-                <div class="field">
-                    <div class="control">
-                        <input type="number" id="timeout" class="input" v-model.number="exercise.answer_data.unit_tests.timeout_seconds">
+                        </span>
+                        </label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <input type="number" id="timeout" class="input" v-model.number="exercise.answer_data.unit_tests.timeout_seconds">
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-                </div>
-
                 <div class="mb-4" v-for="(testCase, index) in exercise.answer_data.unit_tests.test_cases" :key="index">
-            <div class="box">
-                <h4 class="title is-5">Test Case [[ index + 1 ]]</h4>
-                <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                        <label :for="'desc-' + index" class="label">Description
-                            <span class="tooltip-container">
+                    <div class="box">
+                        <h4 class="title is-5">Test Case [[ index + 1 ]]</h4>
+                        <div class="field is-horizontal">
+                            <div class="field-label is-normal">
+                                <label :for="'desc-' + index" class="label">Description
+                                <span class="tooltip-container">
                                 <span class="tooltip-icon">?</span>
                                 <span class="tooltip-text">A short, human-readable description of what this test case checks.</span>
-                            </span>
-                        </label>
-                    </div>
-                    <div class="field-body">
-                        <div class="field">
-                            <div class="control">
-                                <input :id="'desc-' + index" type="text" class="input" v-model="testCase.description">
+                                </span>
+                                </label>
+                            </div>
+                            <div class="field-body">
+                                <div class="field">
+                                    <div class="control">
+                                        <input :id="'desc-' + index" type="text" class="input" v-model="testCase.description">
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-                <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                        <label :for="'code-' + index" class="label">Test Code
-                            <span class="tooltip-container">
+                        <div class="field is-horizontal">
+                            <div class="field-label is-normal">
+                                <label :for="'code-' + index" class="label">Test Code
+                                <span class="tooltip-container">
                                 <span class="tooltip-icon">?</span>
                                 <span class="tooltip-text">Code that runs the student's solution to test it. It should use an 'assert' statement or 'print' to check the result. E.g., 'assert student_function(1, 2) == 3'.</span>
-                            </span>
-                        </label>
-                    </div>
-                    <div class="field-body">
-                        <div class="field">
-                            <div class="control">
-                                <textarea :id="'code-' + index" class="textarea" v-model="testCase.test_code" rows="2"></textarea>
+                                </span>
+                                </label>
+                            </div>
+                            <div class="field-body">
+                                <div class="field">
+                                    <div class="control">
+                                        <textarea :id="'code-' + index" class="textarea" v-model="testCase.test_code" rows="2"></textarea>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-                <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                        <label :for="'output-' + index" class="label">Expected Output
-                            <span class="tooltip-container">
+                        <div class="field is-horizontal">
+                            <div class="field-label is-normal">
+                                <label :for="'output-' + index" class="label">Expected Output
+                                <span class="tooltip-container">
                                 <span class="tooltip-icon">?</span>
                                 <span class="tooltip-text">The exact text that the 'Test Code' should print to the console. This must be an exact match (including newlines) for the test to pass.</span>
-                            </span>
-                        </label>
-                    </div>
-                    <div class="field-body">
-                        <div class="field">
-                            <div class="control">
-                                <textarea :id="'output-' + index" class="textarea" v-model="testCase.expected_output" rows="1"></textarea>
+                                </span>
+                                </label>
+                            </div>
+                            <div class="field-body">
+                                <div class="field">
+                                    <div class="control">
+                                        <textarea :id="'output-' + index" class="textarea" v-model="testCase.expected_output" rows="1"></textarea>
+                                    </div>
+                                </div>
                             </div>
                         </div>
+                        <button type="button" @click="removeTestCase(index)" class="button is-danger is-small" title="Remove this test case.">Remove Test Case</button>
                     </div>
                 </div>
-                <button type="button" @click="removeTestCase(index)" class="button is-danger is-small" title="Remove this test case.">Remove Test Case</button>
-            </div>
-                </div>
-
                 <button type="button" @click="addTestCase" class="button is-link mb-4" title="Add a new unit test case to validate the student's solution.">Add Test Case</button>
-
                 <hr>
                 <div class="field is-grouped">
                     <div class="control">
@@ -382,7 +359,6 @@
                 </div>
             </form>
         </div>
-
         <div class="column is-one-quarter">
             <div class="box" style="height: calc(100vh - 180px); display: flex; flex-direction: column;">
                 <h3 class="title is-5">AI Exercise Assistant</h3>

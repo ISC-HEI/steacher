@@ -159,7 +159,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     const data = await resp.json();
                     if (data.status === 'success') {
-                        this.selectedThread = data.thread;
                         // update list ordering/title
                         const idx = this.threads.findIndex(t => t.id === data.thread.id);
                         if (idx !== -1) this.threads.splice(idx, 1);
@@ -169,16 +168,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             created_at: data.thread.created_at,
                             updated_at: data.thread.updated_at,
                         });
-                        // Rehydrate ChatbotPanel with latest messages
-                        // @ts-ignore
-                        const panel = this.$refs.chatbotPanel as any;
-                        if (panel) {
-                            panel.clearMessages();
-                            const msgs = (this.selectedThread?.messages || []) as Array<{ role: 'user' | 'assistant'; content: string; created_at?: string }>;
-                            for (const m of msgs) {
-                                panel.displayMessage(m);
-                            }
-                        }
+                        // Re-fetch the full thread so the UI shows the complete history
+                        await this.selectThread(data.thread.id);
                     }
                 } finally {
                     this.loading = false;

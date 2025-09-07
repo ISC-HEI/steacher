@@ -2,7 +2,8 @@ import json
 import openai
 import time
 from django.conf import settings
-from .models import AttemptInteraction, Exercise, Attempt, Course
+from .models import Trace, Exercise, Attempt, Course, create_trace_for
+from django.contrib.contenttypes.models import ContentType
 from .schemas import ExerciseData, AnswerData, get_pydantic_schema_as_string
 import logging
 
@@ -141,9 +142,14 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
     #else: FIXME
     #    raise ValueError(f"Invalid action: {action}")
 
-    # 2. Fetch conversation history
-    interactions = AttemptInteraction.objects.filter(attempt=attempt)
+    # 2. Fetch conversation history (Trace-based)
     messages = []
+    attempt_ct = ContentType.objects.get_for_model(Attempt, for_concrete_model=False)
+    existing_traces = (
+        Trace.objects
+        .filter(content_type=attempt_ct, object_id=attempt.id)
+        .order_by('rank_order', 'id')
+    )
 
     # 3. Add system prompt and course prompt (the specific prompt for this kind of exercise)
     with open('exercises/general_prompt.md', 'r') as file:
@@ -226,28 +232,15 @@ Do not provide the entire solution, but give them enough to make meaningful prog
 
     logger.debug(f"System prompt:\n{prompt}")
 
-    # 4. Add past messages from the log, stripping metadata to save tokens
-    for log in interactions.order_by('submitted_at'):
-        user_submission = log.interaction.get('user_submission')
-        if user_submission:
-            messages.append({
-                'role': user_submission.get('role'),
-                'content': user_submission.get('content')
-            })
-            logger.debug(f"User submission:\n{user_submission}")
-
-        llm_response = log.interaction.get('llm_response')
-        if llm_response:
-            messages.append({
-                'role': llm_response.get('role'),
-                'content': llm_response.get('content')
-            })
-            logger.debug(f"LLM response:\n{llm_response}")
-
-    # 5. Store the system prompt if in debug mode
-    if debug:
-        attempt.system_prompt = prompt
-        attempt.save()
+    # 4. Add past messages from traces, stripping metadata to save tokens
+    for i, tr in enumerate(existing_traces):
+        # First trace also stores the system prompt (mandatory)
+        if i == 0 and tr.system_prompt:
+            messages.append({'role': 'system', 'content': tr.system_prompt})
+        if tr.user_content:
+            messages.append({'role': 'user', 'content': tr.user_content})
+        if tr.assistant_content:
+            messages.append({'role': 'assistant', 'content': tr.assistant_content})
 
     # 6. Add the current user message
     user_submission = {
@@ -327,10 +320,29 @@ Do not provide the entire solution, but give them enough to make meaningful prog
     if cbm_result:
         interaction_log['user_submission']['metadata']['cbm_result'] = cbm_result
 
-    AttemptInteraction.objects.create(
-        attempt=attempt,
-        interaction=interaction_log
-    )
+    # 7.b. Persist as a Trace. Ensure first trace stores system_prompt (mandatory)
+    first_trace = (existing_traces.first() if hasattr(existing_traces, 'first') else None)
+    fields = {
+        'user_content': user_prompt_content,
+        'user_metadata': data,
+        'assistant_content': answer,
+        'assistant_metadata': {
+            'model': llm_response.model,
+            'usage': {
+                'completion_tokens': llm_response.usage.completion_tokens,
+                'prompt_tokens': llm_response.usage.prompt_tokens,
+                'total_tokens': llm_response.usage.total_tokens,
+            },
+            'finish_reason': llm_response.choices[0].finish_reason
+        }
+    }
+    if debug:
+        # Preserve ambiguity when debugging
+        fields['assistant_metadata']['ambiguity'] = ambiguity
+    if not first_trace: # if there is no first trace, then this is the first trace
+        # Always store the system prompt on the first trace
+        fields['system_prompt'] = prompt
+    create_trace_for(attempt, attempt.user, **fields)
 
     # 8. Prepare the data to be returned to the view
     response_data = {

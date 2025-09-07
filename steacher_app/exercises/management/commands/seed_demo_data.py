@@ -9,7 +9,6 @@ from exercises.models import (
     Cohort,
     CohortMembership,
     Attempt,
-    AttemptInteraction,
     AttemptEval,
 )
 
@@ -63,8 +62,7 @@ class Command(BaseCommand):
 
             if course:
                 # Delete related demo data scoped to this course
-                # Attempts/interactions/evals
-                AttemptInteraction.objects.filter(attempt__exercise__module__course=course).delete()
+                # Attempts/evals (interactions now handled by Trace; not seeded/cleaned here)
                 AttemptEval.objects.filter(attempt__exercise__module__course=course).delete()
                 Attempt.objects.filter(exercise__module__course=course).delete()
 
@@ -206,22 +204,9 @@ class Command(BaseCommand):
         a4.cohort = cohort
         a4.save(update_fields=["cohort"])
 
-        # Add one simple interaction per attempt
+        # Interactions are no longer seeded via AttemptInteraction
         def add_interaction(attempt, user_code, assistant_msg, action="run_code"):
-            AttemptInteraction.objects.get_or_create(
-                attempt=attempt,
-                interaction={
-                    "user_submission": {
-                        "role": "user",
-                        "content": f"I ran this code:\n```python\n{user_code}\n```",
-                        "metadata": {"action": action, "code": user_code},
-                    },
-                    "llm_response": {
-                        "role": "assistant",
-                        "content": assistant_msg,
-                    },
-                },
-            )
+            return None
 
         add_interaction(a1, "print('Hello, World!')", "Looks good! <exercise_completed>")
         add_interaction(a2, "print('Hello, World!')", "Nice, that matches the expected output. <exercise_completed>")
