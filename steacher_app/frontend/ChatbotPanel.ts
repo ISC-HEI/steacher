@@ -2,6 +2,7 @@ import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import confetti from 'canvas-confetti';
 import { getCsrfToken } from './utils.js';
+import { defineComponent } from "vue";
 
 interface OptionButton {
     id: string;
@@ -16,7 +17,17 @@ interface ProcessedMessage {
     [key: string]: any;
 }
 
-export const ChatbotPanel = {
+interface ChatbotPanelData {
+    question: string;
+    internalMessages: any[];
+    pathwayLoading: boolean;
+    pathwayData: any;
+    showCompletionModal: boolean;
+    showJumpToLatest: boolean;
+    nextMessageId: number;
+}
+
+export const ChatbotPanel = defineComponent({
   props: {
     loading: {  // used to disable the question input field while loading
       type: Boolean,
@@ -47,9 +58,28 @@ export const ChatbotPanel = {
 
             <template v-if="message.role === 'assistant'">
                 <div v-if="message.cleanedContent"
-                     v-html="renderMarkdown(message.cleanedContent)"
                      class="box content mb-3 assistant-message"
-                     :key="'assistant-content-' + index">
+                     :key="'assistant-content-' + index"
+                     style="position: relative;">
+                    <div v-html="renderMarkdown(message.cleanedContent)"></div>
+                    <div class="thumbs-container" v-if="message.trace_id">
+                        <button
+                            class="button is-small is-white"
+                            :class="{ 'selected': message._rating === 'ok' }"
+                            title="Helpful"
+                            @click="rateTrace(message.trace_id, true, message._id)"
+                            :disabled="loading || pathwayLoading || !!message._rated">
+                            <span class="icon is-small"><i :class="message._rating === 'ok' ? 'fas fa-thumbs-up' : 'far fa-thumbs-up'"></i></span>
+                        </button>
+                        <button
+                            class="button is-small is-white"
+                            :class="{ 'selected': message._rating === 'not_ok' }"
+                            title="Not helpful"
+                            @click="rateTrace(message.trace_id, false, message._id)"
+                            :disabled="loading || pathwayLoading || !!message._rated">
+                            <span class="icon is-small"><i :class="message._rating === 'not_ok' ? 'fas fa-thumbs-down' : 'far fa-thumbs-down'"></i></span>
+                        </button>
+                    </div>
                 </div>
                 <div v-if="message.buttons.length > 0" class="mb-3" :key="'assistant-buttons-' + index">
                     <div v-for="button in message.buttons" :key="button.id" class="mb-2">
@@ -177,7 +207,7 @@ export const ChatbotPanel = {
 
     </div>
   `,
-  data() {
+  data(): ChatbotPanelData {
     return {
       question: '',
       internalMessages: [], // Panel-managed messages when no external messages are provided
@@ -185,15 +215,14 @@ export const ChatbotPanel = {
       pathwayData: null,
       showCompletionModal: false,
       showJumpToLatest: false,
+      nextMessageId: 0,
     };
   },
   computed: {
     processedMessages(): ProcessedMessage[] {
       // Parse the message content for buttons, using a regex.
-      // @ts-ignore
       return this.internalMessages.map(message => {
         if (message.role === 'assistant') {
-          // @ts-ignore
           const processed = this.parseMessageContent(message);
           return processed;
         }
@@ -265,12 +294,12 @@ export const ChatbotPanel = {
         const messageToDisplay = isComplete
             ? { ...message, content: message.content.replace('<exercise_completed>', '').trim() }
             : message;
-        // Push only to internal state. External consumers should manage their own list.
-        // @ts-ignore
-        this.internalMessages.push(messageToDisplay);
+
+        // Assign a unique ID for reactivity purposes
+        const messageWithId = { ...messageToDisplay, _id: this.nextMessageId++ };
+        this.internalMessages.push(messageWithId);
 
         if (isComplete) {
-            // @ts-ignore
             if (this.pathwayData || this.pathwayLoading) {
                 return; // A recommendation is already loaded/loading. Do not fire confetti or re-trigger.
             }
@@ -281,35 +310,62 @@ export const ChatbotPanel = {
             confetti({ particleCount: 200, spread: 150, origin: { y: 0.6 } });
 
             // Trigger pathway logic
-            // @ts-ignore
             if (this.nextExerciseUrl) {
-                // @ts-ignore
                 this.fetchPathwayRecommendation();
             } else {
                 // This is the last exercise, show celebration
-                // @ts-ignore
                 this.showCompletionModal = true;
             }
+        }
+    },
+
+    async rateTrace(traceId: number, isOk: boolean, messageId: number) {
+        try {
+            // Optimistic UI update. We must replace the object in the array for Vue's
+            // reactivity to reliably detect the change.
+            if (messageId !== undefined) {
+                const index = this.internalMessages.findIndex(m => m._id === messageId);
+                if (index !== -1) {
+                    const updatedMessage = {
+                        ...this.internalMessages[index],
+                        _rating: isOk ? 'ok' : 'not_ok',
+                        _rated: true,
+                    };
+                    this.internalMessages.splice(index, 1, updatedMessage);
+                }
+            }
+
+            const resp = await fetch('/exercises/api/trace-eval/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken(),
+                },
+                body: JSON.stringify({ trace_id: traceId, result: isOk ? 'ok' : 'not_ok' })
+            });
+            if (!resp.ok) {
+                console.warn('Trace eval failed', await resp.text());
+                // Optional: Rollback UI change on failure here if needed
+                return;
+            }
+        } catch (e) {
+            console.warn('Trace eval error', e);
         }
     },
 
     displayRecommendation(pathwayData: any) {
         // Public method to show pre-existing pathway data on page load
         if (pathwayData) {
-            // @ts-ignore
             this.pathwayData = pathwayData;
         }
     },
 
     async fetchPathwayRecommendation() {
-        // @ts-ignore
         if (!this.attemptId) {
             return; // Not available in generic chat contexts
         }
-        // @ts-ignore
         this.pathwayLoading = true;
         try {
-            // @ts-ignore
             const response = await fetch(`/exercises/api/attempts/${this.attemptId}/recommend_pathway/`, {
                 method: 'POST',
                 headers: {
@@ -322,7 +378,6 @@ export const ChatbotPanel = {
             }
             const result = await response.json();
             if (result.status === 'success') {
-                // @ts-ignore
                 this.pathwayData = result.data;
             } else {
                 console.error('Failed to get pathway recommendation:', result.message);
@@ -330,7 +385,6 @@ export const ChatbotPanel = {
         } catch (error) {
             console.error('Error fetching pathway recommendation:', error);
         } finally {
-            // @ts-ignore
             this.pathwayLoading = false;
         }
     },
@@ -401,7 +455,6 @@ export const ChatbotPanel = {
 
     selectOption(button: OptionButton) {
         console.log('[ChatbotPanel] Option selected:', button);
-        // @ts-ignore
         this.$emit('option-selected', button);
     },
 
@@ -485,4 +538,4 @@ export const ChatbotPanel = {
       return DOMPurify.sanitize(marked.parse(content) as string);
     }
   }
-}; 
+}); 

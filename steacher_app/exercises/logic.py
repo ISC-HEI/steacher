@@ -342,12 +342,13 @@ Do not provide the entire solution, but give them enough to make meaningful prog
     if not first_trace: # if there is no first trace, then this is the first trace
         # Always store the system prompt on the first trace
         fields['system_prompt'] = prompt
-    create_trace_for(attempt, attempt.user, channel='exercise_guidance', **fields)
+    created_trace: Trace = create_trace_for(attempt, attempt.user, channel='exercise_guidance', **fields)
 
     # 8. Prepare the data to be returned to the view
     response_data = {
         'guidance': answer,
-        'user_submission': interaction_log['user_submission']
+        'user_submission': interaction_log['user_submission'],
+        'assistant_trace_id': getattr(created_trace, 'id', None)
     }
     
     if cbm_result:

@@ -20,6 +20,7 @@ students_urlpatterns = [
     path('<int:exercise_id>/delete_answers/', views_students.delete_user_answers, name='delete_user_answers'),
     path('<int:exercise_id>/<str:filename>', views_students.serve_asset, name='serve_asset'),
     path('api/scala/execute/', views_students.scala_execute, name='scala_execute'),
+    path('api/trace-eval/', views_students.trace_eval_create, name='trace_eval_create'),
     # Generic pattern last
     path('<int:pk>/', views_students.exercise_detail, name='exercise_detail'),
 ]

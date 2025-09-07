@@ -241,7 +241,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             // Confetti is now handled by the chatbot panel
                             this.updateStatusIcon();
                         }
-                        const assistantMessage = { role: 'assistant', content: guidanceText };
+                        const assistantMessage: any = { role: 'assistant', content: guidanceText };
+                        if (result.assistant_trace_id) assistantMessage.trace_id = result.assistant_trace_id;
                         chatbotPanel.displayMessage(assistantMessage);
                     }
 

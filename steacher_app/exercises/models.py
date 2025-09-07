@@ -381,18 +381,19 @@ class ExerciceAsset(models.Model):
         ]
 
 
-class AttemptEval(models.Model):
+class TraceEval(models.Model):
     """
-    Represents an evaluation of a user's attempt for an exercise. Bound to a @Attempt. Used to evaluate how the AI tutor is doing. 
+    Evaluation of a specific @Trace. Used to evaluate AI response quality.
+    Used either for students feedback on AI tutor (thumb-up/down) or for feedback with a comment from a teacher or admin.
     """
-    attempt = models.ForeignKey(Attempt, on_delete=models.CASCADE, related_name='evaluations')
-    is_ok = models.BooleanField(null=True, help_text="Whether the attempt is considered correct or not. Null means not evaluated.")
-    feedback = models.TextField(blank=True, help_text="Feedback provided for this evaluation.")
+    trace = models.ForeignKey(Trace, on_delete=models.CASCADE, related_name='evaluations')
+    is_ok = models.BooleanField(null=True, help_text="Whether this trace is considered correct or not. Null means not evaluated.")
+    feedback = models.TextField(null=True, blank=True, help_text="Feedback provided for this evaluation.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Evaluation for attempt {self.attempt.id} at {self.created_at}"
+        return f"Evaluation for trace {self.trace.id} at {self.created_at}"
 
     class Meta:
         ordering = ['-created_at']

@@ -423,3 +423,15 @@ code {
     visibility: visible;
     opacity: 1;
 }
+
+.thumbs-container {
+    position: absolute; 
+    right: 4px; 
+    bottom: -12px;
+    display: flex; 
+    gap: 0px; 
+    background: white;
+}
+/* Hollow by default; turn solid black when selected */
+.assistant-message .thumbs-container .button.is-white .icon i { color: #7a7a7a; }
+.assistant-message .thumbs-container .button.is-white.selected .icon i { color: #000; }

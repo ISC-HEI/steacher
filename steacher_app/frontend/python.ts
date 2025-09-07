@@ -207,7 +207,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (guidanceText.includes('<exercise_completed>')) {
                             this.updateStatusIcon();
                         }
-                        chatbotPanel.displayMessage({ role: 'assistant', content: guidanceText });
+                        const assistantMsg: any = { role: 'assistant', content: guidanceText };
+                        if (result.assistant_trace_id) assistantMsg.trace_id = result.assistant_trace_id;
+                        chatbotPanel.displayMessage(assistantMsg);
                     }
                 } catch (error) {
                     this.executionError = `Error communicating with the server: ${error}`;

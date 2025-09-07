@@ -14,7 +14,7 @@ import requests
 import time
 import json
 
-from .models import Exercise, ExerciceAsset, Course, Attempt, Module, UserInvite, ChatThread, CohortMembership, Trace, create_trace_for
+from .models import Exercise, ExerciceAsset, Course, Attempt, Module, UserInvite, ChatThread, CohortMembership, Trace, TraceEval, create_trace_for
 from django.contrib.contenttypes.models import ContentType
 from .serializers import ExerciseFrontendSerializer
 
@@ -429,6 +429,7 @@ def exercise_detail(request, pk):
                 'llm_response': {
                     'role': 'assistant',
                     'content': tr.assistant_content or '',
+                    'trace_id': tr.id,
                     'metadata': tr.assistant_metadata or {},
                 },
             })
@@ -661,7 +662,7 @@ def chat_thread_detail(request, thread_id: int):
         if (tr.user_content or '').strip():
             messages.append({'role': 'user', 'content': tr.user_content, 'created_at': tr.created_at.isoformat()})
         if (tr.assistant_content or '').strip():
-            messages.append({'role': 'assistant', 'content': tr.assistant_content, 'created_at': tr.created_at.isoformat()})
+            messages.append({'role': 'assistant', 'content': tr.assistant_content, 'trace_id': tr.id, 'created_at': tr.created_at.isoformat()})
     return JsonResponse({
         'status': 'success',
         'thread': {
@@ -762,7 +763,7 @@ def chat_thread_send(request, thread_id: int):
     }
     if is_first:
         fields['system_prompt'] = system_prompt
-    create_trace_for(thread, request.user, channel='study_chat', **fields)
+    created = create_trace_for(thread, request.user, channel='study_chat', **fields)
 
     # Use first user line or assistant summary for title if default
     if thread.title == 'New Chat' and user_text:
@@ -775,7 +776,7 @@ def chat_thread_send(request, thread_id: int):
             'id': thread.id,
             'title': thread.title,
             'messages': [{'role': 'user', 'content': user_text, 'created_at': timezone.now().isoformat()},
-                         {'role': 'assistant', 'content': assistant_text, 'created_at': timezone.now().isoformat()}],
+                         {'role': 'assistant', 'content': assistant_text, 'trace_id': getattr(created, 'id', None), 'created_at': timezone.now().isoformat()}],
             'updated_at': thread.updated_at.isoformat(),
             'created_at': thread.created_at.isoformat(),
         }
@@ -866,3 +867,33 @@ def recommend_learning_pathway(request, attempt_id):
     except Exception as e:
         print(f"An error occurred in recommend_learning_pathway: {e}")
         return JsonResponse({'status': 'error', 'message': 'An internal error occurred.'}, status=500)
+
+
+@login_required
+@require_POST
+def trace_eval_create(request):
+    """Create a TraceEval row from { trace_id, result } with minimal validation.
+    result: "ok" | "not_ok". Feedback empty. Ensure trace belongs to current user.
+    """
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+    trace_id = payload.get('trace_id')
+    result = (payload.get('result') or '').strip().lower()
+    if not trace_id or result not in ('ok', 'not_ok'):
+        return JsonResponse({'status': 'error', 'message': 'trace_id and valid result are required'}, status=400)
+
+    try:
+        trace = Trace.objects.select_related('user').get(id=int(trace_id))
+    except Exception:
+        return JsonResponse({'status': 'error', 'message': 'Trace not found'}, status=404)
+
+    # Basic ownership check
+    if getattr(trace, 'user_id', None) != getattr(request.user, 'id', None):
+        return JsonResponse({'status': 'error', 'message': 'Forbidden'}, status=403)
+
+    is_ok = True if result == 'ok' else False
+    te = TraceEval.objects.create(trace=trace, is_ok=is_ok, feedback='')
+    return JsonResponse({'status': 'success', 'id': te.id, 'trace_id': trace.id, 'is_ok': te.is_ok}, status=201)

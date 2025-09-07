@@ -9,7 +9,6 @@ from exercises.models import (
     Cohort,
     CohortMembership,
     Attempt,
-    AttemptEval,
 )
 
 
@@ -62,8 +61,7 @@ class Command(BaseCommand):
 
             if course:
                 # Delete related demo data scoped to this course
-                # Attempts/evals (interactions now handled by Trace; not seeded/cleaned here)
-                AttemptEval.objects.filter(attempt__exercise__module__course=course).delete()
+                # Attempts (interactions now handled by Trace; not seeded/cleaned here)
                 Attempt.objects.filter(exercise__module__course=course).delete()
 
                 # Cohorts and memberships
@@ -213,8 +211,7 @@ class Command(BaseCommand):
         add_interaction(a3, "print(1 + 2)", "Try formatting the output to match requirements.")
         add_interaction(a4, "for i in range(1, 4):\n    print(i)", "Good start; consider edge cases.")
 
-        # Optional: one evaluation set to OK on a1
-        AttemptEval.objects.get_or_create(attempt=a1, defaults={"is_ok": True, "feedback": "Seeded OK"})
+        # No TraceEval seeding
 
         # Summary output
         self.stdout.write(self.style.SUCCESS("Demo data ready:"))

@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html, mark_safe
 from django.db.models import Count
-from .models import Exercise, Course, Module, ExerciceAsset, Attempt, AttemptEval, UserInvite, ChatThread, Cohort, CohortMembership, Trace
+from .models import Exercise, Course, Module, ExerciceAsset, Attempt, UserInvite, ChatThread, Cohort, CohortMembership, Trace, TraceEval
 from django_jsonform.widgets import JSONFormWidget
 
 def format_interactions(attempt):
@@ -225,20 +225,6 @@ class TraceAdmin(admin.ModelAdmin):
             return None
     created_repr.short_description = 'Created'
 
-class AttemptEvalInlineForm(forms.ModelForm):
-    class Meta:
-        model = AttemptEval
-        fields = '__all__'
-        widgets = {
-            'is_ok': forms.RadioSelect(choices=[(True, 'Yes'), (False, 'No'), (None, 'Unknown')]),
-        }
-
-class AttemptEvalInline(admin.TabularInline):
-    model = AttemptEval
-    form = AttemptEvalInlineForm
-    extra = 1
-    fields = ('is_ok', 'feedback', 'created_at', 'updated_at')
-    readonly_fields = ('created_at', 'updated_at')
 
 class HasEvaluationFilter(admin.SimpleListFilter):
     title = 'has evaluation'
@@ -251,17 +237,16 @@ class HasEvaluationFilter(admin.SimpleListFilter):
         )
 
     def queryset(self, request, queryset):
-        if self.value() == 'yes':
-            return queryset.filter(evaluations__isnull=False).distinct()
-        if self.value() == 'no':
-            return queryset.filter(evaluations__isnull=True).distinct()
+        # With TraceEval decoupled from Attempt, this filter is no longer applicable.
+        return queryset
+
 
 @admin.register(Attempt)
 class AttemptAdmin(admin.ModelAdmin):
-    list_display = ('id', 'version', 'exercise', 'user', 'complete', 'has_evaluation')
-    list_filter = (('exercise', admin.RelatedOnlyFieldListFilter), ('user', admin.RelatedOnlyFieldListFilter), 'complete', 'version', HasEvaluationFilter)
+    list_display = ('id', 'version', 'exercise', 'user', 'complete')
+    list_filter = (('exercise', admin.RelatedOnlyFieldListFilter), ('user', admin.RelatedOnlyFieldListFilter), 'complete', 'version')
     search_fields = ('exercise__title', 'user__username')
-    inlines = [AttemptEvalInline]
+    inlines = []
     readonly_fields = ('id', 'version')
     ordering = ['id']
 
@@ -276,9 +261,6 @@ class AttemptAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
-        queryset = queryset.annotate(
-            eval_count=Count('evaluations')
-        )
         return queryset
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
@@ -314,46 +296,27 @@ class AttemptAdmin(admin.ModelAdmin):
                 return HttpResponseRedirect(reverse("admin:exercises_attempt_changelist"))
         return super().response_change(request, obj)
 
-    def has_evaluation(self, obj):
-        return obj.eval_count > 0
-    has_evaluation.boolean = True
-    has_evaluation.short_description = 'Has Evaluation?'
-    has_evaluation.admin_order_field = 'eval_count'
+    # Evaluation display removed as evaluations are now linked to Trace
 
     # Removed custom interactions/prompt display for simplicity
 
 
-@admin.register(AttemptEval)
-class AttemptEvalAdmin(admin.ModelAdmin):
-    list_display = ('attempt', 'is_ok', 'created_at')
-    list_filter = ('is_ok', 'attempt__exercise')
-    search_fields = ('attempt__exercise__title', 'attempt__user__username', 'feedback')
-    readonly_fields = ('created_at', 'updated_at', 'attempt_details_display')
-    
-    fieldsets = (
-        (None, {
-            'fields': ('attempt', 'is_ok', 'feedback')
-        }),
-        ('Attempt Details', {
-            'fields': ('attempt_details_display',),
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
+class TraceEvalAdminForm(forms.ModelForm):
+    class Meta:
+        model = TraceEval
+        fields = '__all__'
+        widgets = {
+            'is_ok': forms.RadioSelect(choices=[(True, 'Yes'), (False, 'No'), (None, 'Unknown')]),
+        }
 
-    def get_form(self, request, obj=None, **kwargs):
-        form = super().get_form(request, obj, **kwargs)
-        form.base_fields['attempt'].queryset = Attempt.objects.filter(evaluations__isnull=True)
-        return form
 
-    def attempt_details_display(self, obj):
-        if not obj.attempt:
-            return "Select an attempt and save to see details."
-        return format_interactions(obj.attempt)
-    
-    attempt_details_display.short_description = "Full Attempt History"
+@admin.register(TraceEval)
+class TraceEvalAdmin(admin.ModelAdmin):
+    form = TraceEvalAdminForm
+    list_display = ('trace', 'is_ok', 'feedback', 'created_at')
+    list_filter = ('is_ok', 'trace__channel')
+    search_fields = ('trace__user__username', 'feedback')
+    readonly_fields = ('created_at', 'updated_at')
 
 
 @admin.register(UserInvite)
