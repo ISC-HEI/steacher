@@ -46,7 +46,12 @@ def course_detail(request, pk):
 def dashboard(request):
     """Teacher dashboard: cohort-scoped student progress and activity."""
     # 1) Resolve default cohort
-    cohort_qs = Cohort.objects.filter(owner=request.user).select_related('course')
+    cohort_qs = (
+        Cohort.objects
+        .filter(memberships__user=request.user, memberships__role__in=['teacher', 'owner'])
+        .select_related('course')
+        .distinct()
+    )
     selected_cohort = None
 
     # Try explicit GET param first
@@ -93,11 +98,11 @@ def dashboard(request):
         memberships = (
             CohortMembership.objects
             .filter(cohort=selected_cohort, status='active')
-            .select_related('student')
+            .select_related('user')
         )
 
         # Preload attempts and interactions for the cohort to compute metrics
-        student_ids = [m.student_id for m in memberships]
+        student_ids = [m.user_id for m in memberships]
         attempts = (
             Attempt.objects
             .filter(user_id__in=student_ids, cohort=selected_cohort)
@@ -130,7 +135,7 @@ def dashboard(request):
 
         # Sort memberships by last_name, first_name (fallback username)
         def name_key(m):
-            u = m.student
+            u = m.user
             last = (u.last_name or '').lower()
             first = (u.first_name or '').lower()
             username = (u.username or '').lower()
@@ -139,7 +144,7 @@ def dashboard(request):
         memberships_sorted = sorted(memberships, key=name_key)
 
         for m in memberships_sorted:
-            user = m.student
+            user = m.user
             user_attempts = attempts_by_student.get(user.id, [])
 
             # Completed (distinct visible exercises completed in this cohort)
@@ -239,7 +244,13 @@ def dashboard(request):
             })
 
     # All cohorts for selector
-    all_cohorts = Cohort.objects.filter(owner=request.user).select_related('course').order_by('course__name', 'name')
+    all_cohorts = (
+        Cohort.objects
+        .filter(memberships__user=request.user, memberships__role__in=['teacher', 'owner'])
+        .select_related('course')
+        .order_by('course__name', 'name')
+        .distinct()
+    )
 
     return render(request, 'exercises/teacher/dashboard.html', {
         'selected_cohort': selected_cohort,

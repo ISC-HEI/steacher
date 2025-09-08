@@ -189,18 +189,18 @@ LOGIN_REDIRECT_URL = '/'
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'steacher@example.com')
 
-MAILGUN_SMTP_LOGIN = os.getenv('MAILGUN_SMTP_LOGIN')
-MAILGUN_SMTP_PASSWORD = os.getenv('MAILGUN_SMTP_PASSWORD')
-MAILGUN_DOMAIN = os.getenv('MAILGUN_DOMAIN')
+MAIL_SMTP_LOGIN = os.getenv('MAIL_SMTP_LOGIN')
+MAIL_SMTP_PASSWORD = os.getenv('MAIL_SMTP_PASSWORD')
+MAIL_DOMAIN = os.getenv('MAIL_DOMAIN')
 
-if MAILGUN_SMTP_LOGIN and MAILGUN_SMTP_PASSWORD:
+if MAIL_SMTP_LOGIN and MAIL_SMTP_PASSWORD:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = 'smtp.mailgun.org'
+    EMAIL_HOST = 'live.smtp.mailtrap.io'
     EMAIL_PORT = 587
+    EMAIL_HOST_USER = MAIL_SMTP_LOGIN
+    EMAIL_HOST_PASSWORD = MAIL_SMTP_PASSWORD
     EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = MAILGUN_SMTP_LOGIN
-    EMAIL_HOST_PASSWORD = MAILGUN_SMTP_PASSWORD
-    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', f"no-reply@{MAILGUN_DOMAIN or 'example.com'}")
+    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', f"no-reply@{MAIL_DOMAIN or 'example.com'}")
 
 # Allow login by email or username
 AUTHENTICATION_BACKENDS = [

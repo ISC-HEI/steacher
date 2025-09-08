@@ -7,7 +7,7 @@ from exercises.schemas import ExerciseData, AnswerData
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction, IntegrityError
-from django.db.models import Max
+from django.db.models import Max, Q
 
 
 class Course(models.Model):
@@ -52,17 +52,16 @@ class Module(models.Model):
 class Cohort(models.Model):
     """
     A cohort groups students within a course. Owned by a teacher/admin.
-    Students are connected via the CohortMembership through-model.
+    Members (students, teachers, owner) are connected via the CohortMembership through-model.
     """
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='cohorts')
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='owned_cohorts')
     name = models.CharField(max_length=200, help_text="Human-friendly cohort name.")
     description = models.TextField(blank=True)
     code = models.CharField(max_length=32, null=True, blank=True, help_text="Optional short code for joining this cohort.")
-    students = models.ManyToManyField(
+    members = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         through='CohortMembership',
-        through_fields=('cohort', 'student'),
+        through_fields=('cohort', 'user'),
         related_name='cohorts'
     )
     created_at = models.DateTimeField(auto_now_add=True)
@@ -78,28 +77,70 @@ class Cohort(models.Model):
             models.UniqueConstraint(fields=['course', 'code'], name='unique_cohort_code_per_course'),
         ]
 
+    @property
+    def owner(self):
+        """Returns the User object for the cohort's owner, or None."""
+        membership = self.memberships.filter(role='owner').select_related('user').first()
+        return membership.user if membership else None
+
+    @property
+    def teachers(self):
+        """Returns a queryset of all teachers and owners for the cohort."""
+        return self.members.filter(cohort_memberships__role__in=['teacher', 'owner']).distinct()
+
+    @property
+    def students(self):
+        """Returns a queryset of all students for the cohort."""
+        return self.members.filter(cohort_memberships__role='student').distinct()
+
 
 class CohortMembership(models.Model):
     """
-    Membership of a student in a cohort, with audit metadata.
+    Membership of a user in a cohort, with role and audit metadata.
     """
+    ROLE_CHOICES = [
+        ('student', 'Student'),
+        ('teacher', 'Teacher'),
+        ('assistant', 'Assistant'),
+        ('owner', 'Owner'),
+    ]
     STATUS_CHOICES = [
         ('active', 'Active'),
-        ('removed', 'Removed'),
+        ('inactive', 'Inactive'),
     ]
 
     cohort = models.ForeignKey(Cohort, on_delete=models.CASCADE, related_name='memberships')
-    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='cohort_memberships')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='cohort_memberships')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='student')
     joined_at = models.DateTimeField(auto_now_add=True)
     added_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='cohort_members_added')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
 
+    def clean(self):
+        """
+        Called automatically by Django when the model is saved.
+        Custom validation to ensure that only staff members can be teachers, assistants, or owners.
+        """
+        super().clean()
+        if self.role in ['teacher', 'owner', 'assistant'] and not self.user.is_staff:
+            raise ValidationError({
+                'user': f"User must be a staff member to have the role of '{self.get_role_display()}'."
+            })
+
     class Meta:
-        unique_together = ('cohort', 'student')
+        unique_together = ('cohort', 'user')
         ordering = ['-joined_at']
+        constraints = [
+            # Only one owner per cohort
+            models.UniqueConstraint(
+                fields=['cohort'],
+                condition=models.Q(role='owner'),
+                name='unique_cohort_owner'
+            ),
+        ]
 
     def __str__(self):
-        return f"{self.student} in {self.cohort} ({self.status})"
+        return f"{self.user} in {self.cohort} as {self.get_role_display()} ({self.status})"
 
 
 class Exercise(models.Model):
@@ -404,6 +445,7 @@ class UserInvite(models.Model):
     A user invite is an email address that has been invited to register as a student.
     """
     email = models.EmailField(unique=True, help_text="Lowercased")
+    cohort = models.ForeignKey(Cohort, null=True, blank=True, on_delete=models.SET_NULL, related_name='user_invites', help_text="If set, the user will be added to this cohort upon registration.")
     used = models.BooleanField(default=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='user_invite')
     note = models.CharField(max_length=255, blank=True)
@@ -418,6 +460,17 @@ class UserInvite(models.Model):
         self.user = user
         self.registered_at = timezone.now()
         self.save(update_fields=['used', 'user', 'registered_at'])
+        if self.cohort:
+            # Idempotently add user to the cohort. If they are already a member,
+            # this does nothing.
+            CohortMembership.objects.get_or_create(
+                cohort=self.cohort,
+                user=user,
+                defaults={
+                    'added_by': self.cohort.owner,
+                    'role': 'student',
+                }
+            )
 
 
 class ChatThread(models.Model):

@@ -389,7 +389,7 @@ class CohortAdminForm(forms.ModelForm):
                 missing.append(uname)
                 continue
             # Use through model to avoid duplicates
-            membership, created = CohortMembership.objects.get_or_create(cohort=cohort, student=user)
+            membership, created = CohortMembership.objects.get_or_create(cohort=cohort, user=user, defaults={"role": "student"})
             if created:
                 added.append(uname)
             else:
@@ -400,17 +400,29 @@ class CohortAdminForm(forms.ModelForm):
         return cohort
 
 
+class CohortMembershipInline(admin.TabularInline):
+    model = CohortMembership
+    fk_name = 'cohort'
+    extra = 0
+    autocomplete_fields = ['user']
+    fields = ('user', 'role', 'status', 'joined_at', 'added_by')
+    readonly_fields = ('joined_at',)
+    verbose_name = 'Member'
+    verbose_name_plural = 'Members'
+
+
 @admin.register(Cohort)
 class CohortAdmin(admin.ModelAdmin):
     form = CohortAdminForm
     list_display = ('name', 'course', 'owner', 'code', 'created_at', 'updated_at')
-    list_filter = ('course', ('owner', admin.RelatedOnlyFieldListFilter))
+    list_filter = ('course',)
     search_fields = ('name', 'code', 'description')
     readonly_fields = ('created_at', 'updated_at')
+    inlines = [CohortMembershipInline]
 
     fieldsets = (
         (None, {
-            'fields': ('name', 'course', 'owner', 'code', 'description')
+            'fields': ('name', 'course', 'code', 'description')
         }),
         ('Students', {
             'fields': ('student_usernames',),
@@ -434,3 +446,13 @@ class CohortAdmin(admin.ModelAdmin):
                 self.message_user(request, f"Already in cohort ({len(existing)}): {', '.join(existing)}")
             if missing:
                 self.message_user(request, f"Usernames not found ({len(missing)}): {', '.join(missing)}")
+        # Ensure added_by is set to the current admin user for any memberships created without it
+        CohortMembership.objects.filter(cohort=obj, added_by__isnull=True).update(added_by=request.user)
+
+    def save_formset(self, request, form, formset, change):
+        instances = formset.save(commit=False)
+        for obj in instances:
+            if isinstance(obj, CohortMembership) and not getattr(obj, 'added_by_id', None):
+                obj.added_by = request.user
+            obj.save()
+        formset.save_m2m()

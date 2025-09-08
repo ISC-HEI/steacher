@@ -34,8 +34,8 @@ def resolve_instructor_email(user, course=None):
         if course is not None:
             membership = (
                 CohortMembership.objects
-                .filter(student=user, status='active', cohort__course=course)
-                .select_related('cohort__owner')
+                .filter(user=user, status='active', cohort__course=course)
+                .select_related('cohort')
                 .order_by('-joined_at')
                 .first()
             )
@@ -48,7 +48,7 @@ def resolve_instructor_email(user, course=None):
             any_course_cohort = (
                 Cohort.objects
                 .filter(course=course)
-                .select_related('owner')
+                .select_related()
                 .order_by('-updated_at')
                 .first()
             )
@@ -60,8 +60,8 @@ def resolve_instructor_email(user, course=None):
         # 3) Otherwise, use most recent active membership across any cohort
         membership = (
             CohortMembership.objects
-            .filter(student=user, status='active')
-            .select_related('cohort__owner')
+            .filter(user=user, status='active')
+            .select_related('cohort')
             .order_by('-joined_at')
             .first()
         )

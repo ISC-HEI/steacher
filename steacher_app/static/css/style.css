@@ -333,6 +333,13 @@ code {
     font-size: 1.5em; /* Make the disclosure arrow bigger */
 }
 
+.collapsible-message h2 {
+    font-size: 1.1rem;
+}
+.collapsible-message code.language-python {
+    font-size: 0.8rem;
+}
+
 /* Pathway Recommendation Styling */
 .pathway-loading, .pathway-recommendation {
     border-top: 1px solid #dbdbdb;

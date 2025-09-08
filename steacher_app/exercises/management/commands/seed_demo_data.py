@@ -159,14 +159,19 @@ class Command(BaseCommand):
             course=course,
             name=cohort_name,
             defaults={
-                "owner": teacher,
                 "description": "Seeded demo cohort",
                 "code": cohort_code,
             },
         )
+        # Ensure teacher is owner of the cohort via role-based membership
+        CohortMembership.objects.update_or_create(
+            cohort=cohort,
+            user=teacher,
+            defaults={"role": "owner", "added_by": teacher, "status": "active"},
+        )
 
         for s in students:
-            CohortMembership.objects.get_or_create(cohort=cohort, student=s, defaults={"added_by": teacher})
+            CohortMembership.objects.get_or_create(cohort=cohort, user=s, defaults={"added_by": teacher, "role": "student", "status": "active"})
 
         # Attempts and interactions
         # student_one -> exercise 1 (complete)
