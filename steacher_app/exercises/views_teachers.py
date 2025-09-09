@@ -9,6 +9,7 @@ from .authz import (
     course_roles_required,
     assert_can_view_course,
     assert_can_edit_course,
+    cohort_roles_required,
 )
 from .models import Exercise, Course, Module, ExerciseAsset, Cohort, CohortMembership, Attempt, create_trace_for, CourseMembership
 from django.contrib.contenttypes.models import ContentType
@@ -19,16 +20,16 @@ from .schemas import ExerciseData, AnswerData
 from pydantic import ValidationError
 
 
-@login_required
-def course_list(request):
-    # Show only courses the user can view: either course membership or any cohort in that course
-    # first, get all courses the user can view through cohorts
-    courses = Course.objects.filter(id__in=CohortMembership.objects.filter(user=request.user, status='active').values_list('cohort__course', flat=True))
-    # then, get all courses the user can view through course memberships
-    courses2 = Course.objects.filter(id__in=CourseMembership.objects.filter(user=request.user, role__in=['owner', 'editor']).values_list('course', flat=True))
-    return render(request, 'exercises/teacher/teachers_course_list.html', {
-        'courses': courses2.union(courses)
-    })
+# @login_required
+# def course_list(request):
+#     # Show only courses the user can view: either course membership or any cohort in that course
+#     # first, get all courses the user can view through cohorts
+#     courses = Course.objects.filter(id__in=CohortMembership.objects.filter(user=request.user, status='active').values_list('cohort__course', flat=True))
+#     # then, get all courses the user can view through course memberships
+#     courses2 = Course.objects.filter(id__in=CourseMembership.objects.filter(user=request.user, role__in=['owner', 'editor']).values_list('course', flat=True))
+#     return render(request, 'exercises/teacher/teachers_course_list.html', {
+#         'courses': courses2.union(courses)
+#     })
 
 
 @login_required
@@ -50,198 +51,30 @@ def course_detail(request, pk):
 
 @login_required
 def dashboard(request):
-    """Teacher dashboard: cohort-scoped student progress and activity."""
-    # 1) Resolve default cohort
-    cohort_qs = (
-        Cohort.objects
-        .filter(memberships__user=request.user, memberships__role__in=['teacher', 'owner'])
-        .select_related('course')
-        .distinct()
+    """Teacher dashboard: landing listing courses and cohorts."""
+    # Courses via direct course roles (owner/editor)
+    courses_via_roles = Course.objects.filter(
+        id__in=CourseMembership.objects.filter(
+            user=request.user, role__in=['owner', 'editor']
+        ).values_list('course', flat=True)
     )
-    selected_cohort = None
+    # Courses via cohorts where user is teacher/owner
+    courses_via_cohorts = Course.objects.filter(
+        id__in=CohortMembership.objects.filter(
+            user=request.user, role__in=['teacher', 'owner'], status='active'
+        ).values_list('cohort__course', flat=True)
+    )
+    courses = courses_via_roles.union(courses_via_cohorts).order_by('name')
 
-    # Try explicit GET param first
-    cohort_id = request.GET.get('cohort')
-    if cohort_id:
-        selected_cohort = cohort_qs.filter(id=cohort_id).first()
+    # For link decisions in the template: which courses can the user edit?
+    editable_course_ids = list(
+        CourseMembership.objects
+        .filter(user=request.user, role__in=['owner', 'editor'])
+        .values_list('course_id', flat=True)
+    )
 
-    if not selected_cohort:
-        # Try last teacher course from session
-        course_id = request.session.get('last_teacher_course_id')
-        if course_id:
-            selected_cohort = cohort_qs.filter(course_id=course_id).order_by('-updated_at', '-id').first()
-
-    if not selected_cohort:
-        # Fallback to most recently updated owned cohort
-        selected_cohort = cohort_qs.order_by('-updated_at', '-id').first()
-
-    students_data = []
-    histogram = []  # per number of completed exercises -> list of student names
-    max_bar_count = 0
-
-    if selected_cohort:
-        course = selected_cohort.course
-        ordered_exercises = list(
-            Exercise.objects
-            .filter(module__course=course, visible=True)
-            .select_related('module')
-            .order_by('module__order', 'order')
-        )
-        total_exercises = len(ordered_exercises)
-        # Helper: map linear position -> label ("1.2") and 0 -> em dash
-        def position_label(position: int) -> str:
-            if position <= 0:
-                return '—'
-            try:
-                ex = ordered_exercises[position - 1]
-                return ex.sequence_label or str(position)
-            except Exception:
-                return str(position)
-        # Map exercise id to linear position 1..N across the course
-        exercise_pos = {ex.id: idx + 1 for idx, ex in enumerate(ordered_exercises)}
-
-        # Active members
-        memberships = (
-            CohortMembership.objects
-            .filter(cohort=selected_cohort, status='active')
-            .select_related('user')
-        )
-
-        # Preload attempts and interactions for the cohort to compute metrics
-        student_ids = [m.user_id for m in memberships]
-        attempts = (
-            Attempt.objects
-            .filter(user_id__in=student_ids, cohort=selected_cohort)
-            .select_related('exercise__module')
-        )
-        # Map: student_id -> list of attempts
-        attempts_by_student = {}
-        for a in attempts:
-            attempts_by_student.setdefault(a.user_id, []).append(a)
-
-        # Fetch traces for all attempts in one query
-        # Map: attempt_id -> list of traces (in order) using reverse relation per attempt
-        interactions_by_attempt = {a.id: list(a.traces.all().order_by('rank_order', 'id')) for a in attempts}
-
-        # Compute per-student metrics
-        percents = []
-        # Prepare histogram buckets for 0..total_exercises (0 = none completed)
-        bucket_map = {k: [] for k in range(0, max(total_exercises, 0) + 1)}
-        # Prepare per-exercise completion counts (aligned with positions; index 0 left unused for alignment)
-        exercise_counts = [0 for _ in range(0, max(total_exercises, 0) + 1)]
-
-        # Sort memberships by last_name, first_name (fallback username)
-        def name_key(m):
-            u = m.user
-            last = (u.last_name or '').lower()
-            first = (u.first_name or '').lower()
-            username = (u.username or '').lower()
-            return (last, first, username)
-
-        memberships_sorted = sorted(memberships, key=name_key)
-
-        for m in memberships_sorted:
-            user = m.user
-            user_attempts = attempts_by_student.get(user.id, [])
-
-            # Completed (distinct visible exercises completed in this cohort)
-            completed_exercise_ids = set(
-                a.exercise_id for a in user_attempts if a.complete and getattr(a.exercise, 'visible', True)
-            )
-            completed_count = len(completed_exercise_ids)
-
-            percent = int(round((completed_count / total_exercises) * 100)) if total_exercises > 0 else 0
-            percents.append(percent)
-
-            # Last attempt in this cohort (by updated_at)
-            last_attempt = max(user_attempts, key=lambda a: a.updated_at, default=None)
-            last_exercise = last_attempt.exercise if last_attempt else None
-
-            # Submissions and hints count
-            submissions_count = 0
-            hints_count = 0
-
-            for a in user_attempts:
-                inters = interactions_by_attempt.get(a.id, [])
-                for tr in inters:
-                    meta = (tr.user_metadata or {})
-                    action = meta.get('action')
-                    # Count submissions and hints
-                    if action in ('run_code', 'run_query', 'submit_answer'):
-                        submissions_count += 1
-                    if action == 'ask_hint':
-                        hints_count += 1
-
-            # Average time per exercise: over distinct attempted exercises within cohort
-            # (time metrics deferred)
-
-            students_data.append({
-                'user': user,
-                'completed_count': completed_count,
-                'total_exercises': total_exercises,
-                'percent': percent,
-                'last_exercise': last_exercise,
-                'last_attempt_complete': bool(getattr(last_attempt, 'complete', False)) if last_attempt else False,
-                'submissions_count': submissions_count,
-                'hints_count': hints_count,
-            })
-
-            # Add to histogram bucket: highest completed exercise index across the course
-            try:
-                display_name = (user.last_name or '').strip()
-                if user.first_name:
-                    display_name = f"{display_name}, {user.first_name.strip()}" if display_name else user.first_name.strip()
-                if not display_name:
-                    display_name = (user.username or '').strip()
-            except Exception:
-                display_name = (getattr(user, 'username', '') or '').strip()
-            if completed_exercise_ids:
-                highest_pos = max((exercise_pos.get(eid, 0) for eid in completed_exercise_ids), default=0)
-            else:
-                highest_pos = 0
-            bucket_map.setdefault(highest_pos, []).append(display_name)
-
-            # Increment per-exercise counts for all completed exercises
-            for eid in completed_exercise_ids:
-                pos = exercise_pos.get(eid)
-                if pos is not None:
-                    exercise_counts[pos] += 1
-
-        # Build histogram data for template
-        hist = []
-        for k in range(0, max(total_exercises, 0) + 1):
-            names = sorted(bucket_map.get(k, []), key=lambda s: s.lower())
-            hist.append({'position': k, 'label': position_label(k), 'count': len(names), 'names': names})
-        # Compute max for scaling
-        max_bar_count = max((h['count'] for h in hist), default=0)
-        # Precompute bar heights in pixels to avoid template arithmetic
-        MAX_BAR_HEIGHT_PX = 120
-        for h in hist:
-            if max_bar_count > 0:
-                h['height_px'] = int(round((h['count'] * MAX_BAR_HEIGHT_PX) / max_bar_count))
-            else:
-                h['height_px'] = 0
-        histogram = hist
-
-        # Build per-exercise percentage bars aligned with positions
-        active_members_count = memberships_sorted.__len__()
-        exercise_completion_bars = []
-        MAX_BAR_HEIGHT_PX2 = 120
-        for pos in range(0, max(total_exercises, 0) + 1):
-            count = exercise_counts[pos]
-            percent = int(round((count / active_members_count) * 100)) if active_members_count > 0 else 0
-            height_px = int(round((percent / 100) * MAX_BAR_HEIGHT_PX2))
-            exercise_completion_bars.append({
-                'position': pos,
-                'label': position_label(pos),
-                'count': count,
-                'total': active_members_count,
-                'percent': percent,
-                'height_px': height_px,
-            })
-
-    # All cohorts for selector
-    all_cohorts = (
+    # Cohorts where user is teacher/owner
+    cohorts = (
         Cohort.objects
         .filter(memberships__user=request.user, memberships__role__in=['teacher', 'owner'])
         .select_related('course')
@@ -250,12 +83,163 @@ def dashboard(request):
     )
 
     return render(request, 'exercises/teacher/dashboard.html', {
+        'courses': courses,
+        'cohorts': cohorts,
+        'editable_course_ids': editable_course_ids,
+    })
+
+
+@login_required
+@cohort_roles_required(['owner', 'teacher'], cohort_kw='pk')
+def cohort_detail(request, pk):
+    """Cohort detail analytics page (moved from old dashboard)."""
+    selected_cohort = get_object_or_404(Cohort.objects.select_related('course'), pk=pk)
+    try:
+        request.session['last_teacher_cohort_id'] = selected_cohort.id
+    except Exception:
+        pass
+
+    students_data = []
+    histogram = []
+    max_bar_count = 0
+    exercise_completion_bars = []
+
+    course = selected_cohort.course
+    ordered_exercises = list(
+        Exercise.objects
+        .filter(module__course=course, visible=True)
+        .select_related('module')
+        .order_by('module__order', 'order')
+    )
+    total_exercises = len(ordered_exercises)
+
+    def position_label(position: int) -> str:
+        if position <= 0:
+            return '—'
+        try:
+            ex = ordered_exercises[position - 1]
+            return ex.sequence_label or str(position)
+        except Exception:
+            return str(position)
+
+    exercise_pos = {ex.id: idx + 1 for idx, ex in enumerate(ordered_exercises)}
+
+    memberships = (
+        CohortMembership.objects
+        .filter(cohort=selected_cohort, status='active', role='student')
+        .select_related('user')
+    )
+
+    student_ids = [m.user_id for m in memberships]
+    attempts = (
+        Attempt.objects
+        .filter(user_id__in=student_ids, cohort=selected_cohort)
+        .select_related('exercise__module')
+    )
+
+    attempts_by_student = {}
+    for a in attempts:
+        attempts_by_student.setdefault(a.user_id, []).append(a)
+
+    interactions_by_attempt = {a.id: list(a.traces.all().order_by('rank_order', 'id')) for a in attempts}
+
+    bucket_map = {k: [] for k in range(0, max(total_exercises, 0) + 1)}
+    exercise_counts = [0 for _ in range(0, max(total_exercises, 0) + 1)]
+
+    def name_key(m):
+        u = m.user
+        last = (u.last_name or '').lower()
+        first = (u.first_name or '').lower()
+        username = (u.username or '').lower()
+        return (last, first, username)
+
+    memberships_sorted = sorted(memberships, key=name_key)
+
+    for m in memberships_sorted:
+        user = m.user
+        user_attempts = attempts_by_student.get(user.id, [])
+
+        completed_exercise_ids = set(
+            a.exercise_id for a in user_attempts if a.complete and getattr(a.exercise, 'visible', True)
+        )
+        completed_count = len(completed_exercise_ids)
+        percent = int(round((completed_count / total_exercises) * 100)) if total_exercises > 0 else 0
+
+        last_attempt = max(user_attempts, key=lambda a: a.updated_at, default=None)
+        last_exercise = last_attempt.exercise if last_attempt else None
+
+        hints_count = 0
+        for a in user_attempts:
+            inters = interactions_by_attempt.get(a.id, [])
+            for tr in inters:
+                meta = (tr.user_metadata or {})
+                action = meta.get('action')
+                if action == 'ask_hint':
+                    hints_count += 1
+
+        students_data.append({
+            'user': user,
+            'completed_count': completed_count,
+            'total_exercises': total_exercises,
+            'percent': percent,
+            'last_exercise': last_exercise,
+            'last_attempt_complete': bool(getattr(last_attempt, 'complete', False)) if last_attempt else False,
+            'hints_count': hints_count,
+        })
+
+        try:
+            display_name = (user.last_name or '').strip()
+            if user.first_name:
+                display_name = f"{display_name}, {user.first_name.strip()}" if display_name else user.first_name.strip()
+            if not display_name:
+                display_name = (user.username or '').strip()
+        except Exception:
+            display_name = (getattr(user, 'username', '') or '').strip()
+        if completed_exercise_ids:
+            highest_pos = max((exercise_pos.get(eid, 0) for eid in completed_exercise_ids), default=0)
+        else:
+            highest_pos = 0
+        bucket_map.setdefault(highest_pos, []).append(display_name)
+
+        for eid in completed_exercise_ids:
+            pos = exercise_pos.get(eid)
+            if pos is not None:
+                exercise_counts[pos] += 1
+
+    hist = []
+    for k in range(0, max(total_exercises, 0) + 1):
+        names = sorted(bucket_map.get(k, []), key=lambda s: s.lower())
+        hist.append({'position': k, 'label': position_label(k), 'count': len(names), 'names': names})
+    max_bar_count = max((h['count'] for h in hist), default=0)
+    MAX_BAR_HEIGHT_PX = 120
+    for h in hist:
+        if max_bar_count > 0:
+            h['height_px'] = int(round((h['count'] * MAX_BAR_HEIGHT_PX) / max_bar_count))
+        else:
+            h['height_px'] = 0
+    histogram = hist
+
+    active_members_count = memberships_sorted.__len__()
+    MAX_BAR_HEIGHT_PX2 = 120
+    for pos in range(0, max(total_exercises, 0) + 1):
+        count = exercise_counts[pos]
+        percent = int(round((count / active_members_count) * 100)) if active_members_count > 0 else 0
+        height_px = int(round((percent / 100) * MAX_BAR_HEIGHT_PX2))
+        exercise_completion_bars.append({
+            'position': pos,
+            'label': position_label(pos),
+            'count': count,
+            'total': active_members_count,
+            'percent': percent,
+            'height_px': height_px,
+        })
+
+    return render(request, 'exercises/teacher/cohort.html', {
         'selected_cohort': selected_cohort,
-        'cohorts': all_cohorts,
         'students': students_data,
         'histogram': histogram,
         'max_bar_count': max_bar_count,
-        'exercise_completion_bars': exercise_completion_bars if selected_cohort else [],
+        'exercise_completion_bars': exercise_completion_bars,
     })
 
 

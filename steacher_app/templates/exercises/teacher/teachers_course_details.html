@@ -46,9 +46,9 @@
                       :class="{ 'has-text-success': moduleVisible['{{ module.pk }}'], 'has-text-grey': !moduleVisible['{{ module.pk }}'] }">
                     <span class="icon"><i class="fas" :class="moduleVisible['{{ module.pk }}'] ? 'fa-eye' : 'fa-eye-slash'"></i></span>
                 </span>
-                <a class="card-header-icon" aria-label="analyze module" href="{% url 'teachers:dashboard' %}" title="AI module analysis">
+                <!-- <a class="card-header-icon" aria-label="analyze module" href="{% url 'teachers:dashboard' %}" title="AI module analysis">
                     <button class="button is-small is-primary" disabled>AI module analysis</button>
-                </a>
+                </a> -->
                 <a class="card-header-icon" aria-label="add exercise" href="{% url 'teachers:exercise_add' course_pk=course.pk %}?module={{ module.pk }}" title="Add exercise to this module">
                     <button class="button is-small is-primary">Add exercise</button>
                 </a>

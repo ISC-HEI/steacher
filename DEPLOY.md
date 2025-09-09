@@ -337,19 +337,10 @@ Add:
 
 This runs every night at **2:00 AM**, creating a new `.sql` dump.
 
----
 
-# 2️⃣ Media volume backup (optional but smart)
 
-If Django stores uploads (student files), back them up weekly with tar:
 
-```
-0 3 * * 0 docker run --rm -v your_media_volume:/data -v /var/backups:/backup busybox sh -c "tar czf /backup/media_$(date +\%F).tar.gz /data"
-```
-
----
-
-# 3️⃣ Volume Snapshots in OpenStack
+# Volume Snapshots in OpenStack
 
 * From Horizon: you can click **Create Backup** for your volume → manual snapshots only.
 * Automation: yes, but only if you install the **OpenStack CLI** on your VM (or locally).

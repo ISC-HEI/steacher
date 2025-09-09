@@ -587,7 +587,8 @@ def generate_learning_pathway_recommendation(*, attempt: Attempt, interactions: 
     - the system prompt + user prompt, as a string. This is used to store the prompt in the trace.
     """
     # 1. System Prompt Construction
-    system_prompt = """You are an expert pedagogical advisor in a learning platform. Your task is to provide encouraging, personalized feedback to a student who has just completed an exercise. Based on their conversation with the AI tutor, you will also recommend the best next exercise for them to tackle from a provided list.
+    preferred_language_code = attempt.user.preferred_language or 'en'
+    system_prompt = f"""You are an expert pedagogical advisor in a learning platform. Your task is to provide encouraging, personalized feedback to a student who has just completed an exercise. Based on their conversation with the AI tutor, you will also recommend the best next exercise for them to tackle from a provided list.
 
 **Your analysis should be based on the following:**
 - The full conversation history between the student and the AI tutor for the just-completed exercise. Look for signs of struggle (e.g., frequent requests for hints, repeated errors, expressions of confusion) or signs of mastery (e.g., quick correct answers, clear explanations, few interactions).
@@ -633,6 +634,9 @@ Your response MUST be a single JSON object with the following structure. Do not 
   ]
 }
 ```
+
+** Output Language:**
+Your response MUST be in {preferred_language_code}.
 
 **Instructions for Selecting Exercises:**
 1. From the provided list of `course_exercises`, select one `main_recommendation`. This should typically be the next uncompleted logical exercise in the sequence, unless the student showed significant struggle or mastery.

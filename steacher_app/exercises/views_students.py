@@ -18,7 +18,7 @@ import json
 from .models import Exercise, ExerciseAsset, Course, Attempt, Module, UserInvite, ChatThread, CohortMembership, Trace, TraceEval, create_trace_for
 from django.contrib.contenttypes.models import ContentType
 from .serializers import ExerciseFrontendSerializer
-from .authz import can_view_course, assert_can_view_exercise, assert_can_view_course
+from .authz import can_view_course, assert_can_view_exercise, assert_can_view_course, can_edit_course, can_manage_cohort_students
 
 
 def _resolve_instructor_email(user, course=None):
@@ -333,11 +333,27 @@ def course_detail(request, pk):
     except Exception:
         pass
 
+    # Determine if current user can access teacher view for this course
+    can_teacher_view = False
+    try:
+        if can_edit_course(request.user, course):
+            can_teacher_view = True
+        else:
+            # Check any cohort in this course where the user can manage students (teacher/owner/assistant)
+            memberships = CohortMembership.objects.filter(user=request.user, cohort__course=course, status='active').select_related('cohort')
+            for m in memberships:
+                if can_manage_cohort_students(request.user, m.cohort):
+                    can_teacher_view = True
+                    break
+    except Exception:
+        can_teacher_view = False
+
     return render(request, 'exercises/students/students_course_details.html', {
         'course': course,
         'modules': visible_modules,
         'completed_exercise_ids': completed_ids,
         'instructor_email': _resolve_instructor_email(request.user, course=course),
+        'can_teacher_view': can_teacher_view,
     })
 
 
@@ -379,6 +395,22 @@ def exercise_detail(request, pk):
     completion_feedback = None
     if request.user.is_authenticated:
         attempt, _ = Attempt.objects.get_or_create(user=request.user, exercise=exercise)
+        # Ensure attempt is linked to the student's active cohort for this course TODO refactor
+        try:
+            if getattr(attempt, 'cohort_id', None) is None:
+                active_membership = (
+                    CohortMembership.objects
+                    .filter(user=request.user, status='active', cohort__course=exercise.module.course)
+                    .select_related('cohort')
+                    .order_by('-joined_at')
+                    .first()
+                )
+                if active_membership is not None:
+                    attempt.cohort = active_membership.cohort
+                    attempt.save(update_fields=['cohort', 'updated_at'])
+        except Exception:
+            # Non-fatal: if we cannot resolve cohort, we still proceed
+            pass
         attempt_id = attempt.id
         if attempt.completion_feedback:
             completion_feedback = attempt.completion_feedback
@@ -427,6 +459,12 @@ def exercise_detail(request, pk):
     # Determine cohort instructor email for this course, if any
     instructor_email = _resolve_instructor_email(request.user, course=exercise.module.course)
 
+    # Determine if the current user can edit this exercise (course owner/editor or site admin)
+    try:
+        can_edit = can_edit_course(request.user, exercise.module.course)
+    except Exception:
+        can_edit = False
+
     return render(request, template_name, {
         'exercise': exercise,
         'exercise_json': exercise_json,
@@ -437,6 +475,7 @@ def exercise_detail(request, pk):
         'previous_exercise': previous_exercise,
         'next_exercise': next_exercise,
         'instructor_email': instructor_email,
+        'can_edit': can_edit,
     })
 
 

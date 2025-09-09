@@ -15,7 +15,7 @@
                 <p class="lead">{{ course.description }}</p>
             </div>
         </div>
-        {% if user.is_staff %}
+        {% if can_teacher_view %}
         <div class="level-right">
             <a class="button is-light" href="{% url 'teachers:course_detail' pk=course.pk %}">Teacher view</a>
         </div>

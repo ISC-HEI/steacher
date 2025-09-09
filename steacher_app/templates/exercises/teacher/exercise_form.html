@@ -20,24 +20,13 @@
                     <div class="tabs is-toggle is-small" style="margin-bottom: 0;">
                         <ul>
                             <li :class="{ 'is-active': uiLang === 'en' }"><a @click="uiLang='en'">EN</a></li>
-                            <li :class="{ 'is-active': uiLang === 'fr' }">
-                                <a @click="uiLang='fr'">FR
-                                <span v-if="langEmpty('fr')" class="tag is-danger is-light ml-2" title="Missing fields">!</span>
-                                <span v-else-if="langStale('fr')" class="tag is-warning is-light ml-2" title="May be outdated">⚠</span>
-                                </a>
-                            </li>
-                            <li :class="{ 'is-active': uiLang === 'de' }">
-                                <a @click="uiLang='de'">DE
-                                <span v-if="langEmpty('de')" class="tag is-danger is-light ml-2" title="Missing fields">!</span>
-                                <span v-else-if="langStale('de')" class="tag is-warning is-light ml-2" title="May be outdated">⚠</span>
-                                </a>
-                            </li>
+                            <li :class="{ 'is-active': uiLang === 'fr' }"><a @click="uiLang='fr'">FR</a></li>
+                            <li :class="{ 'is-active': uiLang === 'de' }"><a @click="uiLang='de'">DE</a></li>
                         </ul>
                     </div>
                     <div class="buttons" style="margin-left: auto;">
                         <button type="button" class="button is-link is-light" v-if="uiLang !== 'en'" @click="translateLanguage(uiLang)" :disabled="sending" title="Translate content from English to the selected language using an AI service.">Translate EN → [[ uiLang.toUpperCase() ]]</button>
-                        <button type="button" class="button" v-if="uiLang !== 'en'" @click="markSynced(uiLang)" :disabled="!langStale(uiLang)" title="Manually mark the content of this language tab as up-to-date with the English version.">Mark As Synced</button>
-                        <button type="button" class="button is-link is-light" @click="translateMissingOrStale()" :disabled="sending" title="Automatically translate all languages that are missing content or may be outdated.">Translate missing/stale</button>
+                        <button type="button" class="button is-link is-light" @click="translateAll()" :disabled="sending" title="Translate English into both FR and DE.">Translate</button>
                     </div>
                 </div>
                 <!-- Box with Title, Description, Question (i18n) -->
@@ -354,7 +343,11 @@
                         <button type="button" class="button is-info" @click="saveAndContinue" title="Save all changes and remain on this page to continue editing.">Save & Continue Editing</button>
                     </div>
                     <div class="control">
-                        <a href="{% url 'teachers:course_detail' pk=course.pk %}" class="button is-light" title="Discard all changes and return to the course details page.">Cancel</a>
+                        {% if exercise.pk %}
+                        <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" class="button is-light" title="Discard changes and view the exercise page.">Cancel</a>
+                        {% else %}
+                        <a href="{% url 'teachers:course_detail' pk=course.pk %}" class="button is-light" title="Discard changes and return to the course details page.">Cancel</a>
+                        {% endif %}
                     </div>
                 </div>
             </form>

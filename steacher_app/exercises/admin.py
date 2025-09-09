@@ -1,6 +1,7 @@
 import html
 from django import forms
 from django.contrib import admin
+from django.db import IntegrityError
 from django.urls import reverse
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html, mark_safe
@@ -168,12 +169,15 @@ class CourseAdmin(admin.ModelAdmin):
         CourseMembership.objects.filter(course=obj, added_by__isnull=True).update(added_by=request.user)
 
     def save_formset(self, request, form, formset, change):
-        instances = formset.save(commit=False)
-        for obj in instances:
-            if isinstance(obj, CourseMembership) and not getattr(obj, 'added_by_id', None):
-                obj.added_by = request.user
-            obj.save()
-        formset.save_m2m()
+        try:
+            instances = formset.save(commit=False)
+            for obj in instances:
+                if isinstance(obj, CourseMembership) and not getattr(obj, 'added_by_id', None):
+                    obj.added_by = request.user
+                obj.save()
+            formset.save_m2m()
+        except IntegrityError:
+            raise forms.ValidationError('Only one owner is allowed per course. Demote the existing owner before assigning a new one.')
 
  
 

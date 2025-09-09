@@ -25,7 +25,7 @@
             </h2>
         </div>
     </div>
-    {% if user.is_staff %}
+    {% if can_edit %}
     <div class="level-right">
         
         <form method="post" action="{% url 'teachers:duplicate_exercise' exercise_id=exercise.pk %}" style="display:inline; margin-left: 0.5rem;">

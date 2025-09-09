@@ -86,7 +86,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 lastAppliedSnapshot: null as ExerciseFormData | null,
                 course_pk: coursePk,
                 uiLang: 'en' as 'en' | 'fr' | 'de',
-                lastSyncedEnSumByLang: { fr: 0, de: 0 } as Record<'fr'|'de', number>,
                 course_name: courseName,
                 course_description: courseDescription,
             };
@@ -117,40 +116,16 @@ document.addEventListener('DOMContentLoaded', function() {
             },
         },
         mounted() {
-            // Initialize per-language sync baseline to current EN content
-            try {
-                const currentSum = (this as any).computeEnSum();
-                (this as any).lastSyncedEnSumByLang.fr = currentSum;
-                (this as any).lastSyncedEnSumByLang.de = currentSum;
-            } catch (_) {}
         },
         methods: {
             deepClone<T>(obj: T): T {
                 return JSON.parse(JSON.stringify(obj));
-            },
-            asciiSum(s: string): number {  // hacky way to check if the 'en' text has changed
-                let total = 0;
-                for (let i = 0; i < s.length; i++) total += i * s.charCodeAt(i);
-                return total >>> 0;
-            },
-            computeEnSum(): number {
-                const enTitle = this.exercise.title_i18n?.['en'] || '';
-                const enDesc = this.exercise.description_i18n?.['en'] || '';
-                const enQ = this.exercise.question_i18n?.['en'] || '';
-                return this.asciiSum(enTitle + enDesc + enQ);
             },
             langEmpty(lang: 'en'|'fr'|'de'): boolean {
                 const t = (this.exercise.title_i18n?.[lang] || '').trim();
                 const d = (this.exercise.description_i18n?.[lang] || '').trim();
                 const q = (this.exercise.question_i18n?.[lang] || '').trim();
                 return !t || !d || !q;
-            },
-            langStale(lang: 'fr'|'de'): boolean {
-                const currentSum = this.computeEnSum();
-                return currentSum !== this.lastSyncedEnSumByLang[lang];
-            },
-            markSynced(lang: 'fr'|'de') {
-                this.lastSyncedEnSumByLang[lang] = this.computeEnSum();
             },
             getCsrfToken(): string | null { try { return getCsrfToken(); } catch { return null; } },
             buildErrorMessage(result: any, status: number): string {
@@ -170,15 +145,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.error = null;
 
                 try {
-                    // Save-time warning: missing/stale translations
+                    // Save-time warning: missing translations only
                     const missing: string[] = [];
-                    const stale: string[] = [];
                     (['fr','de'] as const).forEach((lang) => {
                         if (this.langEmpty(lang)) missing.push(lang.toUpperCase());
-                        if (this.langStale(lang)) stale.push(lang.toUpperCase());
                     });
-                    if (missing.length || stale.length) {
-                        const msg = `Translations\nMissing: ${missing.join(', ') || 'none'}\nStale: ${stale.join(', ') || 'none'}\n\nProceed to save?`;
+                    if (missing.length) {
+                        const msg = `Translations\nMissing: ${missing.join(', ')}\n\nProceed to save?`;
                         const proceed = window.confirm(msg);
                         if (!proceed) {
                             this.loading = false;
@@ -264,19 +237,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (translations.title !== undefined) this.exercise.title_i18n[targetLang] = translations.title;
                     if (translations.description !== undefined) this.exercise.description_i18n[targetLang] = translations.description;
                     if (translations.question !== undefined) this.exercise.question_i18n[targetLang] = translations.question;
-                    this.lastSyncedEnSumByLang[targetLang] = this.computeEnSum();
                 } catch (err: any) {
                     this.assistantError = err.message || String(err);
                 } finally {
                     this.sending = false;
                 }
             },
-            async translateMissingOrStale() {
-                const targets: ('fr'|'de')[] = [];
-                (['fr','de'] as const).forEach((lang) => {
-                    if (this.langEmpty(lang) || this.langStale(lang)) targets.push(lang);
-                });
-                if (targets.length === 0) return;
+            async translateAll() {
+                console.log('[translate_i18n] translateAll', this.course_pk);
+                const targets: ('fr'|'de')[] = ['fr', 'de'];
                 this.assistantError = null;
                 this.sending = true;
                 let csrf2: string;
@@ -293,6 +262,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
+                            course_pk: this.course_pk,
                             source_lang: 'en',
                             targets,
                             fields: {
@@ -314,7 +284,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (t.title !== undefined) this.exercise.title_i18n[lang] = t.title;
                         if (t.description !== undefined) this.exercise.description_i18n[lang] = t.description;
                         if (t.question !== undefined) this.exercise.question_i18n[lang] = t.question;
-                        this.lastSyncedEnSumByLang[lang as 'fr'|'de'] = this.computeEnSum();
                     });
                 } catch (err: any) {
                     this.assistantError = err.message || String(err);

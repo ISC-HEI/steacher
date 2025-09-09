@@ -27,7 +27,7 @@ students_urlpatterns = [
 # Teachers' URL patterns (namespaced at project level under 'teachers')
 teachers_urlpatterns = [
     path('dashboard/', views_teachers.dashboard, name='dashboard'),
-    path('courses/', views_teachers.course_list, name='course_list'),
+    path('cohorts/<int:pk>/', views_teachers.cohort_detail, name='cohort_detail'),
     path('courses/<int:pk>/', views_teachers.course_detail, name='course_detail'),
     path('courses/<int:course_pk>/add_exercise/', views_teachers.exercise_form, name='exercise_add'),
     path('courses/<int:course_pk>/edit_exercise/<int:exercise_pk>/', views_teachers.exercise_form, name='exercise_edit'),

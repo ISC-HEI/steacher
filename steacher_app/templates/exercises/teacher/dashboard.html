@@ -9,121 +9,46 @@
         <div class="level-left">
             <h1 class="title is-3">Teacher Dashboard</h1>
         </div>
-        <div class="level-right">
-            <form method="get">
-                <div class="field has-addons">
-                    <div class="control">
-                        <div class="select">
-                            <select name="cohort" onchange="this.form.submit()">
-                                {% for c in cohorts %}
-                                    <option value="{{ c.id }}" {% if selected_cohort and c.id == selected_cohort.id %}selected{% endif %}>
-                                        {{ c.course.name }} — {{ c.name }}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-                    <div class="control">
-                        <button type="submit" class="button is-link">Load</button>
-                    </div>
-                </div>
-            </form>
-        </div>
     </div>
 
-    {% if not selected_cohort %}
-        <div class="notification is-warning">No cohorts found for your account.</div>
-    {% else %}
-        <div class="box">
-            <div class="level">
-                <div class="level-left">
-                    <div>
-                        <p class="title is-5">{{ selected_cohort.course.name }} — {{ selected_cohort.name }}</p>
-                        <p class="subtitle is-6">Highest completed exercise number across the course (0 = not started)</p>
-                    </div>
-                </div>
-            </div>
-
-            {% if histogram and histogram|length > 0 %}
-            <div class="histogram is-flex is-align-items-end" style="gap: 6px;">
-                {% for bucket in histogram %}
-                <div class="has-text-centered" style="width: 18px;">
-                    <div class="tooltip" style="height: {{ bucket.height_px }}px; background-color: #4a90e2; border-radius: 3px;" title="{{ bucket.count }} student(s): {{ bucket.names|join:', ' }}"></div>
-                    <div class="is-size-7 has-text-grey mt-1">{{ bucket.label }}</div>
-                </div>
+    <div class="columns">
+        <div class="column">
+            <div class="box">
+                <h2 class="title is-5">My Courses</h2>
+                {% if courses %}
+                <ul>
+                {% for course in courses %}
+                    <li class="mb-2">
+                        {% if course.id in editable_course_ids %}
+                            <a href="{% url 'teachers:course_detail' course.id %}">{{ course.name }}</a>
+                        {% else %}
+                            <a href="{% url 'exercises:course_detail' course.id %}">{{ course.name }}</a>
+                        {% endif %}
+                    </li>
                 {% endfor %}
-            </div>
-            <div class="is-size-7 has-text-grey mt-1">Hover bars to see which students share that highest completed exercise index.</div>
-
-            <hr class="my-3">
-            <div class="is-size-6 mb-2"><strong>Per-exercise completion (% of cohort completed)</strong></div>
-            <div class="histogram is-flex is-align-items-end" style="gap: 6px;">
-                {% for bar in exercise_completion_bars %}
-                <div class="has-text-centered" style="width: 18px;">
-                    <div class="tooltip" style="height: {{ bar.height_px }}px; background-color: #48c774; border-radius: 3px;" title="{{ bar.percent }}% ({{ bar.count }}/{{ bar.total }})"></div>
-                    <div class="is-size-7 has-text-grey mt-1">{{ bar.label }}</div>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <p class="has-text-grey">No data yet.</p>
-            {% endif %}
-        </div>
-
-        <div class="box">
-            <div class="table-container">
-                <table class="table is-fullwidth is-striped is-hoverable">
-                    <thead>
-                        <tr>
-                            <th>Student</th>
-                            <th>Progress (# ex. completed)</th>
-                            <th>Last exercise attempted</th>
-                            <th class="has-text-centered">Submissions</th>
-                            <th class="has-text-centered">Hints</th>
-                            
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for s in students %}
-                        <tr>
-                            <td>
-                                {{ s.user.last_name }}, {{ s.user.first_name }}
-                                {% if not s.user.last_name and not s.user.first_name %}
-                                    <span class="has-text-grey">{{ s.user.username }}</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="is-flex is-align-items-center">
-                                    <progress class="progress is-primary mr-2" value="{{ s.percent }}" max="100" style="flex: 1"></progress>
-                                    <span class="is-size-7">{{ s.completed_count }}/{{ s.total_exercises }} ({{ s.percent }}%)</span>
-                                </div>
-                            </td>
-                            <td>
-                                {% if s.last_exercise %}
-                                    {{ s.last_exercise.sequence_label }} — {{ s.last_exercise.title }}
-                                    {% if s.last_attempt_complete %}
-                                        <span class="icon has-text-success" title="Completed"><i class="fas fa-check-circle"></i></span>
-                                    {% else %}
-                                        <span class="icon has-text-grey-light" title="In progress"><i class="far fa-circle"></i></span>
-                                    {% endif %}
-                                {% else %}
-                                    —
-                                {% endif %}
-                            </td>
-                            <td class="has-text-centered">{{ s.submissions_count }}</td>
-                            <td class="has-text-centered">{{ s.hints_count }}</td>
-                            
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="7" class="has-text-centered has-text-grey">No students in this cohort.</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                </ul>
+                {% else %}
+                <p class="has-text-grey">No courses yet.</p>
+                {% endif %}
             </div>
         </div>
-    {% endif %}
+        <div class="column">
+            <div class="box">
+                <h2 class="title is-5">My Cohorts</h2>
+                {% if cohorts %}
+                <ul>
+                {% for c in cohorts %}
+                    <li class="mb-2">
+                        <a href="{% url 'teachers:cohort_detail' c.id %}">{{ c.course.name }} — {{ c.name }}</a>
+                    </li>
+                {% endfor %}
+                </ul>
+                {% else %}
+                <p class="has-text-grey">No cohorts yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
