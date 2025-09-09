@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from exercises.models import Exercise, ExerciceAsset, Course, Attempt
+from exercises.models import Exercise, ExerciseAsset, Course, Attempt
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 
@@ -10,7 +10,7 @@ class Command(BaseCommand):
 
         # Clear existing 
         Exercise.objects.all().delete()
-        ExerciceAsset.objects.all().delete()
+        ExerciseAsset.objects.all().delete()
         Course.objects.all().delete()
         # No longer using AttemptInteraction
         Attempt.objects.all().delete()
@@ -144,7 +144,7 @@ INSERT INTO students (first_name, last_name, age)
 INSERT INTO students (first_name, last_name, age) 
   VALUES ('Raoul', 'Chatigré', 17);"""
                 
-        ExerciceAsset.objects.create(
+        ExerciseAsset.objects.create(
             name="students_v1.sql",
             description="Sample students table with initial data",
             content=sql_content.encode('utf-8'),

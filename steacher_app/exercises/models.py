@@ -2,12 +2,11 @@ from django.db import models
 from django.conf import settings
 from django.utils import timezone
 from django.core.exceptions import ValidationError
-from functools import lru_cache
 from exercises.schemas import ExerciseData, AnswerData
-from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction, IntegrityError
-from django.db.models import Max, Q
+from django.db.models import Max
 
 
 class Course(models.Model):
@@ -21,6 +20,8 @@ class Course(models.Model):
     visible = models.BooleanField(default=True, help_text="Whether the course is visible to students.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Reverse link to all Trace rows that reference this Course as owner
+    traces = GenericRelation('Trace', related_query_name='course_owner')
 
     def __str__(self):
         return self.name
@@ -46,7 +47,15 @@ class Module(models.Model):
 
     class Meta:
         ordering = ['course', 'order']
-        unique_together = ('course', 'order')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['course', 'order'],
+                name='unique_module_order_per_course'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['course', 'visible'], name='module_course_visible_idx'),
+        ]
 
 
 class Cohort(models.Model):
@@ -128,9 +137,13 @@ class CohortMembership(models.Model):
             })
 
     class Meta:
-        unique_together = ('cohort', 'user')
         ordering = ['-joined_at']
         constraints = [
+            # One membership per user per cohort
+            models.UniqueConstraint(
+                fields=['cohort', 'user'],
+                name='unique_membership_per_cohort_user'
+            ),
             # Only one owner per cohort
             models.UniqueConstraint(
                 fields=['cohort'],
@@ -138,15 +151,28 @@ class CohortMembership(models.Model):
                 name='unique_cohort_owner'
             ),
         ]
+        indexes = [
+            # Index for filtering by cohort and role
+            models.Index(fields=['cohort', 'role'], name='cohort_role_idx'),
+            # Additional common filters
+            models.Index(fields=['user', 'role'], name='cm_user_role_idx'),
+            models.Index(fields=['user', 'status', 'joined_at'], name='cm_user_status_joined_idx'),
+            models.Index(fields=['cohort', 'status'], name='cm_cohort_status_idx'),
+        ]
 
     def __str__(self):
         return f"{self.user} in {self.cohort} as {self.get_role_display()} ({self.status})"
+
+    def save(self, *args, **kwargs):
+        # Ensure model-level validation (including clean()) is applied on every save
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 
 class Exercise(models.Model):
     """
     A single exercise within a @Module. Has different types (e.g. SQL, Python, open question, etc.). 
-    Inculdes metadata for the AI tutor to help the student, unit tests.
+    Includes metadata for the AI tutor to help the student, unit tests.
     """
 
     EXERCISE_TYPE_CHOICES = [
@@ -166,14 +192,16 @@ class Exercise(models.Model):
         max_length=50,
         choices=EXERCISE_TYPE_CHOICES,
         default='python',
-        help_text="Type of the exercice, e.g. 'open_question', 'python', 'scala', 'sql', 'turtle', etc."
+        help_text="Type of the exercise, e.g. 'open_question', 'python', 'scala', 'sql', 'turtle', etc."
     )
-    order = models.PositiveIntegerField(default=0, help_text="The order of the exercice within the course.")
+    order = models.PositiveIntegerField(default=0, help_text="The order of the exercise within the course.")
     exercise_data = models.JSONField(help_text="Contains fields like data-source, etc.")  # sent to frontend
     answer_data = models.JSONField(default=dict, help_text="Contains fields like expected_result, hints, etc.")  # backend only
     visible = models.BooleanField(default=True, help_text="Whether the exercise is visible to students.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Reverse link to all Trace rows that reference this Exercise as owner (e.g., authoring)
+    traces = GenericRelation('Trace', related_query_name='exercise_owner')
 
     def __str__(self):
         # Keep it simple: show the English title if set; otherwise a generic label
@@ -205,7 +233,15 @@ class Exercise(models.Model):
 
     class Meta:
         ordering = ['module', 'order']
-        unique_together = ('module', 'order')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['module', 'order'],
+                name='unique_exercise_order_per_module'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['module', 'visible'], name='exercise_module_visible_idx'),
+        ]
 
     @property
     def sequence_tuple(self):
@@ -265,6 +301,8 @@ class Attempt(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     completion_feedback = models.JSONField(null=True, blank=True, help_text="The structured feedback and next exercise recommendations from the LLM upon completing an exercise.")
+    # Reverse link to all Trace rows that reference this Attempt as owner
+    traces = GenericRelation('Trace', related_query_name='attempt_owner')
 
     objects = AttemptManager()
 
@@ -272,7 +310,17 @@ class Attempt(models.Model):
         return f"Attempt by {self.user.username} for '{self.exercise.title}'"
 
     class Meta:
-        unique_together = ('user', 'exercise', 'version')
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'exercise', 'version'],
+                name='unique_attempt_per_user_exercise_version'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'updated_at'], name='attempt_user_updated_idx'),
+            models.Index(fields=['user', 'complete', 'updated_at'], name='attempt_user_coplt_pdtd_idx'),
+            models.Index(fields=['cohort', 'user'], name='attempt_cohort_user_idx'),
+        ]
 
     def clean(self):
         super().clean()
@@ -284,6 +332,11 @@ class Attempt(models.Model):
                 pass
             if exercise_course_id and self.cohort.course_id != exercise_course_id:
                 raise ValidationError("If set, cohort must belong to the same course as the exercise.")
+
+    def save(self, *args, **kwargs):
+        # Ensure model-level validation (including clean()) is applied on every save
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 
 
@@ -392,7 +445,7 @@ def create_trace_for(owner_obj, user, channel: str, **fields):
         )
 
 
-class ExerciceAsset(models.Model):
+class ExerciseAsset(models.Model):
     """
     A file associated with a course, e.g. a database file for an SQL exercise.
     """
@@ -419,6 +472,9 @@ class ExerciceAsset(models.Model):
                 fields=['name', 'course'],
                 name='unique_name_per_course'
             ),
+        ]
+        indexes = [
+            models.Index(fields=['course', 'name'], name='asset_course_name_idx'),
         ]
 
 
@@ -455,6 +511,11 @@ class UserInvite(models.Model):
     def __str__(self):
         return f"{self.email} ({'used' if self.used else 'unused'})"
 
+    def clean(self):
+        super().clean()
+        if self.email:
+            self.email = self.email.lower()
+
     def mark_used(self, user):
         self.used = True
         self.user = user
@@ -472,21 +533,33 @@ class UserInvite(models.Model):
                 }
             )
 
+    def save(self, *args, **kwargs):
+        # Normalize email to lowercase and enforce validation on every save
+        if self.email:
+            self.email = self.email.lower()
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
 
 class ChatThread(models.Model):
     """
-    A standalone AI chat thread for a student. Stores the whole conversation as JSON.
-    `messages` is an ordered list of objects like {"role": "user"|"assistant", "content": str, "created_at": iso str}.
+    A standalone AI chat thread for a student. 
+    Conversation is stored as @Trace rows (polymorphic, linked via GenericForeignKey).
     """
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='chat_threads')
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='chat_threads', help_text="Each chat thread is associated with a course.")
     title = models.CharField(max_length=255, help_text="Short title shown in the thread list.")
-    messages = models.JSONField(default=list, blank=True, help_text="Ordered array of chat messages, just like in OpenAI's API.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Reverse link to all Trace rows that reference this ChatThread as owner (study chat)
+    traces = GenericRelation('Trace', related_query_name='chatthread_owner')
 
     class Meta:
         ordering = ['-updated_at']
+        indexes = [
+            models.Index(fields=['owner', 'updated_at'], name='chathread_owner_updated_idx'),
+            models.Index(fields=['owner', 'course', 'updated_at'], name='chat_owner_course_updated_idx'),
+        ]
 
     def __str__(self):
         return f"ChatThread {self.id} by {self.owner} - {self.title}"

@@ -144,12 +144,8 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
 
     # 2. Fetch conversation history (Trace-based)
     messages = []
-    attempt_ct = ContentType.objects.get_for_model(Attempt, for_concrete_model=False)
-    existing_traces = (
-        Trace.objects
-        .filter(content_type=attempt_ct, object_id=attempt.id)
-        .order_by('rank_order', 'id')
-    )
+    # Use reverse GenericRelation for clarity and performance
+    existing_traces = attempt.traces.all().order_by('rank_order', 'id')
 
     # 3. Add system prompt and course prompt (the specific prompt for this kind of exercise)
     with open('exercises/general_prompt.md', 'r') as file:
@@ -581,10 +577,14 @@ def generate_i18n_translations(*, source_lang: str, targets: list, fields: dict,
     return translations
 
 
-def generate_learning_pathway_recommendation(*, attempt: Attempt, interactions: list) -> dict:
+def generate_learning_pathway_recommendation(*, attempt: Attempt, interactions: list) -> (dict, str):
     """
     Analyzes a student's completed attempt and generates personalized feedback
     and recommendations for the next exercise.
+
+    Output: a tuple with the following elements:
+    - the recommendation data, as a dict.
+    - the system prompt + user prompt, as a string. This is used to store the prompt in the trace.
     """
     # 1. System Prompt Construction
     system_prompt = """You are an expert pedagogical advisor in a learning platform. Your task is to provide encouraging, personalized feedback to a student who has just completed an exercise. Based on their conversation with the AI tutor, you will also recommend the best next exercise for them to tackle from a provided list.
@@ -635,10 +635,13 @@ Your response MUST be a single JSON object with the following structure. Do not 
 ```
 
 **Instructions for Selecting Exercises:**
-1. From the provided list of `course_exercises`, select one `main_recommendation`. This should typically be the next logical exercise in the sequence, unless the student showed significant struggle or mastery.
-2. Select three `alternatives`:
-    - One `review` exercise: This should be an earlier exercise (a previously uncompleted one) that reinforces a concept the student seemed to struggle with. If there is no such exercise, then skip this.
-    - Two `accelerated` exercises: These should be later exercises in the sequence. Choose these if the student demonstrated strong mastery and could handle a bigger jump. Don't select exercice that are very far in the sequence. If there are no such exercises, then skip this.
+1. From the provided list of `course_exercises`, select one `main_recommendation`. This should typically be the next uncompleted logical exercise in the sequence, unless the student showed significant struggle or mastery.
+    - Consider 'significant struggle' as needing more than two hints or making the same type of error multiple times
+    - Consider 'strong mastery' as completing the exercise on the first couple of attempts (e.g. 2 or 3) with no hints.
+2. Select up to three `alternatives`:
+    - Preferably, start with one `review` exercise: This should be an earlier exercise (a previously uncompleted one) that reinforces a concept the student seemed to struggle with. If there is no such exercise, then skip this.
+    - Up to two `accelerated` exercises: These should be later exercises in the sequence. Choose these if the student demonstrated strong mastery and could handle a bigger jump. Don't select exercice that are very far in the sequence. If there are no such exercises, then skip this.
+    - If there is an exercice that does not fit in any of the above categories but would still be a good next step, then include it and label it as `other`. Use the 'other' type for exercises that are the next logical step but don't introduce a new major concept and aren't a direct review of a struggled concept
 3. Use the `title`, `description` and `question` of the exercises to guess which ones are variants or cover similar topics. Your primary goal is to create a smooth and adaptive learning path.
 4. *Important*: Never recommend an exercise that the student has already completed.
 """
@@ -677,9 +680,7 @@ Your response MUST be a single JSON object with the following structure. Do not 
     exercise_context_for_llm = []
     for ex in context_exercises:
         attempt_for_ex = attempts_map.get(ex.id)
-        feedback = None
-        if attempt_for_ex and attempt_for_ex.completion_feedback:
-            feedback = attempt_for_ex.completion_feedback.get('performance_feedback')
+        ## LATER: add previous pathway feedback        
 
         exercise_context_for_llm.append({
             'exercise_id': ex.id,
@@ -687,17 +688,51 @@ Your response MUST be a single JSON object with the following structure. Do not 
             'description': ex.description,
             'question': ex.question_i18n.get(getattr(attempt.user, 'preferred_language', 'en'), ex.question_i18n.get('en', '')),
             'status': 'completed' if attempt_for_ex and attempt_for_ex.complete else ('attempted' if attempt_for_ex else 'not_attempted'),
-            'previous_pathway_feedback': feedback
         })
-    
-    # 3. Construct user prompt
-    user_prompt = f"""
-## Student's Performance Context
-Here is the full conversation history for the exercise titled "{current_exercise.title}" that the student just completed.
 
-```json
-{json.dumps(interactions, indent=2)}
-```
+     # 3. Construct user prompt  #########################################################
+
+     # Construct exercise context
+
+    # Localize current exercise question
+    q_map_current = getattr(current_exercise, 'question_i18n', {}) or {}
+    if isinstance(q_map_current, dict):
+        current_question_text = q_map_current.get('en') or next(iter(q_map_current.values()), '')
+    else:
+        current_question_text = ''
+
+    user_prompt = f"""
+## Exercise Context
+Here is the exercise that the student just completed:
+
+**Title:** 
+{current_exercise.title}
+
+**Description:** 
+{current_exercise.description}
+
+**Question:** 
+{current_question_text}
+
+"""
+
+    # format user interactions
+    user_interactions = ""
+    for interaction in interactions:
+        user_interactions += f"""
+        **User:** 
+        {interaction['user_submission']['content']}
+
+        **Assistant:** 
+        {interaction['llm_response']['content']}
+
+        """
+
+    user_prompt += f"""
+## Student's Performance Context
+Here is the full conversation history for the exercise that the student just completed:
+
+{user_interactions}
 
 ## Course Exercises Context
 Here is the list of available exercises in the course for you to choose from for your recommendations.
@@ -709,7 +744,7 @@ Here is the list of available exercises in the course for you to choose from for
 Based on all this context, please generate your response in the required JSON format.
 """
 
-    # 4. Call LLM
+    # 4. Call LLM  #########################################################
     messages_for_llm = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt}
@@ -728,7 +763,7 @@ Based on all this context, please generate your response in the required JSON fo
         content = _strip_markdown_fences(content)
 
         response_data = json.loads(content)
-        return response_data
+        return response_data, system_prompt + "\n\n-------\n\n" + user_prompt
 
     except Exception as e:
         logger.error(f"Failed to generate learning pathway recommendation for attempt {attempt.id}: {e}")

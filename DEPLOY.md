@@ -376,3 +376,8 @@ This way, you get both **application-level consistency** and **infrastructure-le
 ---
 
 Do you want me to write you a **ready-to-use cron backup plan** (with all commands and schedules), so you can just drop it into your server?
+
+
+# Emails
+
+https://mailtrap.io/blog/django-send-email/

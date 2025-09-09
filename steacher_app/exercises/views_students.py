@@ -14,7 +14,7 @@ import requests
 import time
 import json
 
-from .models import Exercise, ExerciceAsset, Course, Attempt, Module, UserInvite, ChatThread, CohortMembership, Trace, TraceEval, create_trace_for
+from .models import Exercise, ExerciseAsset, Course, Attempt, Module, UserInvite, ChatThread, CohortMembership, Trace, TraceEval, create_trace_for
 from django.contrib.contenttypes.models import ContentType
 from .serializers import ExerciseFrontendSerializer
 
@@ -412,12 +412,7 @@ def exercise_detail(request, pk):
         if attempt.completion_feedback:
             completion_feedback = attempt.completion_feedback
         # Map traces to shape expected by frontend
-        attempt_ct = ContentType.objects.get_for_model(Attempt, for_concrete_model=False)
-        traces = (
-            Trace.objects
-            .filter(content_type=attempt_ct, object_id=attempt.id, channel='exercise_guidance')
-            .order_by('rank_order', 'id')
-        )
+        traces = attempt.traces.filter(channel='exercise_guidance').order_by('rank_order', 'id')
         interactions = []
         for tr in traces:
             interactions.append({
@@ -480,7 +475,7 @@ def exercise_detail(request, pk):
 def serve_asset(request, exercise_id, filename):
     """Serve asset files for exercises."""
     exercise = get_object_or_404(Exercise, pk=exercise_id)
-    asset = get_object_or_404(ExerciceAsset, course=exercise.module.course, name=filename)
+    asset = get_object_or_404(ExerciseAsset, course=exercise.module.course, name=filename)
     content = bytes(asset.content).decode('utf-8')
     response = HttpResponse(content, content_type='text/plain')
     response['Content-Disposition'] = f'inline; filename="{filename}"'
@@ -651,12 +646,7 @@ def chat_thread_detail(request, thread_id: int):
     """Return a single thread with messages (JSON)."""
     thread = get_object_or_404(ChatThread, id=thread_id, owner=request.user)
     # Rebuild messages from Trace
-    thread_ct = ContentType.objects.get_for_model(ChatThread, for_concrete_model=False)
-    traces = (
-        Trace.objects
-        .filter(content_type=thread_ct, object_id=thread.id, channel='study_chat')
-        .order_by('rank_order', 'id')
-    )
+    traces = thread.traces.filter(channel='study_chat').order_by('rank_order', 'id')
     messages = []
     for tr in traces:
         if (tr.user_content or '').strip():
@@ -697,12 +687,7 @@ def chat_thread_send(request, thread_id: int):
     user_text = user_text_raw[:4000]
 
     # Prepare context messages reconstructed from Trace
-    thread_ct = ContentType.objects.get_for_model(ChatThread, for_concrete_model=False)
-    existing_traces = (
-        Trace.objects
-        .filter(content_type=thread_ct, object_id=thread.id, channel='study_chat')
-        .order_by('rank_order', 'id')
-    )
+    existing_traces = thread.traces.filter(channel='study_chat').order_by('rank_order', 'id')
     # Use the entire conversation history
     messages = []
     for tr in existing_traces:
@@ -753,7 +738,7 @@ def chat_thread_send(request, thread_id: int):
 
     # Persist as Trace(s) in study_chat channel, storing full message pair
     # First study_chat trace?
-    is_first = not Trace.objects.filter(content_type=thread_ct, object_id=thread.id, channel__in=['study_chat', 'exercise_guidance']).exists()
+    is_first = not thread.traces.filter(channel__in=['study_chat', 'exercise_guidance']).exists()
     fields = {
         'user_content': user_text,
         'assistant_content': assistant_text,
@@ -807,12 +792,7 @@ def recommend_learning_pathway(request, attempt_id):
 
         # Re-fetch interactions from the DB to ensure we have the canonical, untampered history
         # as the single source of truth, rather than trusting client-side state.
-        attempt_ct = ContentType.objects.get_for_model(Attempt, for_concrete_model=False)
-        traces = (
-            Trace.objects
-            .filter(content_type=attempt_ct, object_id=attempt.id, channel='exercise_guidance')
-            .order_by('rank_order', 'id')
-        )
+        traces = attempt.traces.filter(channel='exercise_guidance').order_by('rank_order', 'id')
         interactions = [
             {
                 'user_submission': {
@@ -830,7 +810,7 @@ def recommend_learning_pathway(request, attempt_id):
         ]
 
         # Call the core logic function to get the recommendation from the LLM
-        recommendation_data = generate_learning_pathway_recommendation(
+        recommendation_data, prompt = generate_learning_pathway_recommendation(
             attempt=attempt,
             interactions=interactions
         )
@@ -840,9 +820,8 @@ def recommend_learning_pathway(request, attempt_id):
 
         # Persist the recommendation as a Trace in the learning_pathway channel (and keep existing field for now)
         try:
-            attempt_ct = ContentType.objects.get_for_model(Attempt, for_concrete_model=False)
             # Determine if this is the first pathway trace; if so, store a minimal system prompt marker
-            has_any_pathway = Trace.objects.filter(content_type=attempt_ct, object_id=attempt.id, channel='learning_pathway').exists()
+            has_any_pathway = attempt.traces.filter(channel='learning_pathway').exists()
             lp_fields = {
                 'user_content': 'request_learning_pathway',
                 'assistant_content': 'learning_pathway_recommendation',
@@ -851,7 +830,7 @@ def recommend_learning_pathway(request, attempt_id):
                 },
             }
             if not has_any_pathway:
-                lp_fields['system_prompt'] = 'Learning pathway recommender system prompt (implicit)'
+                lp_fields['system_prompt'] = prompt
             create_trace_for(attempt, request.user, channel='learning_pathway', **lp_fields)
         except Exception:
             pass

@@ -6,7 +6,7 @@ from django.db import transaction, models
 import json
 
 from .decorators import teacher_required
-from .models import Exercise, Course, Module, ExerciceAsset, Cohort, CohortMembership, Attempt, Trace, create_trace_for
+from .models import Exercise, Course, Module, ExerciseAsset, Cohort, CohortMembership, Attempt, Trace, create_trace_for
 from django.contrib.contenttypes.models import ContentType
 from .unit_testing import run_unit_tests
 from .logic import generate_authoring_update
@@ -114,17 +114,8 @@ def dashboard(request):
             attempts_by_student.setdefault(a.user_id, []).append(a)
 
         # Fetch traces for all attempts in one query
-        attempt_ids = [a.id for a in attempts]
-        attempt_ct = ContentType.objects.get_for_model(Attempt, for_concrete_model=False)
-        traces = (
-            Trace.objects
-            .filter(content_type=attempt_ct, object_id__in=attempt_ids)
-            .order_by('object_id', 'rank_order', 'id')
-        )
-        # Map: attempt_id -> list of traces (in order)
-        interactions_by_attempt = {}
-        for tr in traces:
-            interactions_by_attempt.setdefault(tr.object_id, []).append(tr)
+        # Map: attempt_id -> list of traces (in order) using reverse relation per attempt
+        interactions_by_attempt = {a.id: list(a.traces.all().order_by('rank_order', 'id')) for a in attempts}
 
         # Compute per-student metrics
         percents = []
@@ -563,7 +554,7 @@ def exercise_form(request, course_pk, exercise_pk=None):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
     available_sql_assets = list(
-        ExerciceAsset.objects.filter(course=course, name__iendswith='.sql')
+        ExerciseAsset.objects.filter(course=course, name__iendswith='.sql')
         .values_list('name', flat=True)
     )
 
@@ -654,8 +645,7 @@ def exercise_authoring_assistant(request):
                 },
             }
             
-            trace_ct = ContentType.objects.get_for_model(trace_object, for_concrete_model=False)
-            has_any = Trace.objects.filter(content_type=trace_ct, object_id=trace_object.pk, channel='authoring').exists()
+            has_any = trace_object.traces.filter(channel='authoring').exists()
             if not has_any:
                 fields['system_prompt'] = str(result.get('system_prompt') or '')
             

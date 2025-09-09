@@ -1,7 +1,7 @@
 import pytest
 from playwright.sync_api import expect
 from django.contrib.auth.models import Group, Permission
-from exercises.models import Course, ExerciceAsset, Exercise, Trace, Module
+from exercises.models import Course, ExerciseAsset, Exercise, Trace, Module
 
 
 def _create_teacher_user(django_user_model):
@@ -58,7 +58,7 @@ def _create_sql_exercise(page, live_server, course_name):
     );
     INSERT INTO students (first_name, last_name, age) VALUES ('Yoko', 'Tsuno', 23);
     INSERT INTO students (first_name, last_name, age) VALUES ('Raoul', 'Chatigré', 17);"""
-    ExerciceAsset.objects.create(
+    ExerciseAsset.objects.create(
         name="students_v1.sql",
         description="Sample students table with initial data",
         content=sql_content.encode('utf-8'),

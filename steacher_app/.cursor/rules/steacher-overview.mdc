@@ -34,7 +34,7 @@ description: "High-level overview of this codebase called Steacher, including it
     *   `Trace`: Tracks a user's attempt at an exercise. Used to persist the conversation history between the user and the AI tutor.
     *   `GuidanceLog`: Stores the conversation history between the user and the AI tutor.
     *   `TraceEval`: Stores evaluations of a user's trace.
-    *   `ExerciceAsset`: Manages files associated with exercises.
+    *   `ExerciseAsset`: Manages files associated with exercises.
     *   `StudentInvite`: Manages student invitations to the platform.
     *   `ChatThread`: Manages chat conversations with the AI tutor. Used to persist chat conversations between the student and the AI tutor.
 

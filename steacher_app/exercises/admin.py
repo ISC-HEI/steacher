@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html, mark_safe
 from django.db.models import Count
-from .models import Exercise, Course, Module, ExerciceAsset, Attempt, UserInvite, ChatThread, Cohort, CohortMembership, Trace, TraceEval
+from .models import Exercise, Course, Module, ExerciseAsset, Attempt, UserInvite, ChatThread, Cohort, CohortMembership, Trace, TraceEval
 from django_jsonform.widgets import JSONFormWidget
 
 def format_interactions(attempt):
@@ -164,7 +164,7 @@ class ExerciseAdmin(admin.ModelAdmin):
     search_fields = ('title', 'description')
     ordering = ('module', 'order')
 
-class ExerciceAssetUploadForm(forms.ModelForm):
+class ExerciseAssetUploadForm(forms.ModelForm):
     upload_file = forms.FileField(
         label='Upload file',
         required=False,
@@ -172,13 +172,13 @@ class ExerciceAssetUploadForm(forms.ModelForm):
     )
 
     class Meta:
-        model = ExerciceAsset
+        model = ExerciseAsset
         fields = ('name', 'course', 'description')
 
 
-@admin.register(ExerciceAsset)
-class ExerciceAssetAdmin(admin.ModelAdmin):
-    form = ExerciceAssetUploadForm
+@admin.register(ExerciseAsset)
+class ExerciseAssetAdmin(admin.ModelAdmin):
+    form = ExerciseAssetUploadForm
     list_display = ('name', 'course', 'description', 'created_at')
     list_filter = ('course',)
     search_fields = ('name', 'description')
