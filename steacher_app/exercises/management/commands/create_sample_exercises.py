@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from exercises.models import Exercise, ExerciseAsset, Course, Attempt
+from exercises.models import Exercise, ExerciseAsset, Course, Attempt, CourseMembership
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 
@@ -82,6 +82,8 @@ Here are my answers:
 '''
             }
         )
+        # Ensure superuser owns the SQL course
+        CourseMembership.objects.get_or_create(course=sql_course, user=admin_user, defaults={"role": "owner"})
         
         # SQL Exercise data
         sql_exercises_data = {
@@ -157,6 +159,8 @@ INSERT INTO students (first_name, last_name, age)
             name='Introduction to Python',
             description='A course for learning Python basics.',
             llm_prompts={
+        # Ensure superuser owns the Python course
+        CourseMembership.objects.get_or_create(course=python_course, user=admin_user, defaults={"role": "owner"})
                 'python': '''
 
 **Task Workflow**

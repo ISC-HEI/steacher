@@ -13,7 +13,6 @@ class UserAdmin(DjangoUserAdmin):
             "Permissions",
             {
                 "fields": (
-                    "role",
                     "is_active",
                     "is_staff",
                     "is_superuser",
@@ -29,11 +28,11 @@ class UserAdmin(DjangoUserAdmin):
             None,
             {
                 "classes": ("wide",),
-                "fields": ("username", "email", "preferred_language", "role", "password1", "password2"),
+                "fields": ("username", "email", "preferred_language", "password1", "password2"),
             },
         ),
     )
-    list_display = ("username", "email", "first_name", "last_name", "preferred_language", "role", "is_staff")
+    list_display = ("username", "email", "first_name", "last_name", "preferred_language", "is_staff", "is_superuser")
     search_fields = ("username", "first_name", "last_name", "email")
     ordering = ("username",)
 

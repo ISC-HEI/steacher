@@ -5,8 +5,12 @@ from django.views.decorators.http import require_POST
 from django.db import transaction, models
 import json
 
-from .decorators import teacher_required
-from .models import Exercise, Course, Module, ExerciseAsset, Cohort, CohortMembership, Attempt, Trace, create_trace_for
+from .authz import (
+    course_roles_required,
+    assert_can_view_course,
+    assert_can_edit_course,
+)
+from .models import Exercise, Course, Module, ExerciseAsset, Cohort, CohortMembership, Attempt, create_trace_for, CourseMembership
 from django.contrib.contenttypes.models import ContentType
 from .unit_testing import run_unit_tests
 from .logic import generate_authoring_update
@@ -16,22 +20,25 @@ from pydantic import ValidationError
 
 
 @login_required
-@teacher_required
 def course_list(request):
-    courses = Course.objects.all()
+    # Show only courses the user can view: either course membership or any cohort in that course
+    # first, get all courses the user can view through cohorts
+    courses = Course.objects.filter(id__in=CohortMembership.objects.filter(user=request.user, status='active').values_list('cohort__course', flat=True))
+    # then, get all courses the user can view through course memberships
+    courses2 = Course.objects.filter(id__in=CourseMembership.objects.filter(user=request.user, role__in=['owner', 'editor']).values_list('course', flat=True))
     return render(request, 'exercises/teacher/teachers_course_list.html', {
-        'courses': courses
+        'courses': courses2.union(courses)
     })
 
 
 @login_required
-@teacher_required
+@course_roles_required(['owner','editor'], course_kw='pk')
 def course_detail(request, pk):
     course = get_object_or_404(Course.objects.prefetch_related('modules__exercises'), pk=pk)
     # Remember last visited course for teacher dashboard defaulting
     try:
         request.session['last_teacher_course_id'] = course.id
-    except Exception:
+    except Exception: # pylint: disable=broad-exception-caught
         pass
     # Compute which exercises are completed by the current user for per-exercise checkmarks
     completed_ids = set()
@@ -42,7 +49,6 @@ def course_detail(request, pk):
 
 
 @login_required
-@teacher_required
 def dashboard(request):
     """Teacher dashboard: cohort-scoped student progress and activity."""
     # 1) Resolve default cohort
@@ -254,7 +260,6 @@ def dashboard(request):
 
 
 @login_required
-@teacher_required
 @require_POST
 @transaction.atomic
 def reorder_modules(request):
@@ -269,6 +274,9 @@ def reorder_modules(request):
             return JsonResponse({'status': 'error', 'message': f"Modules must belong to a single course. Found: {course_ids}"}, status=400)
 
         course_id = course_ids[0]
+        # Assert permission at course scope
+        course = get_object_or_404(Course, pk=course_id)
+        assert_can_edit_course(request.user, course)
         all_ids_in_course = list(Module.objects.filter(course_id=course_id).order_by('order').values_list('id', flat=True))
         ordered_ids = module_ids + [mid for mid in all_ids_in_course if mid not in module_ids]
 
@@ -284,7 +292,6 @@ def reorder_modules(request):
 
 
 @login_required
-@teacher_required
 @require_POST
 @transaction.atomic
 def reorder_exercises(request):
@@ -299,6 +306,14 @@ def reorder_exercises(request):
             moved_exercise_id = int(data['moved_exercise_id'])
         except Exception:
             return JsonResponse({'status': 'error', 'message': 'Invalid payload: require integer ids for modules and exercises'}, status=400)
+
+        # Assert permission at course scope
+        src_course = get_object_or_404(Module, pk=source_module_id)
+        src_course_id = src_course.course_id
+        tgt_course_id = get_object_or_404(Module, pk=target_module_id).course_id
+        if src_course_id != tgt_course_id:
+            return JsonResponse({'status': 'error', 'message': 'Source and target modules must belong to the same course'}, status=400)
+        assert_can_edit_course(request.user, src_course)
 
         # Validate memberships and apply updates
         if source_module_id == target_module_id:
@@ -364,12 +379,12 @@ def reorder_exercises(request):
 
 
 @login_required
-@teacher_required
 @require_POST
 @transaction.atomic
 def set_module_visibility(request, module_id):
     try:
-        module = get_object_or_404(Module, pk=module_id)
+        module = get_object_or_404(Module.objects.select_related('course'), pk=module_id)
+        assert_can_edit_course(request.user, module.course)
         data = json.loads(request.body or '{}')
         visible = bool(data.get('visible'))
 
@@ -388,12 +403,12 @@ def set_module_visibility(request, module_id):
 
 
 @login_required
-@teacher_required
 @require_POST
 @transaction.atomic
 def set_exercise_visibility(request, exercise_id):
     try:
-        exercise = get_object_or_404(Exercise, pk=exercise_id)
+        exercise = get_object_or_404(Exercise.objects.select_related('module__course'), pk=exercise_id)
+        assert_can_edit_course(request.user, exercise.module.course)
         data = json.loads(request.body or '{}')
         visible = bool(data.get('visible'))
         exercise.visible = visible
@@ -408,12 +423,12 @@ def set_exercise_visibility(request, exercise_id):
 
 
 @login_required
-@teacher_required
 @require_POST
 @transaction.atomic
 def duplicate_exercise(request, exercise_id):
     try:
-        original = get_object_or_404(Exercise.objects.select_related('module'), pk=exercise_id)
+        original = get_object_or_404(Exercise.objects.select_related('module__course'), pk=exercise_id)
+        assert_can_edit_course(request.user, original.module.course)
         module = original.module
 
         # Lock the module's exercises to avoid concurrent reorder conflicts
@@ -478,9 +493,9 @@ def duplicate_exercise(request, exercise_id):
 
 
 @login_required
-@teacher_required
 def exercise_form(request, course_pk, exercise_pk=None):
     course = get_object_or_404(Course, pk=course_pk)
+    assert_can_edit_course(request.user, course)
     # Remember last visited course for teacher dashboard defaulting
     try:
         request.session['last_teacher_course_id'] = course.id
@@ -581,7 +596,6 @@ def exercise_form(request, course_pk, exercise_pk=None):
 
 
 @login_required
-@teacher_required
 @require_POST
 def exercise_authoring_assistant(request):
     try:
@@ -601,6 +615,7 @@ def exercise_authoring_assistant(request):
         return JsonResponse({'status': 'error', 'message': 'Missing course_pk in context'}, status=400)
 
     course = get_object_or_404(Course, pk=course_pk)
+    assert_can_edit_course(request.user, course)
 
     print(f"exercise_payload: {exercise_payload}")
     print(f"messages: {messages}")
@@ -661,13 +676,18 @@ def exercise_authoring_assistant(request):
 
         
 @login_required
-@teacher_required
 @require_POST
 def translate_i18n(request):
     try:
         body = json.loads(request.body or '{}')
     except json.JSONDecodeError:
         return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+    course_pk = body.get('course_pk')
+    if not course_pk:
+        return JsonResponse({'status': 'error', 'message': 'Missing course_pk in body'}, status=400)
+    course = get_object_or_404(Course, pk=course_pk)
+    assert_can_edit_course(request.user, course)
 
     source_lang = (body.get('source_lang') or 'en').strip()
     targets = body.get('targets') or []

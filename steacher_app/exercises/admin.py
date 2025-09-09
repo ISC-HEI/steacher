@@ -5,7 +5,7 @@ from django.urls import reverse
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html, mark_safe
 from django.db.models import Count
-from .models import Exercise, Course, Module, ExerciseAsset, Attempt, UserInvite, ChatThread, Cohort, CohortMembership, Trace, TraceEval
+from .models import Exercise, Course, Module, ExerciseAsset, Attempt, UserInvite, ChatThread, Cohort, CohortMembership, Trace, TraceEval, CourseMembership
 from django_jsonform.widgets import JSONFormWidget
 
 def format_interactions(attempt):
@@ -122,6 +122,16 @@ class ModuleInline(admin.TabularInline):
     ordering = ('order',)
     show_change_link = True
 
+class CourseMembershipInline(admin.TabularInline):
+    model = CourseMembership
+    fk_name = 'course'
+    extra = 0
+    autocomplete_fields = ['user']
+    fields = ('user', 'role', 'joined_at', 'added_by')
+    readonly_fields = ('joined_at',)
+    verbose_name = 'Member'
+    verbose_name_plural = 'Members'
+
 class CourseAdminForm(forms.ModelForm):
     class Meta:
         model = Course
@@ -134,10 +144,36 @@ class CourseAdminForm(forms.ModelForm):
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
     form = CourseAdminForm
-    list_display = ('name', 'created_at', 'updated_at')
+    list_display = ('name', 'owner', 'created_at', 'updated_at')
     search_fields = ('name',)
     readonly_fields = ('created_at', 'updated_at')
-    inlines = [ModuleInline]
+    inlines = [CourseMembershipInline, ModuleInline]
+
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'description', 'visible')
+        }),
+        ('AI Prompts', {
+            'fields': ('chat_prompt', 'llm_prompts')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        # Ensure added_by is set for any newly created memberships without it
+        CourseMembership.objects.filter(course=obj, added_by__isnull=True).update(added_by=request.user)
+
+    def save_formset(self, request, form, formset, change):
+        instances = formset.save(commit=False)
+        for obj in instances:
+            if isinstance(obj, CourseMembership) and not getattr(obj, 'added_by_id', None):
+                obj.added_by = request.user
+            obj.save()
+        formset.save_m2m()
 
  
 

@@ -9,6 +9,7 @@ from exercises.models import (
     Cohort,
     CohortMembership,
     Attempt,
+    CourseMembership,
 )
 
 
@@ -82,8 +83,7 @@ class Command(BaseCommand):
                 "email": "teacher_demo@example.com",
                 "first_name": "Teacher",
                 "last_name": "Demo",
-                "role": "teacher",
-                "is_staff": True,
+                "is_staff": False,
             },
         )
 
@@ -95,7 +95,6 @@ class Command(BaseCommand):
                     "email": f"{username}@example.com",
                     "first_name": first_name,
                     "last_name": last_name,
-                    "role": "student",
                     "is_staff": False,
                 },
             )
@@ -110,6 +109,11 @@ class Command(BaseCommand):
                 "visible": True,
             },
         )
+
+        # Ensure the superuser is course owner
+        superuser = User.objects.filter(is_superuser=True).first()
+        if superuser:
+            CourseMembership.objects.get_or_create(course=course, user=superuser, defaults={"role": "owner"})
 
         module, _ = Module.objects.get_or_create(
             course=course,

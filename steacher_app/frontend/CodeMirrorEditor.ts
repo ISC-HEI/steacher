@@ -1,5 +1,5 @@
 import { defineComponent } from 'vue';
-import { EditorView, basicSetup, EditorState, sql, python, scala, keymap, indentWithTab, indentUnit, autocompletion, acceptCompletion } from 'codemirror-bundle';
+import { EditorView, basicSetup, EditorState, sql, python, scala, keymap, indentUnit, autocompletion, acceptCompletion, indentMore, indentLess, indentOnInput } from 'codemirror-bundle';
 import type { ViewUpdate } from '@codemirror/view';
 
 interface CodeMirrorEditorData {
@@ -44,16 +44,13 @@ export const CodeMirrorEditor = defineComponent({
                 doc: this.modelValue,
                 extensions: [
                     basicSetup,
-                    autocompletion(),
                     keymap.of([
-                        // Tab accepts completion when the popup is open; otherwise indent
-                        {
-                            key: 'Tab',
-                            run: (view: EditorView) => (acceptCompletion as any)(view) || (indentWithTab as any)(view),
-                        },
-                        indentWithTab,
+                        // always indent on Tab
+                        {key: 'Tab', run: (indentMore as any) }, 
+                        {key: 'Shift-Tab', run: (indentLess as any) },
                     ]),
                     languageExtension,
+                    indentOnInput(),
                     // Use 4 spaces indentation for Python
                     ...(this.language === 'python' ? [indentUnit.of('    ')] : []),
                     EditorView.updateListener.of((update: ViewUpdate) => {

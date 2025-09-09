@@ -152,7 +152,7 @@
           <div class="level-left">
             <div class="level-item">
               <div>
-                <p class="title is-5">{{ item.course.name }}</p>
+                <p class="title is-5">{{ item.course_name }}</p>
                 <p class="subtitle is-6">{{ item.completed }} / {{ item.total }} completed</p>
               </div>
             </div>
@@ -165,7 +165,7 @@
               <span class="mr-3">{{ item.percent }}%</span>
             </div>
             <div class="level-item">
-              <a class="button is-link is-light" href="{% url 'exercises:course_detail' item.course.id %}">View course</a>
+              <a class="button is-link is-light" href="{% url 'exercises:course_detail' item.course %}">View course</a>
             </div>
           </div>
         </div>

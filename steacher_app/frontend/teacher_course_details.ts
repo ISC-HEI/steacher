@@ -34,7 +34,12 @@ const TeacherCourseApp = defineComponent({
         };
 
         onMounted(() => {
-            const modulesList = document.getElementById('modules-list');
+            const modulesList = document.getElementById('modules-list') as HTMLElement | null;
+            const courseId = (() => {
+                const raw = modulesList?.getAttribute('data-course-id');
+                const n = raw ? parseInt(raw, 10) : NaN;
+                return Number.isFinite(n) ? n : null;
+            })();
             // Initialize reactive visibility state from DOM
             document.querySelectorAll<HTMLElement>('[data-role="module-visibility-icon"]').forEach(icon => {
                 const cardEl = icon.closest('.card') as HTMLElement | null;
@@ -62,7 +67,9 @@ const TeacherCourseApp = defineComponent({
                     onEnd: () => {
                         const moduleIds = Array.from(modulesList.querySelectorAll('.sortable-item'))
                             .map(el => (el as HTMLElement).dataset.id);
-                        send('/teachers/api/reorder_modules/', { module_ids: moduleIds });
+                        const payload: any = { module_ids: moduleIds };
+                        if (courseId != null) payload.course_pk = courseId;
+                        send('/teachers/api/reorder_modules/', payload);
                     }
                 });
             }
@@ -98,13 +105,14 @@ const TeacherCourseApp = defineComponent({
                             .map(el => toInt((el as HTMLElement).dataset.id))
                             .filter(n => Number.isFinite(n));
 
-                        const payload = {
+                        const payload: any = {
                             source_module_id: fromModuleId,
                             target_module_id: toModuleId,
                             source_exercise_ids: sourceExerciseIds,
                             target_exercise_ids: targetExerciseIds,
                             moved_exercise_id: movedExerciseId,
                         };
+                        if (courseId != null) payload.course_pk = courseId;
 
                         const fromInstance = Sortable.get(evt.from);
                         const toInstance = Sortable.get(evt.to);
@@ -194,7 +202,12 @@ const TeacherCourseApp = defineComponent({
             const previous = state.moduleVisible[moduleId] ?? true;
             state.moduleVisible[moduleId] = next; // optimistic
             try {
-                await send(`/teachers/api/modules/${moduleId}/visibility/`, { visible: next });
+                const modulesList = document.getElementById('modules-list') as HTMLElement | null;
+                const rawCourse = modulesList?.getAttribute('data-course-id');
+                const courseId = rawCourse ? parseInt(rawCourse, 10) : null;
+                const payload: any = { visible: next };
+                if (courseId != null) payload.course_pk = courseId;
+                await send(`/teachers/api/modules/${moduleId}/visibility/`, payload);
             } catch (e) {
                 state.moduleVisible[moduleId] = previous; // revert
                 // eslint-disable-next-line no-console
@@ -207,7 +220,12 @@ const TeacherCourseApp = defineComponent({
             const previous = state.exerciseVisible[exerciseId] ?? true;
             state.exerciseVisible[exerciseId] = next; // optimistic
             try {
-                await send(`/teachers/api/exercises/${exerciseId}/visibility/`, { visible: next });
+                const modulesList = document.getElementById('modules-list') as HTMLElement | null;
+                const rawCourse = modulesList?.getAttribute('data-course-id');
+                const courseId = rawCourse ? parseInt(rawCourse, 10) : null;
+                const payload: any = { visible: next };
+                if (courseId != null) payload.course_pk = courseId;
+                await send(`/teachers/api/exercises/${exerciseId}/visibility/`, payload);
             } catch (e) {
                 state.exerciseVisible[exerciseId] = previous; // revert
                 // eslint-disable-next-line no-console
@@ -217,7 +235,12 @@ const TeacherCourseApp = defineComponent({
         
         const duplicateExercise = async (exerciseId: string) => {
             try {
-                await send(`/teachers/api/exercises/${exerciseId}/duplicate/`, {});
+                const modulesList = document.getElementById('modules-list') as HTMLElement | null;
+                const rawCourse = modulesList?.getAttribute('data-course-id');
+                const courseId = rawCourse ? parseInt(rawCourse, 10) : null;
+                const payload: any = {};
+                if (courseId != null) payload.course_pk = courseId;
+                await send(`/teachers/api/exercises/${exerciseId}/duplicate/`, payload);
                 window.location.reload();
             } catch (e) {
                 // eslint-disable-next-line no-alert

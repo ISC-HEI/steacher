@@ -79,9 +79,12 @@
                         </a> <hr class="navbar-divider"> -->
                         
                         {% if request.resolver_match.view_name == 'exercises:exercise_detail' and exercise and user.is_staff %}
-                        <a href="{% url 'exercises:delete_user_answers' exercise.id %}" class="navbar-item">
-                            Delete all my answers for this question
-                        </a>
+                        <form method="post" action="{% url 'exercises:delete_user_answers' exercise.id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="navbar-item">
+                                Delete all my answers for this question
+                            </button>
+                        </form>
                         <hr class="navbar-divider">
                         {% endif %}
                         <form method="post" action="{% url 'logout' %}">

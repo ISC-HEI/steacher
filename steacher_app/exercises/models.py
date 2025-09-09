@@ -22,12 +22,32 @@ class Course(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     # Reverse link to all Trace rows that reference this Course as owner
     traces = GenericRelation('Trace', related_query_name='course_owner')
+    # Course-level memberships (owner/editor/viewer)
+    members = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        through='CourseMembership',
+        through_fields=('course', 'user'),
+        related_name='courses'
+    )
 
     def __str__(self):
         return self.name
 
     class Meta:
         ordering = ['name']
+
+    @property
+    def owner(self):
+        membership = self.memberships.filter(role='owner').select_related('user').first()
+        return membership.user if membership else None
+
+    @property
+    def editors(self):
+        return self.members.filter(course_memberships__role__in=['owner', 'editor']).distinct()
+
+    @property
+    def viewers(self):
+        return self.members.filter(course_memberships__role='viewer').distinct()
 
 
 class Module(models.Model):
@@ -128,13 +148,9 @@ class CohortMembership(models.Model):
     def clean(self):
         """
         Called automatically by Django when the model is saved.
-        Custom validation to ensure that only staff members can be teachers, assistants, or owners.
+        Keep validation minimal; admin access is restricted to superusers only.
         """
         super().clean()
-        if self.role in ['teacher', 'owner', 'assistant'] and not self.user.is_staff:
-            raise ValidationError({
-                'user': f"User must be a staff member to have the role of '{self.get_role_display()}'."
-            })
 
     class Meta:
         ordering = ['-joined_at']
@@ -167,6 +183,42 @@ class CohortMembership(models.Model):
         # Ensure model-level validation (including clean()) is applied on every save
         self.full_clean()
         return super().save(*args, **kwargs)
+
+
+class CourseMembership(models.Model):
+    """
+    Course-level membership with roles: owner (single), editor, viewer.
+    Used for authoring/viewing permissions at the course scope.
+    """
+    ROLE_CHOICES = [
+        ('owner', 'Owner'),
+        ('editor', 'Editor'),
+        ('viewer', 'Viewer'),
+    ]
+
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='memberships')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='course_memberships')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='viewer')
+    added_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='course_members_added')
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-joined_at']
+        constraints = [
+            models.UniqueConstraint(fields=['course', 'user'], name='unique_course_membership_per_user'),
+            models.UniqueConstraint(
+                fields=['course'],
+                condition=models.Q(role='owner'),
+                name='unique_course_owner'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['course', 'role'], name='course_role_idx'),
+            models.Index(fields=['user', 'role'], name='course_user_role_idx'),
+        ]
+
+    def __str__(self):
+        return f"{self.user} in course {self.course} as {self.get_role_display()}"
 
 
 class Exercise(models.Model):
@@ -504,7 +556,6 @@ class UserInvite(models.Model):
     cohort = models.ForeignKey(Cohort, null=True, blank=True, on_delete=models.SET_NULL, related_name='user_invites', help_text="If set, the user will be added to this cohort upon registration.")
     used = models.BooleanField(default=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='user_invite')
-    note = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     registered_at = models.DateTimeField(null=True, blank=True)
 
@@ -517,6 +568,9 @@ class UserInvite(models.Model):
             self.email = self.email.lower()
 
     def mark_used(self, user):
+        """
+        Mark the invite as used and associate the user with it. Also add the user to the cohort, if any.
+        """
         self.used = True
         self.user = user
         self.registered_at = timezone.now()

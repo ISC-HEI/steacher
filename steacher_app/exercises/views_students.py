@@ -5,11 +5,12 @@ from django.contrib.auth import get_user_model
 from django.views.decorators.csrf import csrf_protect
 from django.http import JsonResponse, HttpResponse, Http404
 from django.shortcuts import render, get_object_or_404, redirect
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 from django.db import models
 from django.db.models import Prefetch, Max
 from django.utils import timezone
-from datetime import timedelta
+from django.core.exceptions import PermissionDenied
+from datetime import timedelta, date
 import requests
 import time
 import json
@@ -17,20 +18,16 @@ import json
 from .models import Exercise, ExerciseAsset, Course, Attempt, Module, UserInvite, ChatThread, CohortMembership, Trace, TraceEval, create_trace_for
 from django.contrib.contenttypes.models import ContentType
 from .serializers import ExerciseFrontendSerializer
+from .authz import can_view_course, assert_can_view_exercise, assert_can_view_course
 
 
-def resolve_instructor_email(user, course=None):
-    """Return the instructor email for the user's active cohort.
-
-    Preference order:
-    - If a course is provided, return the active membership instructor for that course.
-    - Otherwise, return the most recent active membership instructor across any cohort.
-    """
-    from .models import CohortMembership, Cohort  # local import to avoid circulars on some setups
+def _resolve_instructor_email(user, course=None):
+    """Return the instructor email for the user's active cohort.  """
+    from .models import CohortMembership  # local import to avoid circulars on some setups
 
     try:
         membership = None
-        # 1) Prefer membership for this course
+        # check membership for this course
         if course is not None:
             membership = (
                 CohortMembership.objects
@@ -43,44 +40,24 @@ def resolve_instructor_email(user, course=None):
                 email = (membership.cohort.owner.email or '').strip()
                 if email:
                     return email
-
-            # 2) If user not enrolled, fall back to any cohort for this course
-            any_course_cohort = (
-                Cohort.objects
-                .filter(course=course)
-                .select_related()
-                .order_by('-updated_at')
-                .first()
-            )
-            if any_course_cohort and getattr(any_course_cohort.owner, 'email', ''):
-                email = (any_course_cohort.owner.email or '').strip()
-                if email:
-                    return email
-
-        # 3) Otherwise, use most recent active membership across any cohort
-        membership = (
-            CohortMembership.objects
-            .filter(user=user, status='active')
-            .select_related('cohort')
-            .order_by('-joined_at')
-            .first()
-        )
-        if membership and getattr(membership.cohort.owner, 'email', ''):
-            email = (membership.cohort.owner.email or '').strip()
-            if email:
-                return email
     except Exception:
         pass
     return None
 
 @login_required
+@require_GET
 def dashboard(request):
-    """Student dashboard showing progress per course."""
-    # Course progress (for compact list at the bottom)
-    courses = Course.objects.filter(visible=True).order_by('name')
+    """
+    Student dashboard showing progress per course.
+    Fetches a bunch of data...
+    """
+    # Course progress. Only show courses where the student is part of a cohort.
+    courses = CohortMembership.objects.filter(user=request.user, status='active').values_list('cohort__course', flat=True)
+    course_ids = list(courses)
+    course_map = {c.id: c for c in Course.objects.filter(id__in=course_ids)}
 
     course_progress = []
-    for course in courses:
+    for course in course_ids:
         total_exercises = Exercise.objects.filter(module__course=course, visible=True).count()
         completed_count = (
             Attempt.objects.filter(
@@ -97,7 +74,8 @@ def dashboard(request):
         if total_exercises > 0:
             percent = int(round((completed_count / total_exercises) * 100))
         course_progress.append({
-            'course': course,
+            'course': course,  # ID kept for URLs and sorting keys
+            'course_name': getattr(course_map.get(course), 'name', ''),
             'completed': completed_count,
             'total': total_exercises,
             'percent': percent,
@@ -130,20 +108,20 @@ def dashboard(request):
 
     # Sort with most recently viewed first; items with no activity go last, original name order preserved among them
     course_progress.sort(key=lambda item: (
-        most_recent_ts(item['course'].id) is not None,
-        most_recent_ts(item['course'].id)
+        most_recent_ts(item['course']) is not None,
+        most_recent_ts(item['course'])
     ), reverse=True)
     
     # --- Primary Focus & Recents ---
 
-    last_attempt = Attempt.objects.get_recent_for_user(request.user)
-    last_active_exercise = last_attempt.exercise if last_attempt else None
+    last_attempt : Attempt | None = Attempt.objects.get_recent_for_user(request.user)
+    last_active_exercise : Exercise | None = last_attempt.exercise if last_attempt else None
 
     # Recent activity: last 7 attempts
-    recent_attempts = Attempt.objects.get_recent_for_user(request.user, count=7)
+    recent_attempts : list[Attempt] = Attempt.objects.get_recent_for_user(request.user, count=7)
 
     # Next up: next visible exercise after the most recently solved one in the same module
-    next_up_exercise = None
+    next_up_exercise : Exercise | None = None
     if last_active_exercise:
         module = last_active_exercise.module
         latest_solved = (
@@ -160,22 +138,22 @@ def dashboard(request):
         next_up_exercise = q.order_by('order').first()
 
     # Recent chats
-    recent_chats = ChatThread.objects.filter(owner=request.user).order_by('-updated_at')[:7]
+    recent_chats : list[ChatThread] = ChatThread.objects.filter(owner=request.user).order_by('-updated_at')[:7]
 
     # --- Quick Stats ---
-    total_completed = Attempt.objects.filter(user=request.user, complete=True).values('exercise_id').distinct().count()
+    total_completed : int = Attempt.objects.filter(user=request.user, complete=True).values('exercise_id').distinct().count()
     
     # Calculate start of the current week (Monday morning)
     today = timezone.now().date()
-    start_of_week = today - timedelta(days=today.weekday())
+    start_of_week : date = today - timedelta(days=today.weekday())
 
-    week_completed = Attempt.objects.filter(
+    week_completed : int = Attempt.objects.filter(
         user=request.user,
         complete=True,
         updated_at__gte=start_of_week
     ).values('exercise_id').distinct().count()
 
-    module_stats = None
+    module_stats : dict | None = None
     if last_active_exercise:
         module = last_active_exercise.module
         module_total = Exercise.objects.filter(module=module, visible=True).count()
@@ -224,7 +202,7 @@ def dashboard(request):
         pass
 
     # Determine cohort instructor email to enable Teams button in navbar
-    instructor_email = resolve_instructor_email(
+    instructor_email = _resolve_instructor_email(
         request.user,
         course=last_active_exercise.module.course if last_active_exercise else None,
     )
@@ -245,11 +223,12 @@ def dashboard(request):
 
 
 @login_required
+@require_GET
 def course_list(request):
     """Display list of all courses for students (only visible ones)."""
-    courses = Course.objects.filter(visible=True)
+    courses = CohortMembership.objects.filter(user=request.user, status='active').values_list('cohort__course', flat=True)
     # Resolve instructor email from latest active cohort membership (any course)
-    instructor_email = resolve_instructor_email(request.user)
+    instructor_email = _resolve_instructor_email(request.user)
     return render(request, 'exercises/students/students_course_list.html', {
         'courses': courses,
         'instructor_email': instructor_email,
@@ -258,6 +237,10 @@ def course_list(request):
 
 @csrf_protect
 def register(request):
+    """
+    Register a new user.
+    Expects that the user has been invited via a UserInvite and invite has not been used yet.
+    """
     if request.method == 'GET':
         return render(request, 'registration/register.html')
 
@@ -296,19 +279,21 @@ def register(request):
         user.preferred_language = preferred_language
     except Exception:
         pass
-    user.is_staff = False
+    user.is_staff = False  # nobody gets staff access here, so that nobody can access the admin site but superuser
     user.save()
 
-    invite.mark_used(user)
+    invite.mark_used(user) # will also invite the user to the cohort, if any
 
     login(request, user, backend=settings.AUTHENTICATION_BACKENDS[0])
     return redirect('exercises:dashboard')
 
 
 @login_required
+@require_GET
 def course_detail(request, pk):
     """Display individual course and its visible modules/exercises for students."""
     course = get_object_or_404(Course.objects.prefetch_related('modules__exercises'), pk=pk, visible=True)
+    assert_can_view_course(request.user, course)
 
     # Compute which exercises are completed by the current user for per-exercise checkmarks
     completed_ids = set(
@@ -352,23 +337,17 @@ def course_detail(request, pk):
         'course': course,
         'modules': visible_modules,
         'completed_exercise_ids': completed_ids,
-        'instructor_email': resolve_instructor_email(request.user, course=course),
+        'instructor_email': _resolve_instructor_email(request.user, course=course),
     })
 
 
 @login_required
-def exercise_list(request):
-    """Display list of all exercises (optional/student utility)."""
-    exercises = Exercise.objects.all()
-    return render(request, 'exercises/list.html', {
-        'exercises': exercises
-    })
-
-
-@login_required
+@require_GET
 def exercise_detail(request, pk):
     """Display individual exercise for students."""
-    exercise = get_object_or_404(Exercise, pk=pk)
+    exercise : Exercise = get_object_or_404(Exercise, pk=pk)
+    assert_can_view_exercise(request.user, exercise)
+
     # Build localized exercise_json
     try:
         preferred_language = getattr(request.user, 'preferred_language', 'en') or 'en'
@@ -377,30 +356,22 @@ def exercise_detail(request, pk):
 
     title_map = getattr(exercise, 'title_i18n', {}) or {}
     desc_map = getattr(exercise, 'description_i18n', {}) or {}
+    q_map = getattr(exercise, 'question_i18n', {}) or {}
     def pick(d: dict) -> str:
         if not isinstance(d, dict):
             return ''
         return d.get(preferred_language) or d.get('en') or next(iter(d.values()), '')
 
-    ex_data = dict(exercise.exercise_data or {})
-    q_map = getattr(exercise, 'question_i18n', {}) or {}
-    if isinstance(q_map, dict):
-        question_text = q_map.get(preferred_language) or q_map.get('en') or next(iter(q_map.values()), '')
-    else:
-        question_text = ''
-
     exercise_json = {
         'id': exercise.id,
         'title': pick(title_map),
         'description': pick(desc_map),
-        'question': question_text,
+        'question': pick(q_map),
         'exercise_type': exercise.exercise_type,
-        'exercise_data': ex_data,
+        'exercise_data': dict(exercise.exercise_data or {}),
         'created_at': exercise.created_at.isoformat(),
         'updated_at': exercise.updated_at.isoformat(),
     }
-    localized_title = exercise_json['title']
-    localized_description = exercise_json['description']
 
     attempt_id = None
     interactions = []
@@ -454,7 +425,7 @@ def exercise_detail(request, pk):
         raise Http404(f"Unsupported exercise type: {exercise.exercise_type}")
 
     # Determine cohort instructor email for this course, if any
-    instructor_email = resolve_instructor_email(request.user, course=exercise.module.course)
+    instructor_email = _resolve_instructor_email(request.user, course=exercise.module.course)
 
     return render(request, template_name, {
         'exercise': exercise,
@@ -466,15 +437,16 @@ def exercise_detail(request, pk):
         'previous_exercise': previous_exercise,
         'next_exercise': next_exercise,
         'instructor_email': instructor_email,
-        'localized_title': localized_title,
-        'localized_description': localized_description,
     })
 
 
 @login_required
+@require_GET
 def serve_asset(request, exercise_id, filename):
     """Serve asset files for exercises."""
     exercise = get_object_or_404(Exercise, pk=exercise_id)
+    assert_can_view_exercise(request.user, exercise)
+
     asset = get_object_or_404(ExerciseAsset, course=exercise.module.course, name=filename)
     content = bytes(asset.content).decode('utf-8')
     response = HttpResponse(content, content_type='text/plain')
@@ -488,12 +460,14 @@ def get_guidance(request, exercise_id, attempt_id):
     """
     Handles a user's request for guidance by calling the main guidance logic.
     """
+    exercise = get_object_or_404(Exercise, pk=exercise_id)
+    assert_can_view_exercise(request.user, exercise)
+
     from .logic import fetch_ai_guidance  # local import to avoid circulars
     from pydantic import ValidationError
 
     try:
-        data = json.loads(request.body)
-        exercise = get_object_or_404(Exercise, pk=exercise_id)
+        data = json.loads(request.body)       
         attempt = get_object_or_404(Attempt, id=attempt_id, exercise=exercise, user=request.user)
 
         response_data = fetch_ai_guidance(data, exercise, attempt, debug=True)
@@ -514,11 +488,14 @@ def get_guidance(request, exercise_id, attempt_id):
 
 
 @login_required
+@require_POST
 def delete_user_answers(request, exercise_id):
     """
     Deletes all traces for the current user's attempt for a specific exercise.
     """
+        
     exercise = get_object_or_404(Exercise, pk=exercise_id)
+    assert_can_view_exercise(request.user, exercise)
     Attempt.objects.filter(user=request.user, exercise=exercise).delete()
     return redirect('exercises:exercise_detail', pk=exercise_id)
 
@@ -527,7 +504,7 @@ def delete_user_answers(request, exercise_id):
 @login_required
 @require_POST
 def scala_execute(request):
-    """Proxy Scala code execution to the scala_interpreter service."""
+    """Proxy Scala code execution to the scala_interpreter service. TODO: limit somehow this access"""
     try:
         payload = json.loads(request.body or '{}')
     except json.JSONDecodeError:
@@ -557,9 +534,10 @@ def scala_execute(request):
 
 
 @login_required
+@require_GET
 def chat_home(request):
     """Render the simple AI chat page with the user's threads."""
-    courses = Course.objects.filter(visible=True).order_by('name')
+    courses = CohortMembership.objects.filter(user=request.user, status='active').values_list('cohort__course', flat=True)
     # Stupid simple default: pick the highest ChatThread id for this user
     default_course_id = None
     default_thread_id = None
@@ -593,9 +571,10 @@ def chat_threads(request):
         if not course_id:
             return JsonResponse({'status': 'error', 'message': 'course_id is required'}, status=400)
         try:
-            course = Course.objects.get(id=int(course_id), visible=True)
+            course = get_object_or_404(Course, pk=int(course_id))
+            assert_can_view_course(request.user, course)
         except Exception:
-            return JsonResponse({'status': 'error', 'message': 'Invalid course_id'}, status=400)
+            return JsonResponse({'status': 'error', 'message': 'Invalid course_id or user cannot view this course'}, status=400)
         threads = ChatThread.objects.filter(owner=request.user, course=course).order_by('-updated_at')
         data = [
             {
@@ -620,7 +599,8 @@ def chat_threads(request):
         if not course_id:
             return JsonResponse({'status': 'error', 'message': 'course_id is required'}, status=400)
         try:
-            course = Course.objects.get(id=int(course_id), visible=True)
+            course = get_object_or_404(Course, pk=int(course_id))
+            assert_can_view_course(request.user, course)
         except Exception:
             return JsonResponse({'status': 'error', 'message': 'Invalid course_id'}, status=400)
 
@@ -787,6 +767,7 @@ def recommend_learning_pathway(request, attempt_id):
 
     try:
         attempt = get_object_or_404(Attempt, id=attempt_id, user=request.user)
+        assert_can_view_exercise(request.user, attempt.exercise)
         if not attempt.complete:
             return JsonResponse({'status': 'error', 'message': 'Attempt is not marked as complete.'}, status=400)
 
@@ -865,7 +846,7 @@ def trace_eval_create(request):
         return JsonResponse({'status': 'error', 'message': 'trace_id and valid result are required'}, status=400)
 
     try:
-        trace = Trace.objects.select_related('user').get(id=int(trace_id))
+        trace = Trace.objects.select_related('user').get(id=int(trace_id), user=request.user)
     except Exception:
         return JsonResponse({'status': 'error', 'message': 'Trace not found'}, status=404)
 

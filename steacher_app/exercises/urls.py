@@ -13,7 +13,6 @@ students_urlpatterns = [
     path('chat/threads/<int:thread_id>/delete/', views_students.chat_thread_delete, name='chat_thread_delete'),
     path('courses/', views_students.course_list, name='course_list'),
     path('courses/<int:pk>/', views_students.course_detail, name='course_detail'),
-    path('', views_students.exercise_list, name='exercise_list'),
     # More specific patterns first to avoid conflicts
     path('<int:exercise_id>/attempts/<int:attempt_id>/guidance/', views_students.get_guidance, name='get_guidance'),
     path('api/attempts/<int:attempt_id>/recommend_pathway/', views_students.recommend_learning_pathway, name='recommend_learning_pathway'),
