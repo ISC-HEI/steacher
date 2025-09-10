@@ -36,16 +36,19 @@ services:
       - web
 
   scala_interpreter:
+    # No ports exposed to host; reachable internally at http://scala_interpreter:8642
     build:
       context: ./scala_interpreter
       args:
         BUILD_PLATFORM: linux/amd64
     environment:
       - PORT=8642
+      # cap memory for interpreter
+      - JAVA_TOOL_OPTIONS=-Xms128m -Xmx512m
     restart: unless-stopped
     labels:
+      # this should restart the container if it crashes TODO test
       - autoheal=true
-    # No ports exposed to host; reachable internally at http://scala_interpreter:8642
 
   autoheal:
     image: willfarrell/autoheal

@@ -16,7 +16,8 @@ docker compose logs web
 
 ------
 
-# Installation
+
+# VM Installation in Infomaniak's OpenStack
 
 ## Create instance
 
@@ -372,3 +373,76 @@ Do you want me to write you a **ready-to-use cron backup plan** (with all comman
 # Emails
 
 https://mailtrap.io/blog/django-send-email/
+
+
+
+# Gunicorn WSGI + gthread (production)
+
+Gunicorn is configured to run Django via WSGI with `gthread` workers for high concurrency during long LLM calls. See Dockerfile for more details.
+
+Environment knobs (set in compose or `.env.production`):
+
+```bash
+WEB_CONCURRENCY=5   # number of Gunicorn worker processes
+WEB_THREADS=20      # threads per worker (gthread)
+WEB_TIMEOUT=180     # seconds; match Nginx proxy timeouts
+```
+
+Sizing notes (4 vCPU / 8 GB RAM VM):
+- Start with `WEB_CONCURRENCY=5`, `WEB_THREADS=20` → ~100 in-flight requests.
+- If queueing under load, try `WEB_CONCURRENCY=6`. Monitor RSS and CPU.
+- Memory budget: ~200–250 MB per worker plus app baseline. Still well within 8 GB.
+
+Long running LLM calls have longer Nginx timeouts (set in `nginx/nginx.conf`):
+
+
+# Redeploy
+
+# 1) SSH and go to project
+ssh
+git pull
+
+1.2) Start/refresh the proxy
+
+    docker compose up -d proxy
+    docker compose ps
+
+    # Validate nginx config and check logs
+    docker compose exec proxy nginx -t | cat
+    docker compose logs -n 200 proxy | cat
+
+# 2) Rebuild and restart only app containers (rebuilds if code/deps changed)
+
+    docker compose --env-file .env.production up -d --build web 
+    # add scala_interpreter at end if needed
+
+# 3) Run migrations (use exec or override entrypoint)
+    docker compose exec web python manage.py migrate
+# or if web isn't up yet:
+docker compose run --rm --entrypoint "" web python manage.py migrate
+
+# 4) Collect static (served by nginx from the volume)
+docker compose exec web python manage.py collectstatic --noinput
+
+# 5) Verify
+docker compose logs -n 200 web | tail -n +1 | cat
+
+
+Only app code changed (keep db/proxy untouched):
+
+    docker compose up -d --build --no-deps web
+    docker compose exec web python manage.py migrate
+    docker compose exec web python manage.py collectstatic --noinput
+
+
+# Copy data over
+
+
+    python manage.py dumpdata exercises.Course exercises.Module exercises.Exercise exercises.ExerciseAsset --indent 2 > fixtures/courses_modules_exercises.json
+    docker compose cp fixtures/courses_modules_exercises.json web:/tmp/cme.json
+    docker compose exec -T web python /app/manage.py loaddata /tmp/cme.json
+
+
+# New Relic
+
+    docker build -t python_newrelic:latest .

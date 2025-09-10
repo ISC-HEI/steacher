@@ -10,6 +10,7 @@ steacher_app/frontend/node_modules
 # Environment files
 .env.*
 *.env
+certbot_data/
 
 # Docker
 volumes/

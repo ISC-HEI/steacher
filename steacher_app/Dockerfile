@@ -39,4 +39,4 @@ COPY --from=builder /app/node_modules/ /app/node_modules/
 
 
 # Entrypoint
-ENTRYPOINT ["gunicorn", "exam_project.wsgi:application", "--bind", "0.0.0.0:8000"]
+ENTRYPOINT ["sh","-c","gunicorn exam_project.wsgi:application --worker-class gthread --workers ${WEB_CONCURRENCY:-5} --threads ${WEB_THREADS:-20} --timeout ${WEB_TIMEOUT:-180} --keep-alive 5 --graceful-timeout 30 --max-requests 1000 --max-requests-jitter 100 --bind 0.0.0.0:8000 --log-level info"]
