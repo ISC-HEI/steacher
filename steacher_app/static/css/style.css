@@ -1,3 +1,8 @@
+/* Base color variable for the website */
+:root {
+    --base-color: #363635; /* Dark gray */
+}
+
 /* Add v-cloak to hide elements before Vue compiles them */
 [v-cloak] {
     display: none;
@@ -442,3 +447,60 @@ code {
 /* Hollow by default; turn solid black when selected */
 .assistant-message .thumbs-container .button.is-white .icon i { color: #7a7a7a; }
 .assistant-message .thumbs-container .button.is-white.selected .icon i { color: #000; }
+
+/* Auth screens */
+.auth-frame {
+    background: var(--base-color);
+    border: 2px solid var(--base-color);
+    border-radius: 2px;
+    padding: 10px; /* black frame thickness */
+    margin-top: 30px;
+}
+.auth-grid {
+    display: grid;
+    grid-template-columns: 180px 1fr; /* logo | content */
+    gap: 0;
+    background: #fff; /* inner card */
+    border-radius: 2px;
+    overflow: hidden;
+}
+.auth-side-logo {
+    background: var(--base-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+.auth-logo {
+    max-width: 170px;
+    width: 100%;
+    height: auto;
+    filter: none;
+}
+.auth-content {
+    padding: 1.25rem 1.25rem 1.5rem 1.25rem;
+}
+
+@media (max-width: 768px) {
+    .auth-grid { grid-template-columns: 1fr; }
+    .auth-side-logo { padding: 0.75rem; }
+}
+
+/* Left-align labels and fields in auth forms */
+.auth-content .field.is-horizontal .field-label {
+    text-align: left;
+    justify-content: flex-start;
+    flex: 0 0 6rem; /* fixed label column width for alignment */
+    align-self: flex-start; /* top align when help text wraps */
+}
+.auth-content .field.is-horizontal .field-label .label {
+    text-align: left;
+}
+.auth-content .field.is-horizontal .field-body {
+    align-items: flex-start;
+}
+.auth-content .field.is-horizontal { align-items: flex-start; }
+.auth-content .field.is-horizontal .field-body .field {
+    flex: 1 1 auto; /* ensure input column stretches uniformly */
+}
+.auth-content .field .help { margin-top: 0.25rem; }

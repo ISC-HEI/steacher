@@ -1,82 +1,78 @@
-{% extends "exercises/base.html" %}
+{% extends "registration/auth_base.html" %}
 
-{% block content %}
-<div class="container">
-    <div class="columns is-centered">
-        <div class="column is-half">
-            <h2 class="title is-2">Login</h2>
-            {% if form.errors %}
-                <div class="notification is-danger">
-                    Your username and password didn't match. Please try again.
-                </div>
-            {% endif %}
+{% block auth_page_title %}Login{% endblock %}
 
-            {% if next %}
-                {% if user.is_authenticated %}
-                    <div class="notification is-warning">
-                        Your account doesn't have access to this page. To proceed, please login with an account that has access.
-                    </div>
-                {% else %}
-                    <div class="notification is-info">
-                        Please login to see this page.
-                    </div>
-                {% endif %}
-            {% endif %}
+{% block auth_content %}
+<h2 class="title is-3 ml-4">Login</h2>
 
+{% if form.errors %}
+    <div class="notification is-danger">
+        Your username and password didn't match. Please try again.
+    </div>
+{% endif %}
 
-            <form method="post" action="{% url 'login' %}">
-                {% csrf_token %}
-                <div class="box">
-                <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                        <label class="label">Email</label>
-                    </div>
-                    <div class="field-body">
-                        <div class="field">
-                            <div class="control">
-                                {{ form.username }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <p class="help">Use your university email to login.</p>
-                <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                        <label class="label">{{ form.password.label }}</label>
-                    </div>
-                    <div class="field-body">
-                        <div class="field">
-                            <div class="control">
-                                {{ form.password }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+{% if next %}
+    {% if user.is_authenticated %}
+        <div class="notification is-warning">
+            Your account doesn't have access to this page. To proceed, please login with an account that has access.
+        </div>
+    {% else %}
+        <div class="notification is-normal">
+            Please login to see this page.
+        </div>
+    {% endif %}
+{% endif %}
 
-                <div class="content mt-4">
-                    <details>
-                        <summary>Disclaimer – Use of Data</summary>
-                        <p>By using this platform, you acknowledge that your activity (such as logins, clicks, and interactions) will be recorded. These data are collected solely for pedagogical and research purposes within HEVS.</p>
-                        <p>Data will not be used for commercial purposes and will be handled in accordance with Swiss data protection law and the GDPR. Access is restricted to the research team, and data will be stored securely.</p>
-                        <p>If you have questions about data use or your rights, please contact Renaud Richardet.</p>
-                    </details>
-                </div>
-
-
-
+<form method="post" action="{% url 'login' %}">
+    {% csrf_token %}
+    <div class="box is-shadowless">
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label class="label">Email</label>
+            </div>
+            <div class="field-body">
                 <div class="field">
                     <div class="control">
-                        <button type="submit" class="button is-primary">Login</button>
+                        {{ form.username }}
                     </div>
+                    <p class="help">Use your university email to login.</p>
                 </div>
+            </div>
+        </div>
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label class="label">{{ form.password.label }}</label>
+            </div>
+            <div class="field-body">
+                <div class="field">
+                    <div class="control">
+                        {{ form.password }}
+                    </div>
+                    <p class="help">This is NOT your university password.</p>
                 </div>
-                <input type="hidden" name="next" value="{{ next }}" />
-            </form>
-            <p class="mt-2">
-              <a href="{% url 'register' %}">Create an account</a> ·
-              <a href="{% url 'password_reset' %}">Forgot password?</a>
-            </p>
+            </div>
+        </div>
+
+        <div class="content mt-5">
+            <details>
+                <summary>Disclaimer – Use of Data</summary>
+                <p>By using this platform, you acknowledge that your activity (such as logins, clicks, and interactions) will be recorded. These data are collected solely for pedagogical and research purposes within HEVS.</p>
+                <p>Data will not be used for commercial purposes and will be handled in accordance with Swiss data protection law and the GDPR. Access is restricted to the research team, and data will be stored securely.</p>
+                <p>If you have questions about data use or your rights, please contact Renaud Richardet.</p>
+            </details>
+        </div>
+
+        <div class="field">
+            <div class="control">
+                <button type="submit" class="button is-primary">Login</button>
+            </div>
         </div>
     </div>
-</div>
+    <input type="hidden" name="next" value="{{ next }}" />
+</form>
+<p class="mt-4 ml-5 mb-2">
+  <a class="no-underline has-text-grey mr-2" href="{% url 'register' %}">Create an account</a> ·
+  <a class="no-underline has-text-grey ml-2" href="{% url 'password_reset' %}">Forgot password?</a> ·
+  <a class="no-underline has-text-grey ml-2" href="{% url 'exercises:about' %}">About</a>
+</p>
 {% endblock %}

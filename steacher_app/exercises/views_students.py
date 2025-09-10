@@ -918,3 +918,8 @@ def trace_eval_create(request):
     is_ok = True if result == 'ok' else False
     te = TraceEval.objects.create(trace=trace, is_ok=is_ok, feedback='')
     return JsonResponse({'status': 'success', 'id': te.id, 'trace_id': trace.id, 'is_ok': te.is_ok}, status=201)
+
+
+def about(request):
+    """Render the about page."""
+    return render(request, 'exercises/students/about.html')

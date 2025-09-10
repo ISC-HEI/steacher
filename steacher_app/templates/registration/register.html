@@ -1,40 +1,66 @@
-{% extends "exercises/base.html" %}
+{% extends "registration/auth_base.html" %}
 
-{% block content %}
-<div class="container">
-    <div class="columns is-centered">
-        <div class="column is-half">
-            <h2 class="title is-2">Create your account</h2>
+{% block auth_page_title %}Register{% endblock %}
 
-            {% if errors %}
-                <div class="notification is-danger">
-                    <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
-                </div>
-            {% endif %}
+{% block auth_content %}
+<h2 class="title is-3 ml-4">Register</h2>
 
-            <form method="post">
-                {% csrf_token %}
-                <div class="box">
+{% if errors %}
+    <div class="notification is-danger">
+        <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    </div>
+{% endif %}
+
+<form method="post">
+    {% csrf_token %}
+    <div class="box is-shadowless">
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label class="label">Email</label>
+            </div>
+            <div class="field-body">
                 <div class="field">
-                    <label class="label">Email</label>
                     <div class="control">
                         <input class="input" type="email" name="email" required value="{{ email|default:'' }}">
                     </div>
+                    <p class="help">Use your university email.</p>
                 </div>
+            </div>
+        </div>
+
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label class="label">Password</label>
+            </div>
+            <div class="field-body">
                 <div class="field">
-                    <label class="label">Password</label>
                     <div class="control">
                         <input class="input" type="password" name="password1" required>
                     </div>
+                    <p class="help" style="color: red;">This is NOT your university password.</p>
                 </div>
+            </div>
+        </div>
+
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label class="label">Confirm Password</label>
+            </div>
+            <div class="field-body">
                 <div class="field">
-                    <label class="label">Confirm Password</label>
                     <div class="control">
                         <input class="input" type="password" name="password2" required>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <div class="field is-horizontal">
+            <div class="field-label is-normal">
+                <label class="label">Preferred Language</label>
+            </div>
+            <div class="field-body">
                 <div class="field">
-                    <label class="label">Preferred Language</label>
                     <div class="control">
                         <div class="select is-fullwidth">
                             <select name="preferred_language" required>
@@ -45,18 +71,33 @@
                         </div>
                     </div>
                 </div>
-                <div class="field">
-                    <div class="control">
-                        <button type="submit" class="button is-primary">Register</button>
-                    </div>
-                </div>
-                </div>
-            </form>
+            </div>
+        </div>
 
-            <p><a href="{% url 'login' %}">Already have an account? Log in</a></p>
+        <div class="content mt-5">
+            <details>
+                <summary>Disclaimer – Use of Data</summary>
+                <p>By using this platform, you acknowledge that your activity (such as logins, clicks, and interactions) will be recorded. These data are collected solely for pedagogical and research purposes within HEVS.</p>
+                <p>Data will not be used for commercial purposes and will be handled in accordance with Swiss data protection law and the GDPR. Access is restricted to the research team, and data will be stored securely.</p>
+                <p>If you have questions about data use or your rights, please contact Renaud Richardet.</p>
+            </details>
+        </div>
+
+        <div class="field">
+            <div class="control">
+                <button type="submit" class="button is-primary">Register</button>
+            </div>
         </div>
     </div>
-</div>
+</form>
+
+<p class="mt-4 ml-5 mb-2">
+  <a class="no-underline has-text-grey mr-2" href="{% url 'login' %}">Already have an account? Log in</a>
+</p>
+<p class="mt-4 ml-5 mb-2">
+  <a class="no-underline has-text-grey mt-6" href="{% url 'password_reset' %}">Forgot password?</a> ·
+  <a class="no-underline has-text-grey ml-2" href="{% url 'exercises:about' %}">About</a>
+</p>
 {% endblock %}
 
 

@@ -1,0 +1,24 @@
+<!-- auth base template; adds a logo and a frame around the content; used for all auth pages -->
+{% extends "exercises/base.html" %}
+{% load static %}
+
+{% block page_title %}{% block auth_page_title %}Account{% endblock %}{% endblock %}
+
+{% block content %}
+<div class="columns is-centered">
+    <div class="column is-10-tablet is-8-desktop is-6-widescreen">
+        <div class="auth-frame">
+            <div class="auth-grid">
+                <div class="auth-side-logo">
+                    <img src="{% static 'images/steacher_logo.png' %}" alt="Steacher Logo" class="auth-logo">
+                </div>
+                <div class="auth-content">
+                    {% block auth_content %}{% endblock %}
+                </div>
+            </div>
+        </div>
+    </div>    
+</div>
+{% endblock %}
+
+
