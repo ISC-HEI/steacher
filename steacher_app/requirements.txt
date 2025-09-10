@@ -12,3 +12,4 @@ gunicorn
 python-dotenv
 requests
 pydantic
+newrelic

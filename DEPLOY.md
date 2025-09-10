@@ -445,4 +445,37 @@ Only app code changed (keep db/proxy untouched):
 
 # New Relic
 
-    docker build -t python_newrelic:latest .
+New Relic agent runs inside the `web` container via `newrelic-admin run-program` and reads `/app/steacher_app/newrelic.ini`.
+
+Setup:
+
+1) Add to `.env.production`:
+
+```bash
+NEW_RELIC_LICENSE_KEY=REDACTED
+```
+
+2) Deploy/restart `web`:
+
+```bash
+docker compose --env-file .env.production up -d --build web
+```
+
+3) Verify agent startup in logs:
+
+```bash
+docker compose logs -n 200 web | cat
+```
+
+You should see lines similar to:
+
+```text
+New Relic Python Agent (X.Y.Z)
+INFO - New Relic agent initialized
+Connected to collector.*newrelic.com
+```
+
+Troubleshooting:
+- Ensure `NEW_RELIC_LICENSE_KEY` is set and non-empty
+- Check `NEW_RELIC_CONFIG_FILE` path (defaults to `/app/steacher_app/newrelic.ini`)
+- Make sure `newrelic` is in `requirements.txt`
