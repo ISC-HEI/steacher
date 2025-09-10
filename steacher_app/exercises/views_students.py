@@ -576,24 +576,46 @@ def scala_execute(request):
 @require_GET
 def chat_home(request):
     """Render the simple AI chat page with the user's threads."""
-    courses = CohortMembership.objects.filter(user=request.user, status='active').values_list('cohort__course', flat=True)
-    # Stupid simple default: pick the highest ChatThread id for this user
+    # Courses the student can see: visible courses where the user has an ACTIVE cohort membership
+    eligible_courses = (
+        Course.objects
+        .filter(visible=True)
+        .filter(
+            models.Q(cohorts__memberships__user=request.user, cohorts__memberships__status='active') |
+            models.Q(memberships__user=request.user)
+        )
+        .distinct()
+        .order_by('name')
+    )
+
+    # Default selections
     default_course_id = None
     default_thread_id = None
+
+    # Prefer the most recent chat thread's course, if it belongs to an eligible course
     try:
         last_thread = ChatThread.objects.filter(owner=request.user).order_by('-id').first()
     except Exception:
         last_thread = None
-    if last_thread is not None:
+    if last_thread is not None and eligible_courses.filter(id=last_thread.course_id).exists():
         default_thread_id = last_thread.id
         default_course_id = last_thread.course_id
     else:
-        # Fallback to last course from user's most recent attempt
+        # Fallback to last course from user's most recent attempt, if eligible
         last_attempt = Attempt.objects.get_recent_for_user(request.user)
         if last_attempt and getattr(last_attempt, 'exercise', None) and getattr(last_attempt.exercise, 'module', None):
-            default_course_id = last_attempt.exercise.module.course.id
+            attempt_course_id = last_attempt.exercise.module.course.id
+            if eligible_courses.filter(id=attempt_course_id).exists():
+                default_course_id = attempt_course_id
+
+    # Final fallback to the first eligible course
+    if default_course_id is None:
+        first_course = eligible_courses.first()
+        if first_course is not None:
+            default_course_id = first_course.id
+
     return render(request, 'exercises/students/ai_chat.html', {
-        'courses': courses,
+        'courses': eligible_courses,
         'default_course_id': default_course_id,
         'default_thread_id': default_thread_id,
     })
