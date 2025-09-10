@@ -505,3 +505,18 @@ Troubleshooting:
 - Make sure `newrelic` is in `requirements.txt`
 
 
+----
+
+# Clean up Docker safely (keeps databases/volumes)
+
+
+```bash
+# Remove stopped containers, dangling images, unused networks (safe)
+docker system prune -f
+
+# Also remove ALL unused images (not just dangling)
+docker system prune -a -f
+
+# Remove builder cache (often several GB)
+docker builder prune -a -f
+```

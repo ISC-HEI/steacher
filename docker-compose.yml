@@ -18,6 +18,10 @@ services:
     depends_on:
       - db
       - scala_interpreter
+    networks:
+      - frontend
+      - backend
+      - compute
 
   db:
     image: postgres:17.6
