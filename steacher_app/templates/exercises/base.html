@@ -6,10 +6,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Steacher{% endblock %}</title>
-
-     <!-- Favicon -->
-     <link rel="shortcut icon" href="{% static 'images/favicon.ico' %}" type="image/x-icon">
-     <link rel="icon" href="{% static 'images/favicon.png' %}" type="image/png">
+    
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon/favicon-32x32.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'images/favicon/favicon-16x16.png' %}">
+    <link rel="shortcut icon" href="{% static 'images/favicon/favicon.ico' %}">
+    <link rel="apple-touch-icon" href="{% static 'images/favicon/apple-touch-icon.png' %}">
+    <link rel="manifest" href="{% static 'images/favicon/site.webmanifest' %}">
+    <meta name="theme-color" content="#ffffff">
     <meta name="csrf-token" content="{{ csrf_token }}">
     
     <!-- Bulma CSS from node_modules -->
@@ -43,7 +47,7 @@
     <nav class="navbar is-light" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
             <a class="navbar-item" href="{% teacher_home_url user %}" style="padding: 0;">
-                <img src="{% static 'images/steacher_logo.jpg' %}" alt="Steacher Logo" style="max-height: 3rem; margin-right: 0.5rem;">
+                <img src="{% static 'images/steacher_logo.png' %}" alt="Steacher Logo" style="max-height: 3rem; margin-right: 0.5rem;">
                 <strong>Steacher</strong>
             </a>
 
