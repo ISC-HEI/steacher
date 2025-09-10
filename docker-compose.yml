@@ -63,8 +63,7 @@ services:
       - web
     networks:
       - frontend
-
-  scala_interpreter:
+scala_interpreter:
     # No ports exposed to host; reachable internally at http://scala_interpreter:8642
     build:
       context: ./scala_interpreter
@@ -75,23 +74,8 @@ services:
       # cap memory for interpreter
       - JAVA_TOOL_OPTIONS=-Xms128m -Xmx512m
     restart: unless-stopped
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /opt/app/tmp
-    user: "10001:10001"
     security_opt:
       - no-new-privileges:true
-      # Optionally: seccomp:unconfined replaced by a custom restrictive profile
-    cap_drop: [ "ALL" ]
-    pids_limit: 256
-    ulimits:
-      nproc: 512
-      nofile: 4096
-    mem_limit: "768m"
-    cpus: "0.75"
-    labels:
-      - autoheal=true
     networks:
       # internal network prevents outbound Internet; only containers on this network can talk
       - compute
