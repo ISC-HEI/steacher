@@ -24,12 +24,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'huPFjreWs1daiqKgkEhPzqnRo6gOVTl+unbVNMBc')
+# In production, DJANGO_SECRET_KEY must be provided
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'dev-insecure-key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DJANGO_DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+ALLOWED_HOSTS = [h for h in os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',') if h]
 
 
 # Application definition
@@ -44,6 +45,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'django_jsonform',
+    'django.contrib.humanize',
 
     # our apps
     'accounts',  # only used for custom user model (prefered language)
@@ -115,6 +117,13 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+# Strong password hashing (prefer Argon2, fall back to PBKDF2)
+PASSWORD_HASHERS = [
+    'django.contrib.auth.hashers.Argon2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+    'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+]
+
 # OpenAI API Key
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
@@ -151,8 +160,14 @@ STATICFILES_DIRS = [
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS settings for development
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS
+# Default to permissive in DEBUG, strict in production via env var CORS_ALLOWED_ORIGINS
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True
+else:
+    CORS_ALLOW_ALL_ORIGINS = False
+    CORS_ALLOWED_ORIGINS = [o for o in os.getenv('DJANGO_CORS_ALLOWED_ORIGINS', '').split(',') if o]
+    CORS_ALLOW_CREDENTIALS = True
 
 # Logging configuration for steacher
 LOGGING = {
@@ -171,10 +186,25 @@ LOGGING = {
             'filename': BASE_DIR / 'steacher.log',
             'formatter': 'verbose',
         },
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
     },
     'loggers': {
         'exercises.logic': {
-            'handlers': ['file'],
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'exercises.views_students': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'exercises.views_teachers': {
+            'handlers': ['file', 'console'],
             'level': 'INFO',
             'propagate': True,
         },
@@ -213,17 +243,25 @@ AUTH_USER_MODEL = 'accounts.User'
 
 # Session and cookie settings
 # Keep users logged in longer with rolling expiration
-SESSION_COOKIE_AGE = 60 * 60 * 24 * 365  # 1 year
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 30  # 30 days in production; override with env if needed
+SESSION_COOKIE_AGE = int(os.getenv('DJANGO_SESSION_COOKIE_AGE', SESSION_COOKIE_AGE))
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 SESSION_SAVE_EVERY_REQUEST = True
+SESSION_COOKIE_SAMESITE = os.getenv('DJANGO_SESSION_COOKIE_SAMESITE', 'Lax')
+CSRF_COOKIE_SAMESITE = os.getenv('DJANGO_CSRF_COOKIE_SAMESITE', 'Lax')
+# Frontend code reads CSRF token, so keep it non-HttpOnly
+CSRF_COOKIE_HTTPONLY = False
 
 # Use HTTPS-only cookies and enforce HTTPS in non-debug environments
 if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    CSRF_TRUSTED_ORIGINS = os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',')
-    SECURE_SSL_REDIRECT = os.getenv('DJANGO_SECURE_SSL_REDIRECT', 'False') == 'True'  # FIXME: Set to True in .env.production after configuring SSL
-    SECURE_HSTS_SECONDS = 31536000
+    CSRF_TRUSTED_ORIGINS = [o for o in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if o]
+    SECURE_SSL_REDIRECT = True if os.getenv('DJANGO_SECURE_SSL_REDIRECT', '').lower() in ('1', 'true', 'yes') else False
+    SECURE_HSTS_SECONDS = int(os.getenv('DJANGO_SECURE_HSTS_SECONDS', '31536000'))
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+    SECURE_REFERRER_POLICY = os.getenv('DJANGO_SECURE_REFERRER_POLICY', 'same-origin')
+    # Close cross-origin opener unless needed by features
+    SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'

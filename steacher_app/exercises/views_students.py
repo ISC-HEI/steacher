@@ -1,4 +1,5 @@
 from django.conf import settings
+import logging
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
 from django.contrib.auth import get_user_model
@@ -14,11 +15,14 @@ from datetime import timedelta, date
 import requests
 import time
 import json
+import os
 
 from .models import Exercise, ExerciseAsset, Course, Attempt, Module, UserInvite, ChatThread, CohortMembership, Trace, TraceEval, create_trace_for
 from django.contrib.contenttypes.models import ContentType
 from .serializers import ExerciseFrontendSerializer
-from .authz import can_view_course, assert_can_view_exercise, assert_can_view_course, can_edit_course, can_manage_cohort_students
+from .authz import can_view_course, assert_can_view_exercise, assert_can_view_course, can_edit_course, can_manage_cohort_students, rate_limit
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_instructor_email(user, course=None):
@@ -522,7 +526,7 @@ def get_guidance(request, exercise_id, attempt_id):
     except ValueError as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
     except Exception as e:
-        print(f"An error occurred in get_guidance: {e}")
+        logger.exception("Error in get_guidance")
         return JsonResponse({'status': 'error', 'message': 'An internal error occurred.'}, status=500)
 
 
@@ -542,6 +546,7 @@ def delete_user_answers(request, exercise_id):
 
 @login_required
 @require_POST
+@rate_limit(user_limit=20, user_burst=10, ip_limit=60, ip_burst=20, name='scala_execute')
 def scala_execute(request):
     """Proxy Scala code execution to the scala_interpreter service. TODO: limit somehow this access"""
     try:
@@ -666,7 +671,7 @@ def chat_threads(request):
             return JsonResponse({'status': 'error', 'message': 'Invalid course_id'}, status=400)
 
         title = (payload.get('title') or '').strip() or 'New Chat'
-        thread = ChatThread.objects.create(owner=request.user, course=course, title=title, messages=[])
+        thread = ChatThread.objects.create(owner=request.user, course=course, title=title)
         return JsonResponse({
             'status': 'success',
             'thread': {
@@ -714,99 +719,105 @@ def chat_thread_send(request, thread_id: int):
     """
     Append a user message, call the AI, append assistant reply, and return updated messages.
     """
-    thread = get_object_or_404(ChatThread, id=thread_id, owner=request.user)
     try:
-        payload = json.loads(request.body or '{}')
-    except json.JSONDecodeError:
-        return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+        thread = get_object_or_404(ChatThread, id=thread_id, owner=request.user)
+        try:
+            payload = json.loads(request.body or '{}')
+        except json.JSONDecodeError:
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
 
-    user_text_raw = (payload.get('message') or '').strip()
-    if not user_text_raw:
-        return JsonResponse({'status': 'error', 'message': 'Message is required'}, status=400)
+        user_text_raw = (payload.get('message') or '').strip()
+        if not user_text_raw:
+            return JsonResponse({'status': 'error', 'message': 'Message is required'}, status=400)
 
-    # Basic limits
-    user_text = user_text_raw[:4000]
+        # Basic limits
+        user_text = user_text_raw[:4000]
 
-    # Prepare context messages reconstructed from Trace
-    existing_traces = thread.traces.filter(channel='study_chat').order_by('rank_order', 'id')
-    # Use the entire conversation history
-    messages = []
-    for tr in existing_traces:
-        if (tr.user_content or '').strip():
-            messages.append({'role': 'user', 'content': tr.user_content})
-        if (tr.assistant_content or '').strip():
-            messages.append({'role': 'assistant', 'content': tr.assistant_content})
-    # Append current user message
-    messages.append({'role': 'user', 'content': user_text})
+        # Prepare context messages reconstructed from Trace
+        existing_traces = thread.traces.filter(channel='study_chat').order_by('rank_order', 'id')
+        # Use the entire conversation history
+        messages = []
+        for tr in existing_traces:
+            if (tr.user_content or '').strip():
+                messages.append({'role': 'user', 'content': tr.user_content})
+            if (tr.assistant_content or '').strip():
+                messages.append({'role': 'assistant', 'content': tr.assistant_content})
+        # Append current user message
+        messages.append({'role': 'user', 'content': user_text})
 
-    # Build AI prompt (study mode prompt + course context)
-    from .logic import client, MODEL_FAST  # reuse existing configured client
-    with open('exercises/study_mode_prompt.md', 'r') as file:
-        base_prompt = file.read()
+        # Build AI prompt (study mode prompt + course context)
+        from .logic import client, MODEL_FAST  # reuse existing configured client
+        prompt_path = os.path.join(settings.BASE_DIR, 'exercises', 'study_mode_prompt.md')
+        with open(prompt_path, 'r') as file:
+            base_prompt = file.read()
 
-    course = thread.course
-    course_context = ''
-    try:
-        if (course.chat_prompt or '').strip():
-            course_context = course.chat_prompt.strip()
-        elif (course.description or '').strip():
-            desc = course.description.strip()
-            course_context = desc[:1000]
-    except Exception:
+        course = thread.course
         course_context = ''
+        try:
+            if (course.chat_prompt or '').strip():
+                course_context = course.chat_prompt.strip()
+            elif (course.description or '').strip():
+                desc = course.description.strip()
+                course_context = desc[:1000]
+        except Exception:
+            course_context = ''
 
-    system_prompt = base_prompt
-    if course_context:
-        system_prompt = f"{base_prompt}\n\nCONTEXT FOR THIS COURSE: {course.name}\n{course_context}"
+        system_prompt = base_prompt
+        if course_context:
+            system_prompt = f"{base_prompt}\n\nCONTEXT FOR THIS COURSE: {course.name}\n{course_context}"
 
-    model_messages = [{'role': 'system', 'content': system_prompt}]
-    # Cap context to the last ~40 messages to control token usage
-    tail = messages[-40:]
-    for m in tail:
-        role = 'user' if m.get('role') == 'user' else 'assistant'
-        content = str(m.get('content') or '')
-        model_messages.append({'role': role, 'content': content})
+        model_messages = [{'role': 'system', 'content': system_prompt}]
+        # Cap context to the last ~40 messages to control token usage
+        tail = messages[-40:]
+        for m in tail:
+            role = 'user' if m.get('role') == 'user' else 'assistant'
+            content = str(m.get('content') or '')
+            model_messages.append({'role': role, 'content': content})
 
-    try:
-        completion = client.chat.completions.create(
-            model=MODEL_FAST,
-            messages=model_messages,
-            temperature=0.6,
-        )
-        assistant_text = (completion.choices[0].message.content or '').strip()
-    except Exception as e:
-        assistant_text = f"Sorry, I couldn't reach the AI service. ({e})"
+        try:
+            completion = client.chat.completions.create(
+                model=MODEL_FAST,
+                messages=model_messages,
+                temperature=0.6,
+            )
+            assistant_text = (completion.choices[0].message.content or '').strip()
+        except Exception as e:
+            logger.exception("Error calling AI service in chat_thread_send")
+            return JsonResponse({'status': 'error', 'message': "Sorry, I couldn't reach the AI service."}, status=503)
 
-    # Persist as Trace(s) in study_chat channel, storing full message pair
-    # First study_chat trace?
-    is_first = not thread.traces.filter(channel__in=['study_chat', 'exercise_guidance']).exists()
-    fields = {
-        'user_content': user_text,
-        'assistant_content': assistant_text,
-        'assistant_metadata': {
-            'assistant_message': assistant_text,
-        },
-    }
-    if is_first:
-        fields['system_prompt'] = system_prompt
-    created = create_trace_for(thread, request.user, channel='study_chat', **fields)
-
-    # Use first user line or assistant summary for title if default
-    if thread.title == 'New Chat' and user_text:
-        thread.title = (user_text.splitlines()[0] or 'New Chat')[:100]
-    thread.save(update_fields=['title', 'updated_at'])
-
-    return JsonResponse({
-        'status': 'success',
-        'thread': {
-            'id': thread.id,
-            'title': thread.title,
-            'messages': [{'role': 'user', 'content': user_text, 'created_at': timezone.now().isoformat()},
-                         {'role': 'assistant', 'content': assistant_text, 'trace_id': getattr(created, 'id', None), 'created_at': timezone.now().isoformat()}],
-            'updated_at': thread.updated_at.isoformat(),
-            'created_at': thread.created_at.isoformat(),
+        # Persist as Trace(s) in study_chat channel, storing full message pair
+        # First study_chat trace?
+        is_first = not thread.traces.filter(channel__in=['study_chat', 'exercise_guidance']).exists()
+        fields = {
+            'user_content': user_text,
+            'assistant_content': assistant_text,
+            'assistant_metadata': {
+                'assistant_message': assistant_text,
+            },
         }
-    })
+        if is_first:
+            fields['system_prompt'] = system_prompt
+        created = create_trace_for(thread, request.user, channel='study_chat', **fields)
+
+        # Use first user line or assistant summary for title if default
+        if thread.title == 'New Chat' and user_text:
+            thread.title = (user_text.splitlines()[0] or 'New Chat')[:100]
+        thread.save(update_fields=['title', 'updated_at'])
+
+        return JsonResponse({
+            'status': 'success',
+            'thread': {
+                'id': thread.id,
+                'title': thread.title,
+                'messages': [{'role': 'user', 'content': user_text, 'created_at': timezone.now().isoformat()},
+                             {'role': 'assistant', 'content': assistant_text, 'trace_id': getattr(created, 'id', None), 'created_at': timezone.now().isoformat()}],
+                'updated_at': thread.updated_at.isoformat(),
+                'created_at': thread.created_at.isoformat(),
+            }
+        })
+    except Exception as e:
+        logger.exception("An unexpected error occurred in chat_thread_send")
+        return JsonResponse({'status': 'error', 'message': 'An unexpected internal server error occurred.'}, status=500)
 
 
 @login_required
@@ -886,7 +897,7 @@ def recommend_learning_pathway(request, attempt_id):
     except Attempt.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'Attempt not found.'}, status=404)
     except Exception as e:
-        print(f"An error occurred in recommend_learning_pathway: {e}")
+        logger.exception("Error in recommend_learning_pathway")
         return JsonResponse({'status': 'error', 'message': 'An internal error occurred.'}, status=500)
 
 
@@ -918,8 +929,3 @@ def trace_eval_create(request):
     is_ok = True if result == 'ok' else False
     te = TraceEval.objects.create(trace=trace, is_ok=is_ok, feedback='')
     return JsonResponse({'status': 'success', 'id': te.id, 'trace_id': trace.id, 'is_ok': te.is_ok}, status=201)
-
-
-def about(request):
-    """Render the about page."""
-    return render(request, 'exercises/students/about.html')

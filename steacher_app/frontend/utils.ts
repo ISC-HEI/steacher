@@ -39,7 +39,7 @@ export async function csrfFetch(input: RequestInfo | URL, init: RequestInit = {}
             headers.set('X-CSRFToken', getCsrfToken());
         }
     }
-    return fetch(input, { ...init, headers });
+    return fetch(input, { ...init, headers, credentials: 'same-origin' });
 }
 
 

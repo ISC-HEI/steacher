@@ -131,7 +131,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (data.status === 'success') {
                         this.threads.unshift(data.thread);
                         await this.selectThread(data.thread.id);
+                    } else {
+                        console.error('Create thread error:', data);
+                        alert(data.message || 'Could not create chat.');
                     }
+                } catch (err) {
+                    console.error('Create thread failed:', err);
+                    alert('Failed to create chat. Please try again.');
                 } finally {
                     this.loading = false;
                 }
@@ -196,7 +202,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (textarea) textarea.focus();
                             }
                         });
+                    } else {
+                        console.error('Send message error:', data);
+                        alert(data.message || 'Could not send message.');
                     }
+                } catch (err) {
+                    console.error('Send message failed:', err);
+                    alert('Failed to send message. Please check your connection and try again.');
                 } finally {
                     this.loading = false;
                 }

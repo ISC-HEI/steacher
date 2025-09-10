@@ -4,6 +4,7 @@ django-cors-headers
 openai>=1.0.0
 djangorestframework
 django-jsonform
+argon2-cffi
 pytest
 pytest-django
 playwright

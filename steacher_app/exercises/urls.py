@@ -1,11 +1,12 @@
 from django.urls import path
+from django.views.generic import TemplateView
 from . import views_students, views_teachers
 
 app_name = 'exercises'
 
 # Students' URL patterns
 students_urlpatterns = [
-    path('about/', views_students.about, name='about'),
+    path('about/', TemplateView.as_view(template_name="exercises/students/about.html"), name='about'),
     path('dashboard/', views_students.dashboard, name='dashboard'),
     path('chat/', views_students.chat_home, name='chat_home'),
     path('chat/threads/', views_students.chat_threads, name='chat_threads'),

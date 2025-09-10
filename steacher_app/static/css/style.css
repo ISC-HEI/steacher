@@ -290,10 +290,19 @@ code {
     margin-bottom: 1em;
     margin-top: 1em;
 }
+
+.password-reset-form span.helptext {
+    display: block;
+}
+
 .password-reset-form .errorlist {
     margin-top: 1em;
     color: #f14668;
     font-weight: bold;
+}
+
+.choose-new-password-form {
+    min-width: 800px;
 }
 
 .sticky-footer-nav {

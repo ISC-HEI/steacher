@@ -4,6 +4,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST
 from django.db import transaction, models
 import json
+import logging
 
 from .authz import (
     course_roles_required,
@@ -19,6 +20,7 @@ from .logic import generate_i18n_translations
 from .schemas import ExerciseData, AnswerData
 from pydantic import ValidationError
 
+logger = logging.getLogger(__name__)
 
 # @login_required
 # def course_list(request):
@@ -601,9 +603,7 @@ def exercise_authoring_assistant(request):
     course = get_object_or_404(Course, pk=course_pk)
     assert_can_edit_course(request.user, course)
 
-    print(f"exercise_payload: {exercise_payload}")
-    print(f"messages: {messages}")
-    print(f"course: {course}")
+    logger.info("exercise_authoring_assistant called for course_id=%s", getattr(course, 'id', None))
 
     try:
         result = generate_authoring_update(exercise_payload=exercise_payload, messages=messages, course=course)
@@ -649,13 +649,14 @@ def exercise_authoring_assistant(request):
                 fields['system_prompt'] = str(result.get('system_prompt') or '')
             
             create_trace_for(trace_object, request.user, channel='authoring', **fields)
-        except Exception as e:
+        except Exception:
             # Best-effort persistence; do not fail the request on logging errors
-            print(f"Error persisting authoring interaction as a Trace: {e}")
+            logger.exception("Error persisting authoring interaction as a Trace")
             pass
 
         return JsonResponse({'status': 'success', **result})
     except Exception as e:
+        logger.exception("Error in exercise_authoring_assistant")
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
         

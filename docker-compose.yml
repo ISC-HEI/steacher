@@ -20,14 +20,26 @@ services:
       - scala_interpreter
 
   db:
-    image: postgres:15
+    image: postgres:15.14
+    restart: unless-stopped
     env_file:
       - .env.production
     volumes:
       - postgres_data:/var/lib/postgresql/data/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ "ALL" ]
+    # Consider isolation on a backend network with only the web service
+    networks:
+      - backend
 
   proxy:
-    image: nginx:latest
+    image: nginx:1.29-alpine
     ports:
       - "80:80"
       - "443:443"
@@ -36,8 +48,20 @@ services:
       - static_data:/app/static
       - media_data:/app/media
       - ./certbot_data/etc:/etc/letsencrypt:ro
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /var/tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ "ALL" ]
+    cap_add: [ "NET_BIND_SERVICE" ]
     depends_on:
       - web
+    networks:
+      - frontend
 
   scala_interpreter:
     # No ports exposed to host; reachable internally at http://scala_interpreter:8642
@@ -50,17 +74,26 @@ services:
       # cap memory for interpreter
       - JAVA_TOOL_OPTIONS=-Xms128m -Xmx512m
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /opt/app/tmp
+    user: "10001:10001"
+    security_opt:
+      - no-new-privileges:true
+      # Optionally: seccomp:unconfined replaced by a custom restrictive profile
+    cap_drop: [ "ALL" ]
+    pids_limit: 256
+    ulimits:
+      nproc: 512
+      nofile: 4096
+    mem_limit: "768m"
+    cpus: "0.75"
     labels:
-      # this should restart the container if it crashes TODO test
       - autoheal=true
-
-  autoheal:
-    image: willfarrell/autoheal
-    restart: unless-stopped
-    environment:
-      - AUTOHEAL_INTERVAL=5
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      # internal network prevents outbound Internet; only containers on this network can talk
+      - compute
 
 
   certbot:
@@ -68,8 +101,29 @@ services:
     volumes:
       - ./certbot_data/etc:/etc/letsencrypt
       - static_data:/app/static
+    read_only: true
+    tmpfs:
+      - /var/lib/letsencrypt
+      - /var/log/letsencrypt
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ "ALL" ]
+    networks:
+      - frontend
 
 volumes:
   postgres_data:
   static_data:
   media_data:
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true
+  compute:
+    driver: bridge
+    internal: true
+  maintenance:
+    driver: bridge
