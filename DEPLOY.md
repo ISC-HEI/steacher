@@ -520,3 +520,17 @@ docker system prune -a -f
 # Remove builder cache (often several GB)
 docker builder prune -a -f
 ```
+
+
+----
+
+# update ubuntu
+
+```bash
+sudo apt update
+sudo apt upgrade
+sudo apt autoremove
+sudo apt clean
+```
+
+----
