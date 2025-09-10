@@ -22,13 +22,20 @@ FROM openjdk:11-jre-slim
 
 WORKDIR /opt/app
 
-# Install curl for healthchecks
+# Install curl for healthchecks and bash for bin script
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && apt-get install -y --no-install-recommends curl ca-certificates bash \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy staged distribution
 COPY --from=builder /app/target/universal/stage /opt/app
+
+# Ensure startup scripts are executable and create a non-root user matching compose UID
+RUN chmod -R a+rx /opt/app/bin \
+    && useradd -u 10001 -r -s /usr/sbin/nologin appuser \
+    && chown -R 10001:10001 /opt/app
+
+USER 10001:10001
 
 EXPOSE 8642
 
