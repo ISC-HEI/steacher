@@ -6,9 +6,8 @@ services:
       - .env.production
     environment:
       - SCALA_INTERPRETER_URL=http://scala_interpreter:8642
-      - NEW_RELIC_CONFIG_FILE=/app/steacher_app/newrelic.ini
+      - NEW_RELIC_CONFIG_FILE=/app/newrelic.ini
       - NEW_RELIC_APP_NAME=Steacher
-      - NEW_RELIC_LICENSE_KEY=${NEW_RELIC_LICENSE_KEY}
       - NEW_RELIC_LOG=stdout
       - NEW_RELIC_LOG_LEVEL=info
     volumes:

@@ -1,19 +1,36 @@
 
 
-
+```bash
 ssh into vm
+
+# backup
+docker compose exec -T db pg_dump -U steacher_admin steacher_prod > ~/dev/manual_backup_db/db_$(date +%F).sql
 
 git pull
 
-docker compose --env-file .env.production up -d --build
+# rebuild/recreate only the app
+docker compose --env-file .env.production up -d --build --no-deps web
 
+# migrate when models changed
+docker compose exec web python manage.py migrate
+
+# update static assets
 docker compose exec web python manage.py collectstatic --noinput
 
 
+# Only restart other services when they change:
 
+# Nginx config or certs changed:
+docker compose up -d --no-deps proxy
 
-docker compose logs web
+# Scala interpreter code changed:
+docker compose up -d --build --no-deps scala_interpreter
 
+# Post-checks:
+docker compose ps
+docker compose logs -n 100 web | cat
+docker compose logs -n 100 proxy | cat
+```
 ------
 
 
@@ -25,6 +42,13 @@ Horizon (openstack)
 
 1. create keypair, copy/paste from my local key from `cat ~/.ssh/id_rsa.pub`
 2. launch instance, select Ubuntu 24LTS, 2cpu 4gb ram, 20gb disk, network ivp4-something
+
+
+---
+
+1 additional security update can be applied with ESM Apps.
+Learn more about enabling ESM Apps service at https://ubuntu.com/esm
+
 
 
 ---
@@ -321,7 +345,7 @@ sudo chown $USER:$USER /var/backups/postgres
 Test a manual dump (replace values):
 
 ```bash
-docker compose exec -T db pg_dump -U lms_user lms_db > /var/backups/postgres/db_$(date +%F).sql
+docker compose exec -T db pg_dump -U steacher_admin steacher_prod > /var/backups/postgres/db_$(date +%F).sql
 ```
 
 👉 If that works, add a **cron job** for daily dumps:
@@ -479,3 +503,5 @@ Troubleshooting:
 - Ensure `NEW_RELIC_LICENSE_KEY` is set and non-empty
 - Check `NEW_RELIC_CONFIG_FILE` path (defaults to `/app/steacher_app/newrelic.ini`)
 - Make sure `newrelic` is in `requirements.txt`
+
+
