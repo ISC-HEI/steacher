@@ -77,6 +77,30 @@ class Module(models.Model):
             models.Index(fields=['course', 'visible'], name='module_course_visible_idx'),
         ]
 
+    def save(self, *args, **kwargs):
+        """
+        On create, if no explicit order is provided (left as 0/None),
+        assign order = max(order) + 1 within the same course.
+
+        This keeps module ordering contiguous without requiring manual input.
+        """
+        if self.pk is None and (getattr(self, 'order', None) in (None, 0)) and getattr(self, 'course_id', None):
+            # Compute next order inside a transaction to minimize race risk
+            for _ in range(2):  # try at most twice in the rare case of a concurrent insert
+                with transaction.atomic():
+                    last = (
+                        Module.objects
+                        .filter(course_id=self.course_id)
+                        .aggregate(m=Max('order'))['m']
+                    )
+                    self.order = 0 if last is None else (int(last) + 1)
+                    try:
+                        return super().save(*args, **kwargs)
+                    except IntegrityError:
+                        # Another process inserted with the same order; retry once
+                        continue
+        return super().save(*args, **kwargs)
+
 
 class Cohort(models.Model):
     """

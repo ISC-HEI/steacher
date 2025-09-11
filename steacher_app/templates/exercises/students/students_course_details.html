@@ -36,7 +36,7 @@
                 <div class="content">
                     <div class="exercise-list">
                         {% for exercise in module.exercises.all %}
-                        <div class="list-group-item mb-3" style="min-height: 2em;">
+                        <a class="exercise-link list-group-item mb-3" style="min-height: 2em;" href="{% url 'exercises:exercise_detail' pk=exercise.pk %}">
                             <div class="level">
                                 <div class="level-left">
                                     <div class="exercise-info columns is-mobile is-gapless">
@@ -54,9 +54,7 @@
                                         </div>
                                         <div class="column ml-2">
                                             <div class="exercise-title-line">
-                                                <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}">
                                                   <span class="exercise-title">{{ exercise.localized_title|default:exercise.title }}</span>
-                                                </a>
                                             </div>
                                             <div class="exercise-description">
                                                 {{ exercise.localized_description|default:exercise.description|truncatewords:20 }}
@@ -65,7 +63,7 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </a>
                         {% empty %}
                         <p>This module does not have any exercises yet.</p>
                         {% endfor %}
@@ -90,7 +88,7 @@
                         <div class="exercise-list">
                             {% for exercise in module.exercises.all %}
                             {% if exercise.visible %}
-                            <div class="list-group-item mb-3" style="min-height: 5em;">
+                            <a class="exercise-link list-group-item mb-3" style="min-height: 5em;" href="{% url 'exercises:exercise_detail' pk=exercise.pk %}">
                                 <div class="level">
                                     <div class="level-left">
                                         <div class="exercise-info columns is-mobile is-gapless">
@@ -108,9 +106,7 @@
                                             </div>
                                             <div class="column">
                                                 <div class="exercise-title-line">
-                                                    <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}">
                                                       <span class="exercise-title">{{ exercise.localized_title|default:exercise.title }}</span>
-                                                    </a>
                                                 </div>
                                                 <div class="exercise-description">
                                                     {{ exercise.localized_description|default:exercise.description|truncatewords:20 }}
@@ -119,7 +115,7 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            </a>
                             {% endif %}
                             {% empty %}
                             <p>This module does not have any exercises yet.</p>
@@ -136,6 +132,3 @@
     </div>
 </div>
 {% endblock %}
-
-
-

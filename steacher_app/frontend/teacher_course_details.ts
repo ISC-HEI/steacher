@@ -250,6 +250,27 @@ const TeacherCourseApp = defineComponent({
             }
         };
 
+        const addModulePrompt = async () => {
+            const title = window.prompt('Module title');
+            if (title === null) return; // canceled
+            const trimmed = (title || '').trim();
+            if (!trimmed) return; // empty
+            try {
+                const modulesList = document.getElementById('modules-list') as HTMLElement | null;
+                const rawCourse = modulesList?.getAttribute('data-course-id');
+                const courseId = rawCourse ? parseInt(rawCourse, 10) : null;
+                const payload: any = { name: trimmed, description: '' };
+                if (courseId != null) payload.course_pk = courseId;
+                await send('/teachers/api/modules/create/', payload);
+                window.location.reload();
+            } catch (e: any) {
+                // eslint-disable-next-line no-alert
+                alert(`Failed to create module: ${e?.message || e}`);
+                // eslint-disable-next-line no-console
+                console.error(e);
+            }
+        };
+
         return {
             moduleVisible: state.moduleVisible,
             moduleExpanded: state.moduleExpanded,
@@ -257,7 +278,8 @@ const TeacherCourseApp = defineComponent({
             toggleModuleExpanded,
             toggleModuleVisibility,
             toggleExerciseVisibility,
-            duplicateExercise
+            duplicateExercise,
+            addModulePrompt
         };
     }
 });

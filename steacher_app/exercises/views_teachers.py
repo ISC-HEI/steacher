@@ -22,17 +22,6 @@ from pydantic import ValidationError
 
 logger = logging.getLogger(__name__)
 
-# @login_required
-# def course_list(request):
-#     # Show only courses the user can view: either course membership or any cohort in that course
-#     # first, get all courses the user can view through cohorts
-#     courses = Course.objects.filter(id__in=CohortMembership.objects.filter(user=request.user, status='active').values_list('cohort__course', flat=True))
-#     # then, get all courses the user can view through course memberships
-#     courses2 = Course.objects.filter(id__in=CourseMembership.objects.filter(user=request.user, role__in=['owner', 'editor']).values_list('course', flat=True))
-#     return render(request, 'exercises/teacher/teachers_course_list.html', {
-#         'courses': courses2.union(courses)
-#     })
-
 
 @login_required
 @course_roles_required(['owner','editor'], course_kw='pk')
@@ -294,12 +283,12 @@ def reorder_exercises(request):
             return JsonResponse({'status': 'error', 'message': 'Invalid payload: require integer ids for modules and exercises'}, status=400)
 
         # Assert permission at course scope
-        src_course = get_object_or_404(Module, pk=source_module_id)
-        src_course_id = src_course.course_id
+        src_module = get_object_or_404(Module, pk=source_module_id)
+        src_course_id = src_module.course_id
         tgt_course_id = get_object_or_404(Module, pk=target_module_id).course_id
         if src_course_id != tgt_course_id:
             return JsonResponse({'status': 'error', 'message': 'Source and target modules must belong to the same course'}, status=400)
-        assert_can_edit_course(request.user, src_course)
+        assert_can_edit_course(request.user, src_module.course)
 
         # Validate memberships and apply updates
         if source_module_id == target_module_id:
@@ -476,6 +465,42 @@ def duplicate_exercise(request, exercise_id):
         return JsonResponse({'status': 'success', 'new_exercise_id': duplicate.id})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def create_module(request):
+    try:
+        body = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+
+    course_pk = body.get('course_pk')
+    name = (body.get('name') or '').strip()
+    description = (body.get('description') or '').strip()
+
+    if not course_pk:
+        return JsonResponse({'status': 'error', 'message': 'Missing course_pk'}, status=400)
+    if not name:
+        return JsonResponse({'status': 'error', 'message': 'Missing module name'}, status=400)
+
+    course = get_object_or_404(Course, pk=course_pk)
+    assert_can_edit_course(request.user, course)
+
+    # Lock modules of this course to avoid order races
+    Module.objects.select_for_update().filter(course=course).values_list('id', flat=True)
+
+    module = Module(
+        course=course,
+        name=name,
+        description=description,
+        order=0,  # let the model assign the next order
+        visible=True,
+    )
+    module.save()
+
+    return JsonResponse({'status': 'success', 'module_id': module.id})
 
 
 @login_required

@@ -9,6 +9,11 @@ from django.db.models import Count
 from .models import Exercise, Course, Module, ExerciseAsset, Attempt, UserInvite, ChatThread, Cohort, CohortMembership, Trace, TraceEval, CourseMembership
 from django_jsonform.widgets import JSONFormWidget
 
+# Customize Django admin titles
+admin.site.site_header = "Steacher Administration"
+admin.site.site_title = "Steacher Administration"
+admin.site.index_title = " "
+
 def format_interactions(attempt):
     """
     Formats the interactions for a given attempt into a nice HTML representation
@@ -199,10 +204,33 @@ class ModuleAdmin(admin.ModelAdmin):
 
 @admin.register(Exercise)
 class ExerciseAdmin(admin.ModelAdmin):
-    list_display = ('id', 'module', 'order', 'title', 'exercise_type', 'updated_at')
+    list_display = ('id', 'module', 'order', 'title', 'exercise_type', 'last_edited_by', 'updated_at')
     list_filter = (('module', admin.RelatedOnlyFieldListFilter), 'module__course', 'exercise_type')
     search_fields = ('title', 'description')
     ordering = ('module', 'order')
+
+    def last_edited_by(self, obj):
+        try:
+            trace = (
+                obj.traces
+                .filter(channel='authoring')
+                .select_related('user')
+                .order_by('-id')
+                .first()
+            )
+            if not trace or not getattr(trace, 'user', None):
+                return ''
+            # Prefer username; fallback to email or string repr
+            username = getattr(trace.user, 'username', None)
+            if username:
+                return username
+            email = getattr(trace.user, 'email', None)
+            if email:
+                return email
+            return str(trace.user)
+        except Exception:
+            return ''
+    last_edited_by.short_description = 'Last edited by'
 
 class ExerciseAssetUploadForm(forms.ModelForm):
     upload_file = forms.FileField(

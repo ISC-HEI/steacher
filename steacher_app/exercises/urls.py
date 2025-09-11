@@ -37,6 +37,7 @@ teachers_urlpatterns = [
     path('api/reorder_modules/', views_teachers.reorder_modules, name='reorder_modules'),
     path('api/reorder_exercises/', views_teachers.reorder_exercises, name='reorder_exercises'),
     path('api/modules/<int:module_id>/visibility/', views_teachers.set_module_visibility, name='set_module_visibility'),
+    path('api/modules/create/', views_teachers.create_module, name='create_module'),
     path('api/exercises/<int:exercise_id>/visibility/', views_teachers.set_exercise_visibility, name='set_exercise_visibility'),
     path('api/exercises/<int:exercise_id>/duplicate/', views_teachers.duplicate_exercise, name='duplicate_exercise'),
 

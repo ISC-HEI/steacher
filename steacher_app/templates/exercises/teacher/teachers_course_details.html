@@ -15,20 +15,12 @@
             </div>
         </div>
         <div class="level-right">
+            <button class="button is-primary" @click="addModulePrompt">Add module</button>
             <a class="button is-light" href="{% url 'exercises:course_detail' pk=course.pk %}">View as student</a>
         </div>
     </div>
 
     <hr class="my-4">
-
-    <div class="level">
-        <div class="level-left">
-            <h3 class="mb-3 subtitle is-3">Modules:</h3>
-        </div>
-        <div class="level-right">
-            <a href="{% url 'admin:exercises_module_add' %}?course={{ course.pk }}" class="button is-primary">Add New Module</a>
-        </div>
-    </div>
 
     <div id="modules-list" class="sortable-list" data-course-id="{{ course.pk }}">
         {% for module in course.modules.all %}
@@ -109,33 +101,16 @@
         {% empty %}
             <p>This course does not have any modules yet.</p>
         {% endfor %}
+        <div class="level-right mt-6 mb-6">
+            <button class="button is-primary" @click="addModulePrompt">Add module</button>
+            <a class="button is-light" href="{% url 'exercises:course_detail' pk=course.pk %}">View as student</a>
+        </div>
     </div>
 </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<style>
-.handle { cursor: grab; }
-.sortable-ghost { background: #f0f0f0; opacity: 0.7; }
-.exercise-description { margin-left: 60px; }
-.is-greyed { color: #9a9a9a; }
-.is-greyed a, .is-greyed .tag { color: #b5b5b5; }
-.is-greyed .exercise-title { text-decoration: line-through; }
-.exercise-list {
-    min-height: 50px; /* Make empty lists droppable */
-    border: 1px dashed #dbdbdb;
-    border-radius: 4px;
-    padding: 10px;
-}
-.exercise-list:empty {
-    background-color: #fafafa;
-}
-.exercise-list p {
-    color: #7a7a7a;
-    text-align: center;
-}
-</style>
 {{ block.super }}
 <script type="importmap">
 {

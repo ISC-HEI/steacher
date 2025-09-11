@@ -7,18 +7,18 @@
     <div class="level">
         <div class="level-left">
             <div>
-                <h1 class="title is-3">{{ selected_cohort.course.name }} — {{ selected_cohort.name }}</h1>
-                <p class="subtitle is-6">Highest completed exercise number across the course (0 = not started)</p>
+                <h1 class="title is-3">{{ selected_cohort.name }} // {{ selected_cohort.course.name }}</h1>
             </div>
         </div>
     </div>
 
     {% if histogram and histogram|length > 0 %}
     <div class="box">
+        <p class="subtitle is-6"><strong>Highest completed exercise across this Cohort (0 = not started)</strong></p>
         <div class="histogram is-flex is-align-items-end" style="gap: 6px;">
             {% for bucket in histogram %}
             <div class="has-text-centered" style="width: 18px;">
-                <div class="tooltip" style="height: {{ bucket.height_px }}px; background-color: #4a90e2; border-radius: 3px;" title="{{ bucket.count }} student(s): {{ bucket.names|join:', ' }}"></div>
+                <div class="tooltip" style="height: {{ bucket.height_px }}px; background-color: #00d1b2; border-radius: 3px;" title="{{ bucket.count }} student(s): {{ bucket.names|join:', ' }}"></div>
                 <div class="is-size-7 has-text-grey mt-1">{{ bucket.label }}</div>
             </div>
             {% endfor %}
@@ -26,11 +26,11 @@
         <div class="is-size-7 has-text-grey mt-1">Hover bars to see which students share that highest completed exercise index.</div>
 
         <hr class="my-3">
-        <div class="is-size-6 mb-2"><strong>Per-exercise completion (% of cohort completed)</strong></div>
+        <div class="is-size-6 mb-2"><strong>Per-exercise completion (% of Cohort completed)</strong></div>
         <div class="histogram is-flex is-align-items-end" style="gap: 6px;">
             {% for bar in exercise_completion_bars %}
             <div class="has-text-centered" style="width: 18px;">
-                <div class="tooltip" style="height: {{ bar.height_px }}px; background-color: #48c774; border-radius: 3px;" title="{{ bar.percent }}% ({{ bar.count }}/{{ bar.total }})"></div>
+                <div class="tooltip" style="height: {{ bar.height_px }}px; background-color: #00d1b2; border-radius: 3px;" title="{{ bar.percent }}% ({{ bar.count }}/{{ bar.total }})"></div>
                 <div class="is-size-7 has-text-grey mt-1">{{ bar.label }}</div>
             </div>
             {% endfor %}

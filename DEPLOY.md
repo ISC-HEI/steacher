@@ -9,7 +9,7 @@ docker compose exec -T db pg_dump -U steacher_admin steacher_prod > ~/dev/manual
 git pull
 
 # rebuild/recreate only the app
-docker compose --env-file .env.production up -d --build --no-deps web
+docker compose  up -d --build --no-deps web
 
 # migrate when models changed
 docker compose exec web python manage.py migrate
@@ -23,10 +23,10 @@ docker compose exec web python manage.py collectstatic --noinput
 # Nginx config or certs changed:
 docker compose up -d --no-deps proxy
 # or?
-docker compose --env-file .env.production up -d --build --no-deps proxy
+docker compose  up -d --build --no-deps proxy
 
 # Scala interpreter code changed:
-docker compose --env-file .env.production up -d --build --no-deps scala_interpreter
+docker compose  up -d --build --no-deps scala_interpreter
 
 # Post-checks:
 docker compose ps
@@ -439,7 +439,7 @@ git pull
 
 # 2) Rebuild and restart only app containers (rebuilds if code/deps changed)
 
-    docker compose --env-file .env.production up -d --build web 
+    docker compose  up -d --build web 
     # add scala_interpreter at end if needed
 
 # 3) Run migrations (use exec or override entrypoint)
@@ -484,7 +484,7 @@ NEW_RELIC_LICENSE_KEY=REDACTED
 2) Deploy/restart `web`:
 
 ```bash
-docker compose --env-file .env.production up -d --build web
+docker compose  up -d --build web
 ```
 
 3) Verify agent startup in logs:
