@@ -53,20 +53,21 @@ object Server extends App {
   // Settings: use the current class-path so that normal code compiles
   val settings = new Settings()
   settings.usejavacp.value = true // reuse the JVM classpath
-
-  // Reporter that *remembers* every problem
-  val reporter = new StoreReporter(settings)
+  settings.outdir.value = "/tmp" // write classes to writable tmpfs
 
   // A new compiler instance that uses that reporter
-  val g = new Global(settings, reporter)
+  val g = new Global(settings, new StoreReporter(settings))
 
-  // Toolbox for evaluation
-  val tb = universe.runtimeMirror(getClass.getClassLoader).mkToolBox()
   // --- End New Interpreter Setup ---
 
 
   post("/execute", "application/json", (req, res) => {
     res.`type`("application/json")
+
+    // For each request, create a new reporter and attach it to the compiler.
+    // This is crucial for isolating compilation results between requests.
+    val reporter = new StoreReporter(settings)
+    g.reporter = reporter
 
     val body = req.body()
     val parsedJsonOpt: Option[ujson.Value] = try { Some(ujson.read(body)) } catch { case _: Throwable => None }
@@ -85,6 +86,7 @@ object Server extends App {
         val p = req.queryParams("timeoutMs")
         if (p == null) None else scala.util.Try(p.toLong).toOption
       }).getOrElse(2000L)
+    println(s"codeStr: $codeStr, timeoutMs: $timeoutMs")
 
     if (containsDangerousCode(codeStr)) {
       ujson.Obj("success" -> false, "error" -> "Dangerous code detected").render()
@@ -93,8 +95,10 @@ object Server extends App {
     } else {
       val executor = Executors.newSingleThreadExecutor()
       try {
+        println(s"before future")
         val future = executor.submit(new Callable[ujson.Obj] {
           override def call(): ujson.Obj = {
+            println(s"in future")
             // Prepare separate captures for out and err
             val outCapture = new java.io.ByteArrayOutputStream
             val errCapture = new java.io.ByteArrayOutputStream
@@ -108,16 +112,20 @@ object Server extends App {
 
             try {
               // 1. Compile Check
+              println(s"before reporter.reset()")
               reporter.reset()
               val run = new g.Run
               // Wrap code in an object to make it a valid compilation unit
               val source = new BatchSourceFile("(input)", s"object Main { def exec(): Unit = {\n$codeStr\n} }")
               run.compileSources(List(source))
+              println(s"after run.compileSources")
 
               val output = outCapture.toString()
               val errors = errCapture.toString()
+              println(s"after output and errors")
 
               if (reporter.hasErrors) {
+                println(s"reporter.hasErrors")
                 val errorMessages = reporter.infos.map { info =>
                   if (info.severity == reporter.ERROR) {
                     val pos = info.pos
@@ -137,23 +145,35 @@ ${stripAnsi(info.msg)}"""
                   } else ""
                 }.filter(_.nonEmpty).mkString("\n")
 
+                println(s"after errorMessages")
+
                 ujson.Obj(
                   "success" -> false,
                   "error" -> truncateWithNotice(errorMessages),
                   "output" -> truncateWithNotice(stripAnsi(output + errors))
                 )
               } else {
+
+                
                 // 2. Evaluation
                 try {
+                  println(s"before outStream.flush() and errStream.flush()")
                   // Must flush streams before eval
                   outStream.flush()
                   errStream.flush()
 
-                  // Evaluate the code
-                  tb.eval(tb.parse(s"{ $codeStr }"))
+                  // Toolbox for evaluation - must be created *after* System.out is redirected
+                  val result: Any = scala.Console.withOut(outStream) {
+                    scala.Console.withErr(errStream) {
+                      val tb = universe.runtimeMirror(getClass.getClassLoader).mkToolBox()
+                      tb.eval(tb.parse(s"{ $codeStr }"))
+                    }
+                  }
 
                   val finalOutput = outCapture.toString()
                   val finalErrors = errCapture.toString()
+                  println(s"after tb.eval")
+                  println(s"finalOutput: $finalOutput, finalErrors: $finalErrors")
 
                   ujson.Obj(
                     "success" -> true,
@@ -162,6 +182,7 @@ ${stripAnsi(info.msg)}"""
                   )
                 } catch {
                   case ex: Throwable =>
+                    println(s"in catch with ex: $ex")
                     val sw = new java.io.StringWriter
                     ex.printStackTrace(new java.io.PrintWriter(sw))
                     val stack = sw.toString
@@ -176,6 +197,7 @@ ${stripAnsi(info.msg)}"""
               }
             } finally {
               try {
+                println(s"before outStream.flush() and errStream.flush()")
                 outStream.flush(); errStream.flush()
               } finally {
                 outStream.close(); errStream.close()
@@ -191,10 +213,12 @@ ${stripAnsi(info.msg)}"""
           json.render()
         } catch {
           case _: java.util.concurrent.TimeoutException =>
+            println(s"in timeout exception")
             future.cancel(true)
             ujson.Obj("success" -> false, "error" -> s"Timeout after ${timeoutMs}ms").render()
         }
       } finally {
+        println(s"before executor.shutdownNow()")
         executor.shutdownNow()
       }
     }

@@ -63,7 +63,8 @@ services:
       - web
     networks:
       - frontend
-scala_interpreter:
+
+  scala_interpreter:
     # No ports exposed to host; reachable internally at http://scala_interpreter:8642
     build:
       context: ./scala_interpreter
@@ -74,6 +75,7 @@ scala_interpreter:
       # cap memory for interpreter
       - JAVA_TOOL_OPTIONS=-Xms128m -Xmx512m
     restart: unless-stopped
+    user: "10001:10001"  # reenforce non-root user
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -81,11 +83,19 @@ scala_interpreter:
     read_only: true
     tmpfs:
       - /tmp
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: '1G'
+    # Runtime limits effective in docker compose (non-swarm):
+    mem_limit: 1g               # mirrors -Xmx but caps total container memory
+    cpus: "1"                   # or cpu_quota: 50000 & cpu_period: 100000
+    pids_limit: 256             # blocks fork bombs
+    ulimits:
+      nproc: 512
+      nofile: 4096
+    stop_grace_period: 5s
+    #deploy:
+    #  resources:
+    #    limits:
+    #      cpus: '0.5'
+    #      memory: '1G'
     networks:
       # internal network prevents outbound Internet; only containers on this network can talk
       - compute
@@ -116,9 +126,9 @@ networks:
     driver: bridge
   backend:
     driver: bridge
-    internal: true
+    internal: true  # no outbound egress  
   compute:
     driver: bridge
-    internal: true
+    internal: true  # no outbound egress  
   maintenance:
     driver: bridge
