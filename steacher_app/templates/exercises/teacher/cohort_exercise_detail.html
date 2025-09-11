@@ -1,0 +1,162 @@
+{% extends "exercises/base.html" %}
+{% load markdown %}
+
+{% block styles %}
+<style>
+    .ct-series-a .ct-slice-donut {
+        stroke: hsl(141, 71%, 48%); /* Green */
+    }
+    .ct-series-b .ct-slice-donut {
+        stroke: hsl(34, 100%, 50%); /* Orange */
+    }
+    .ct-series-c .ct-slice-donut {
+        stroke: hsl(0, 0%, 86%); /* Gray */
+    }
+    .legend {
+        display: flex;
+        justify-content: center;
+        margin-top: 1rem;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        margin-right: 1.5rem;
+    }
+    .legend-color {
+        width: 12px;
+        height: 12px;
+        border-radius: 2px;
+        margin-right: 8px;
+    }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="container">
+    <div class="level">
+        <div class="level-left">
+            <h1 class="title">{{ exercise.title }}</h1>
+        </div>
+        <div class="level-right">
+            <div class="buttons">
+                <a href="{% url 'teachers:cohort_detail' selected_cohort.pk %}" class="button">Back to Cohort</a>
+                <a href="{% url 'teachers:exercise_edit' course_pk=exercise.module.course.pk exercise_pk=exercise.pk %}" class="button is-primary">Edit Exercise</a>
+            </div>
+        </div>
+    </div>
+    <details>
+        <summary style="cursor: pointer;">Show/Hide Question</summary>
+        <div class="content mt-2">
+            <blockquote>{{ exercise.question_i18n.en | markdown }}</blockquote>
+        </div>
+    </details>
+    <hr>
+    
+    <div class="columns is-vcentered">
+        <div class="column is-half">
+             <div class="field is-horizontal">
+                <div class="field-label is-normal"><label class="label">Completed</label></div>
+                <div class="field-body">
+                    <div class="field has-addons">
+                        <div class="control is-expanded">
+                            <progress class="progress is-success" value="{{ completed_count }}" max="{{ total_students }}"></progress>
+                        </div>
+                        <div class="control">
+                            <span class="is-size-7 has-text-weight-semibold ml-2">{{ completed_count }} / {{ total_students }} ({{ completed_percent|floatformat:1 }}%)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="field is-horizontal">
+                <div class="field-label is-normal"><label class="label">In Progress</label></div>
+                <div class="field-body">
+                     <div class="field has-addons">
+                        <div class="control is-expanded">
+                            <progress class="progress is-warning" value="{{ attempted_count }}" max="{{ total_students }}"></progress>
+                        </div>
+                        <div class="control">
+                            <span class="is-size-7 has-text-weight-semibold ml-2">{{ attempted_count }} / {{ total_students }} ({{ attempted_percent|floatformat:1 }}%)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="field is-horizontal">
+                <div class="field-label is-normal"><label class="label">Not Started</label></div>
+                <div class="field-body">
+                     <div class="field has-addons">
+                        <div class="control is-expanded">
+                            <progress class="progress is-light" value="{{ not_started_count }}" max="{{ total_students }}"></progress>
+                        </div>
+                         <div class="control">
+                            <span class="is-size-7 has-text-weight-semibold ml-2">{{ not_started_count }} / {{ total_students }} ({{ not_started_percent|floatformat:1 }}%)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="column is-half">
+            <div class="level">
+                <div class="level-item has-text-centered">
+                    <div>
+                        <p class="heading">Avg. Interactions to Complete</p>
+                        <p class="title">{{ avg_interactions_to_complete|floatformat:1 }}</p>
+                    </div>
+                </div>
+                <div class="level-item has-text-centered">
+                    <div>
+                        <p class="heading">Total Hints Requested</p>
+                        <p class="title">{{ total_hints }}</p>
+                    </div>
+                </div>
+                <div class="level-item has-text-centered">
+                    <div>
+                        <p class="heading">Total Interactions</p>
+                        <p class="title">{{ total_interactions }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+
+    <div class="box">
+        <table class="table is-fullwidth is-striped is-hoverable">
+            <thead>
+                <tr>
+                    <th>Student</th>
+                    <th>Status</th>
+                    <th>Submissions</th>
+                    <th>Hints</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for data in student_data %}
+                <tr>
+                    <td>
+                        <a href="{% url 'teachers:cohort_student_detail' selected_cohort.pk data.student.pk %}">
+                            {{ data.student.get_full_name|default:data.student.username }}
+                        </a>
+                    </td>
+                    <td>
+                        {% if data.attempt.complete %}
+                            <span class="tag is-success">Completed</span>
+                        {% elif data.attempt %}
+                            <span class="tag is-info">In Progress</span>
+                        {% else %}
+                            <span class="tag">Not Started</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ data.submissions_count }}</td>
+                    <td>{{ data.hints_count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}

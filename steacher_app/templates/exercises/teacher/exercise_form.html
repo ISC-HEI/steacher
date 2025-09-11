@@ -376,11 +376,11 @@
                 </div>
                 <div class="field" style="margin-bottom: 0.5rem;">
                     <div class="control">
-                        <textarea class="textarea" v-model="draftMessage" @keydown.meta.enter.prevent="sendAssistantMessage" placeholder="Ask for improvements, provide constraints, paste draft content…" rows="4"></textarea>
+                        <textarea class="textarea" v-model="draftMessage" @keydown.meta.enter.prevent="sendAssistantMessage" placeholder="Ask for improvements, provide constraints, paste draft content... Leave empty and hit 'Send' to improve the exercise question." rows="4"></textarea>
                     </div>
                 </div>
                 <div class="buttons">
-                    <button class="button is-link" :class="{ 'is-loading': sending }" :disabled="sending || !draftMessage.trim()" @click="sendAssistantMessage" title="Send your message to the AI assistant.">Send</button>
+                    <button class="button is-link" :class="{ 'is-loading': sending }" :disabled="sending" @click="sendAssistantMessage" title="Send your message to the AI assistant.">Send</button>
                     <button class="button" :disabled="!lastAppliedSnapshot" @click="undoLastAIEdit" title="Revert the last change made by the AI assistant.">Undo last AI edit</button>
                 </div>
             </div>

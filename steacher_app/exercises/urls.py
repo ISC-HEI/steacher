@@ -31,6 +31,7 @@ teachers_urlpatterns = [
     path('dashboard/', views_teachers.dashboard, name='dashboard'),
     path('cohorts/<int:pk>/', views_teachers.cohort_detail, name='cohort_detail'),
     path('cohorts/<int:cohort_id>/students/<int:student_id>/', views_teachers.cohort_student_detail, name='cohort_student_detail'),
+    path('cohorts/<int:cohort_id>/exercises/<int:exercise_id>/', views_teachers.cohort_exercise_detail, name='cohort_exercise_detail'),
     path('courses/<int:pk>/', views_teachers.course_detail, name='course_detail'),
     path('courses/<int:course_pk>/add_exercise/', views_teachers.exercise_form, name='exercise_add'),
     path('courses/<int:course_pk>/edit_exercise/<int:exercise_pk>/', views_teachers.exercise_form, name='exercise_edit'),

@@ -29,10 +29,10 @@
         <div class="is-size-6 mb-2"><strong>Per-exercise completion (% of Cohort completed)</strong></div>
         <div class="histogram is-flex is-align-items-end" style="gap: 6px;">
             {% for bar in exercise_completion_bars %}
-            <div class="has-text-centered" style="width: 18px;">
+            <a href="{% url 'teachers:cohort_exercise_detail' selected_cohort.pk bar.exercise_id %}" class="has-text-centered" style="width: 18px; display: block;">
                 <div class="tooltip" style="height: {{ bar.height_px }}px; background-color: #00d1b2; border-radius: 3px;" title="{{ bar.percent }}% ({{ bar.count }}/{{ bar.total }})"></div>
                 <div class="is-size-7 has-text-grey mt-1">{{ bar.label }}</div>
-            </div>
+            </a>
             {% endfor %}
         </div>
     </div>

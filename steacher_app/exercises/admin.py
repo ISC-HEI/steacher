@@ -202,12 +202,63 @@ class ModuleAdmin(admin.ModelAdmin):
     view_exercises.short_description = 'View exercises'
 
 
+class ExerciseAdminForm(forms.ModelForm):
+    course_module = forms.ModelChoiceField(
+        queryset=Module.objects.none(),
+        required=False,
+        label="Module (from same course)"
+    )
+
+    class Meta:
+        model = Exercise
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['module'].label = "Module (from any course)"
+
+        if self.instance and self.instance.pk and self.instance.module:
+            course = self.instance.module.course
+            self.fields['course_module'].queryset = Module.objects.filter(course=course).order_by('order')
+            self.fields['course_module'].initial = self.instance.module
+        else:
+            self.fields['course_module'].widget.attrs['disabled'] = True
+            self.fields['course_module'].help_text = "Select a module and save to enable this field."
+
+    def clean(self):
+        cleaned_data = super().clean()
+        course_module = cleaned_data.get('course_module')
+
+        if course_module:
+            cleaned_data['module'] = course_module
+
+        return cleaned_data
+
+
 @admin.register(Exercise)
 class ExerciseAdmin(admin.ModelAdmin):
+    form = ExerciseAdminForm
     list_display = ('id', 'module', 'order', 'title', 'exercise_type', 'last_edited_by', 'updated_at')
     list_filter = (('module', admin.RelatedOnlyFieldListFilter), 'module__course', 'exercise_type')
     search_fields = ('title', 'description')
     ordering = ('module', 'order')
+
+    fieldsets = (
+        (None, {
+            'fields': (
+                'course_module',
+                'module',
+                'order',
+                'title_i18n',
+                'description_i18n',
+                'question_i18n',
+                'exercise_type',
+                'exercise_data',
+                'answer_data',
+                'visible'
+            )
+        }),
+    )
 
     def last_edited_by(self, obj):
         try:

@@ -222,6 +222,7 @@ def cohort_detail(request, pk): # pylint: disable=unused-argument
         count = exercise_counts[pos]
         percent = int(round((count / active_members_count) * 100)) if active_members_count > 0 else 0
         height_px = int(round((percent / 100) * MAX_BAR_HEIGHT_PX2))
+        exercise_id = ordered_exercises[pos-1].id if pos > 0 else 0
         exercise_completion_bars.append({
             'position': pos,
             'label': position_label(pos),
@@ -229,6 +230,7 @@ def cohort_detail(request, pk): # pylint: disable=unused-argument
             'total': active_members_count,
             'percent': percent,
             'height_px': height_px,
+            'exercise_id': exercise_id,
         })
 
     return render(request, 'exercises/teacher/cohort.html', {
@@ -298,6 +300,76 @@ def cohort_student_detail(request, cohort_id, student_id):  # pylint: disable=un
         'completed_count': completed_count,
         'attempted_count': attempted_count,
         'total_hints': total_hints,
+    })
+
+
+@login_required
+@cohort_roles_required(['owner', 'teacher', 'viewer'], cohort_kw='cohort_id')
+def cohort_exercise_detail(request, cohort_id, exercise_id): # pylint: disable=unused-argument
+    """Exercise detail page for a cohort."""
+    selected_cohort: Cohort = request.cohort
+    exercise: Exercise = get_object_or_404(Exercise, pk=exercise_id)
+
+    students = User.objects.filter(cohort_memberships__cohort=selected_cohort, cohort_memberships__role='student').distinct()
+    attempts = Attempt.objects.filter(
+        cohort=selected_cohort,
+        exercise=exercise,
+        user__in=students
+    ).prefetch_related('traces')
+    attempts_by_user = {attempt.user_id: attempt for attempt in attempts}
+
+    student_data = []
+    total_submissions = 0
+    total_hints = 0
+    completed_submissions = []
+
+    for student in students:
+        attempt = attempts_by_user.get(student.id)
+        traces = attempt.traces.all() if attempt else []
+        
+        hints_count = 0
+        for trace in traces:
+            if trace.user_metadata.get('action') == 'ask_hint':
+                hints_count += 1
+        
+        total_submissions += len(traces)
+        total_hints += hints_count
+        if attempt and attempt.complete:
+            completed_submissions.append(len(traces))
+
+        student_data.append({
+            'student': student,
+            'attempt': attempt,
+            'submissions_count': len(traces),
+            'hints_count': hints_count,
+        })
+
+    # Stats
+    total_students = len(students)
+    completed_count = len(completed_submissions)
+    attempted_count = len(attempts) - completed_count
+    not_started_count = total_students - len(attempts)
+    avg_interactions_to_complete = sum(completed_submissions) / len(completed_submissions) if completed_submissions else 0
+
+    completed_percent = (completed_count / total_students * 100) if total_students > 0 else 0
+    attempted_percent = (attempted_count / total_students * 100) if total_students > 0 else 0
+    not_started_percent = (not_started_count / total_students * 100) if total_students > 0 else 0
+
+    return render(request, 'exercises/teacher/cohort_exercise_detail.html', {
+        'selected_cohort': selected_cohort,
+        'exercise': exercise,
+        'student_data': sorted(student_data, key=lambda x: x['student'].get_full_name() or x['student'].username),
+        # Stats
+        'total_students': total_students,
+        'completed_count': completed_count,
+        'attempted_count': attempted_count,
+        'not_started_count': not_started_count,
+        'avg_interactions_to_complete': avg_interactions_to_complete,
+        'total_hints': total_hints,
+        'total_interactions': total_submissions,
+        'completed_percent': completed_percent,
+        'attempted_percent': attempted_percent,
+        'not_started_percent': not_started_percent,
     })
 
 

@@ -308,11 +308,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 this.exercise.answer_data.correct_answers.splice(index, 1);
             },
             async sendAssistantMessage() {
-                if (!this.draftMessage.trim() || this.sending) return;
+                if (this.sending) return;
+
+                const message = this.draftMessage.trim();
+                const content = message === '' ? 'Improve the exercise question.' : message;
+
                 this.assistantError = null;
                 this.sending = true;
 
-                const userMsg = { role: 'user' as const, content: this.draftMessage };
+                const userMsg = { role: 'user' as const, content: content };
                 this.messages.push(userMsg);
                 this.draftMessage = '';
 
