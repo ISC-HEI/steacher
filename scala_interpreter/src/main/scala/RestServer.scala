@@ -1,4 +1,5 @@
 import java.util.concurrent.{Callable, Executors, TimeUnit}
+import java.net.URLClassLoader
 import scala.reflect.internal.util.BatchSourceFile
 import scala.tools.nsc.reporters.StoreReporter
 import scala.tools.nsc.{Global, Settings}
@@ -49,25 +50,138 @@ object Server extends App {
     dangerousPatterns.exists(pattern => code.contains(pattern))
   }
 
-  // --- New Interpreter Setup ---
-  // Settings: use the current class-path so that normal code compiles
-  val settings = new Settings()
-  settings.usejavacp.value = true // reuse the JVM classpath
-  settings.outdir.value = "/tmp" // write classes to writable tmpfs
+  // --- Worker and Pool Implementation ---
+  case class InterpreterWorker(workerId: Int) {
+    private val executor = Executors.newSingleThreadExecutor()
 
-  // A new compiler instance that uses that reporter
-  val g = new Global(settings, new StoreReporter(settings))
+    // Dedicated classloader per worker to isolate compiled artifacts
+    private val workerClassLoader: URLClassLoader = {
+      val cp = System.getProperty("java.class.path")
+      val urls = cp.split(java.io.File.pathSeparator).map(p => new java.io.File(p).toURI.toURL)
+      new URLClassLoader(urls, this.getClass.getClassLoader)
+    }
 
-  // --- End New Interpreter Setup ---
+    // Persistent compiler and toolbox per worker
+    private val settings: Settings = {
+      val s = new Settings()
+      s.usejavacp.value = true
+      s.outdir.value = "/tmp"
+      s
+    }
+    private val reporter = new StoreReporter(settings)
+    private val global = new Global(settings, reporter)
+    private val mirror = universe.runtimeMirror(workerClassLoader)
+    private val toolbox = mirror.mkToolBox()
+
+    def prewarm(): Unit = {
+      try toolbox.eval(toolbox.parse("{ val _ = 1 + 1; () }"))
+      catch { case _: Throwable => () }
+    }
+
+    private def compileCheck(codeStr: String): String = {
+      reporter.reset()
+      val run = new global.Run
+      val source = new BatchSourceFile("(input)", s"object Main { def exec(): Unit = {\n$codeStr\n} }")
+      run.compileSources(List(source))
+      val errorMessages = reporter.infos.map { info =>
+        if (info.severity == reporter.ERROR) {
+          val pos = info.pos
+          if (pos.isDefined) {
+            val line = pos.line - 1
+            val column = pos.column
+            val originalLine = codeStr.split('\n').lift(line - 1).getOrElse("")
+            s"""Error at line $line, column $column:
+$originalLine
+${" " * (column - 1)}^
+${stripAnsi(info.msg)}"""
+          } else s"Error: ${stripAnsi(info.msg)}"
+        } else ""
+      }.filter(_.nonEmpty).mkString("\n")
+      if (errorMessages.trim.isEmpty) "Unknown compilation error" else errorMessages
+    }
+
+    def execute(codeStr: String, timeoutMs: Long): ujson.Obj = {
+      val task = new Callable[ujson.Obj] {
+        override def call(): ujson.Obj = {
+          val outCapture = new java.io.ByteArrayOutputStream
+          val errCapture = new java.io.ByteArrayOutputStream
+          val outStream = new java.io.PrintStream(outCapture)
+          val errStream = new java.io.PrintStream(errCapture)
+          try {
+            // Eval-first fast path, capture only Scala Console output
+            val _ = scala.Console.withOut(outStream) {
+              scala.Console.withErr(errStream) {
+                toolbox.eval(toolbox.parse(s"{ $codeStr }"))
+              }
+            }
+            val finalOutput = outCapture.toString()
+            val finalErrors = errCapture.toString()
+            ujson.Obj(
+              "success" -> true,
+              "workerId" -> workerId,
+              "output" -> truncateWithNotice(stripAnsi(finalOutput)),
+              "error" -> truncateWithNotice(stripAnsi(finalErrors))
+            )
+          } catch {
+            case _: scala.tools.reflect.ToolBoxError =>
+              val errors = compileCheck(codeStr)
+              val finalOutput = outCapture.toString()
+              ujson.Obj(
+                "success" -> false,
+                "workerId" -> workerId,
+                "error" -> truncateWithNotice(errors),
+                "output" -> truncateWithNotice(stripAnsi(finalOutput))
+              )
+            case ex: Throwable =>
+              val sw = new java.io.StringWriter
+              ex.printStackTrace(new java.io.PrintWriter(sw))
+              val stack = sw.toString
+              val header = s"${ex.getClass.getName}: ${Option(ex.getMessage).getOrElse("")}"
+              val detailed = List(header, stack).filter(_.trim.nonEmpty).mkString("\n")
+              ujson.Obj(
+                "success" -> false,
+                "workerId" -> workerId,
+                "error" -> truncateWithNotice(detailed),
+                "output" -> truncateWithNotice(stripAnsi(outCapture.toString()))
+              )
+          } finally {
+            try { outStream.flush(); errStream.flush() } finally { outStream.close(); errStream.close() }
+          }
+        }
+      }
+      val future = executor.submit(task)
+      try future.get(timeoutMs, TimeUnit.MILLISECONDS)
+      catch {
+        case _: java.util.concurrent.TimeoutException =>
+          future.cancel(true)
+          ujson.Obj("success" -> false, "workerId" -> workerId, "error" -> s"Timeout after ${timeoutMs}ms")
+      }
+    }
+
+    def shutdown(): Unit = executor.shutdownNow()
+  }
+
+  class WorkerPool(size: Int) {
+    private val workers: Array[InterpreterWorker] = Array.tabulate(size)(i => new InterpreterWorker(i))
+    workers.foreach(_.prewarm())
+    @volatile private var nextIndex: Int = 0
+    private def pickWorker(): InterpreterWorker = this.synchronized {
+      val w = workers(nextIndex % workers.length)
+      nextIndex = (nextIndex + 1) % workers.length
+      w
+    }
+    def execute(codeStr: String, timeoutMs: Long): ujson.Obj = pickWorker().execute(codeStr, timeoutMs)
+    def shutdown(): Unit = workers.foreach(_.shutdown())
+  }
+  // --- End Worker and Pool Implementation ---
+
+  // Initialize pool
+  private val poolSize: Int = sys.env.get("POOL_SIZE").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(4)
+  private val pool = new WorkerPool(poolSize)
 
 
   post("/execute", "application/json", (req, res) => {
     res.`type`("application/json")
-
-    // For each request, create a new reporter and attach it to the compiler.
-    // This is crucial for isolating compilation results between requests.
-    val reporter = new StoreReporter(settings)
-    g.reporter = reporter
 
     val body = req.body()
     val parsedJsonOpt: Option[ujson.Value] = try { Some(ujson.read(body)) } catch { case _: Throwable => None }
@@ -86,141 +200,15 @@ object Server extends App {
         val p = req.queryParams("timeoutMs")
         if (p == null) None else scala.util.Try(p.toLong).toOption
       }).getOrElse(2000L)
-    println(s"codeStr: $codeStr, timeoutMs: $timeoutMs")
+    println(s"incoming request timeoutMs=$timeoutMs")
 
     if (containsDangerousCode(codeStr)) {
       ujson.Obj("success" -> false, "error" -> "Dangerous code detected").render()
     } else if (codeStr.trim.isEmpty) {
       ujson.Obj("success" -> true, "output" -> "").render()
     } else {
-      val executor = Executors.newSingleThreadExecutor()
-      try {
-        println(s"before future")
-        val future = executor.submit(new Callable[ujson.Obj] {
-          override def call(): ujson.Obj = {
-            println(s"in future")
-            // Prepare separate captures for out and err
-            val outCapture = new java.io.ByteArrayOutputStream
-            val errCapture = new java.io.ByteArrayOutputStream
-            val outStream = new java.io.PrintStream(outCapture)
-            val errStream = new java.io.PrintStream(errCapture)
-
-            val originalOut = System.out
-            val originalErr = System.err
-            System.setOut(outStream)
-            System.setErr(errStream)
-
-            try {
-              // 1. Compile Check
-              println(s"before reporter.reset()")
-              reporter.reset()
-              val run = new g.Run
-              // Wrap code in an object to make it a valid compilation unit
-              val source = new BatchSourceFile("(input)", s"object Main { def exec(): Unit = {\n$codeStr\n} }")
-              run.compileSources(List(source))
-              println(s"after run.compileSources")
-
-              val output = outCapture.toString()
-              val errors = errCapture.toString()
-              println(s"after output and errors")
-
-              if (reporter.hasErrors) {
-                println(s"reporter.hasErrors")
-                val errorMessages = reporter.infos.map { info =>
-                  if (info.severity == reporter.ERROR) {
-                    val pos = info.pos
-                    if (pos.isDefined) {
-                      // Adjust line number because we wrapped the code
-                      val line = pos.line - 1
-                      val column = pos.column
-                      // Get original line content, careful with split
-                      val originalLine = codeStr.split('\n').lift(line - 1).getOrElse("")
-                      s"""Error at line $line, column $column:
-$originalLine
-${" " * (column - 1)}^
-${stripAnsi(info.msg)}"""
-                    } else {
-                      s"Error: ${stripAnsi(info.msg)}"
-                    }
-                  } else ""
-                }.filter(_.nonEmpty).mkString("\n")
-
-                println(s"after errorMessages")
-
-                ujson.Obj(
-                  "success" -> false,
-                  "error" -> truncateWithNotice(errorMessages),
-                  "output" -> truncateWithNotice(stripAnsi(output + errors))
-                )
-              } else {
-
-                
-                // 2. Evaluation
-                try {
-                  println(s"before outStream.flush() and errStream.flush()")
-                  // Must flush streams before eval
-                  outStream.flush()
-                  errStream.flush()
-
-                  // Toolbox for evaluation - must be created *after* System.out is redirected
-                  val result: Any = scala.Console.withOut(outStream) {
-                    scala.Console.withErr(errStream) {
-                      val tb = universe.runtimeMirror(getClass.getClassLoader).mkToolBox()
-                      tb.eval(tb.parse(s"{ $codeStr }"))
-                    }
-                  }
-
-                  val finalOutput = outCapture.toString()
-                  val finalErrors = errCapture.toString()
-                  println(s"after tb.eval")
-                  println(s"finalOutput: $finalOutput, finalErrors: $finalErrors")
-
-                  ujson.Obj(
-                    "success" -> true,
-                    "output" -> truncateWithNotice(stripAnsi(finalOutput)),
-                    "error" -> truncateWithNotice(stripAnsi(finalErrors)) // Include stderr even on success
-                  )
-                } catch {
-                  case ex: Throwable =>
-                    println(s"in catch with ex: $ex")
-                    val sw = new java.io.StringWriter
-                    ex.printStackTrace(new java.io.PrintWriter(sw))
-                    val stack = sw.toString
-                    val header = s"${ex.getClass.getName}: ${Option(ex.getMessage).getOrElse("")}"
-                    val detailed = List(header, stack).filter(_.trim.nonEmpty).mkString("\n")
-                    ujson.Obj(
-                      "success" -> false,
-                      "error" -> truncateWithNotice(detailed),
-                      "output" -> truncateWithNotice(stripAnsi(outCapture.toString()))
-                    )
-                }
-              }
-            } finally {
-              try {
-                println(s"before outStream.flush() and errStream.flush()")
-                outStream.flush(); errStream.flush()
-              } finally {
-                outStream.close(); errStream.close()
-              }
-              System.setOut(originalOut)
-              System.setErr(originalErr)
-            }
-          }
-        })
-
-        try {
-          val json = future.get(timeoutMs, TimeUnit.MILLISECONDS)
-          json.render()
-        } catch {
-          case _: java.util.concurrent.TimeoutException =>
-            println(s"in timeout exception")
-            future.cancel(true)
-            ujson.Obj("success" -> false, "error" -> s"Timeout after ${timeoutMs}ms").render()
-        }
-      } finally {
-        println(s"before executor.shutdownNow()")
-        executor.shutdownNow()
-      }
+      val json = pool.execute(codeStr, timeoutMs)
+      json.render()
     }
   })
 

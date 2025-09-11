@@ -534,3 +534,11 @@ sudo apt clean
 ```
 
 ----
+
+# test scala interpreter
+
+Kind of for small tests to check if parallelism is working.
+
+```bash
+docker exec scala-interpreter-container sh -lc 'seq 1 50 | xargs -I{} -P 20 sh -lc "curl -s -X POST -H \"Content-Type: application/json\" -d '\''{\"code\":\"Thread.sleep(300); println(\\\"hi\\\")\"}'\'' http://localhost:8642/execute; echo"'
+```
