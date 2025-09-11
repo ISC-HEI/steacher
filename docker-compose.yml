@@ -76,6 +76,16 @@ scala_interpreter:
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: '1G'
     networks:
       # internal network prevents outbound Internet; only containers on this network can talk
       - compute

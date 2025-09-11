@@ -1,7 +1,10 @@
-import ammonite.Main
-import ammonite.util.Res
+import java.util.concurrent.{Callable, Executors, TimeUnit}
+import scala.reflect.internal.util.BatchSourceFile
+import scala.tools.nsc.reporters.StoreReporter
+import scala.tools.nsc.{Global, Settings}
+import scala.tools.reflect.ToolBox
+import scala.reflect.runtime.universe
 import spark.Spark._
-import java.util.concurrent.{Executors, Callable, TimeUnit}
 
 object Server extends App {
   port(sys.env.get("PORT").map(_.toInt).getOrElse(8642))
@@ -46,6 +49,22 @@ object Server extends App {
     dangerousPatterns.exists(pattern => code.contains(pattern))
   }
 
+  // --- New Interpreter Setup ---
+  // Settings: use the current class-path so that normal code compiles
+  val settings = new Settings()
+  settings.usejavacp.value = true // reuse the JVM classpath
+
+  // Reporter that *remembers* every problem
+  val reporter = new StoreReporter(settings)
+
+  // A new compiler instance that uses that reporter
+  val g = new Global(settings, reporter)
+
+  // Toolbox for evaluation
+  val tb = universe.runtimeMirror(getClass.getClassLoader).mkToolBox()
+  // --- End New Interpreter Setup ---
+
+
   post("/execute", "application/json", (req, res) => {
     res.`type`("application/json")
 
@@ -76,57 +95,91 @@ object Server extends App {
       try {
         val future = executor.submit(new Callable[ujson.Obj] {
           override def call(): ujson.Obj = {
-            // Prepare capture BEFORE interpreter creation so Ammonite binds to these streams
+            // Prepare separate captures for out and err
             val outCapture = new java.io.ByteArrayOutputStream
-            val printStream = new java.io.PrintStream(outCapture)
+            val errCapture = new java.io.ByteArrayOutputStream
+            val outStream = new java.io.PrintStream(outCapture)
+            val errStream = new java.io.PrintStream(errCapture)
 
             val originalOut = System.out
             val originalErr = System.err
-            System.setOut(printStream)
-            System.setErr(printStream)
+            System.setOut(outStream)
+            System.setErr(errStream)
 
             try {
-              Main().instantiateInterpreter() match {
-                case Right(interp) =>
-                  var line = 0
-                  def nextLine(): Unit = line += 1
+              // 1. Compile Check
+              reporter.reset()
+              val run = new g.Run
+              // Wrap code in an object to make it a valid compilation unit
+              val source = new BatchSourceFile("(input)", s"object Main { def exec(): Unit = {\n$codeStr\n} }")
+              run.compileSources(List(source))
 
-                  val result = Console.withOut(printStream) {
-                    Console.withErr(printStream) {
-                      interp.processExec(codeStr, line, nextLine)
+              val output = outCapture.toString()
+              val errors = errCapture.toString()
+
+              if (reporter.hasErrors) {
+                val errorMessages = reporter.infos.map { info =>
+                  if (info.severity == reporter.ERROR) {
+                    val pos = info.pos
+                    if (pos.isDefined) {
+                      // Adjust line number because we wrapped the code
+                      val line = pos.line - 1
+                      val column = pos.column
+                      // Get original line content, careful with split
+                      val originalLine = codeStr.split('\n').lift(line - 1).getOrElse("")
+                      s"""Error at line $line, column $column:
+$originalLine
+${" " * (column - 1)}^
+${stripAnsi(info.msg)}"""
+                    } else {
+                      s"Error: ${stripAnsi(info.msg)}"
                     }
-                  }
+                  } else ""
+                }.filter(_.nonEmpty).mkString("\n")
 
-                  val output = outCapture.toString()
-                  val safeOutput = truncateWithNotice(output)
+                ujson.Obj(
+                  "success" -> false,
+                  "error" -> truncateWithNotice(errorMessages),
+                  "output" -> truncateWithNotice(stripAnsi(output + errors))
+                )
+              } else {
+                // 2. Evaluation
+                try {
+                  // Must flush streams before eval
+                  outStream.flush()
+                  errStream.flush()
 
-                  result match {
-                    case Res.Success(_) =>
-                      ujson.Obj("success" -> true, "output" -> safeOutput)
-                    case Res.Failure(msg) =>
-                      val detailed = compressCompilerError(output).getOrElse {
-                        if (output.trim.isEmpty) msg else s"$msg\n$output"
-                      }
-                      val safeError = truncateWithNotice(detailed)
-                      ujson.Obj("success" -> false, "error" -> safeError, "output" -> safeOutput)
-                    case Res.Exception(ex, _) =>
-                      val sw = new java.io.StringWriter
-                      ex.printStackTrace(new java.io.PrintWriter(sw))
-                      val stack = sw.toString
-                      val header = s"${ex.getClass.getName}: ${Option(ex.getMessage).getOrElse("")}"
-                      val detailed = List(header, output, stack).filter(_.trim.nonEmpty).mkString("\n")
-                      val safeError = truncateWithNotice(detailed)
-                      ujson.Obj("success" -> false, "error" -> safeError, "output" -> safeOutput)
-                    case other =>
-                      val detailed = if (output.trim.isEmpty) s"Other: $other" else s"Other: $other\n$output"
-                      val safeError = truncateWithNotice(detailed)
-                      ujson.Obj("success" -> false, "error" -> safeError, "output" -> safeOutput)
-                  }
-                case Left((failing, _)) =>
-                  ujson.Obj("success" -> false, "error" -> s"Failed to create interpreter: $failing")
+                  // Evaluate the code
+                  tb.eval(tb.parse(s"{ $codeStr }"))
+
+                  val finalOutput = outCapture.toString()
+                  val finalErrors = errCapture.toString()
+
+                  ujson.Obj(
+                    "success" -> true,
+                    "output" -> truncateWithNotice(stripAnsi(finalOutput)),
+                    "error" -> truncateWithNotice(stripAnsi(finalErrors)) // Include stderr even on success
+                  )
+                } catch {
+                  case ex: Throwable =>
+                    val sw = new java.io.StringWriter
+                    ex.printStackTrace(new java.io.PrintWriter(sw))
+                    val stack = sw.toString
+                    val header = s"${ex.getClass.getName}: ${Option(ex.getMessage).getOrElse("")}"
+                    val detailed = List(header, stack).filter(_.trim.nonEmpty).mkString("\n")
+                    ujson.Obj(
+                      "success" -> false,
+                      "error" -> truncateWithNotice(detailed),
+                      "output" -> truncateWithNotice(stripAnsi(outCapture.toString()))
+                    )
+                }
               }
             } finally {
-              try printStream.flush() finally printStream.close()
+              try {
+                outStream.flush(); errStream.flush()
+              } finally {
+                outStream.close(); errStream.close()
+              }
               System.setOut(originalOut)
               System.setErr(originalErr)
             }

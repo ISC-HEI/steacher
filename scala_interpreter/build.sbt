@@ -5,7 +5,6 @@ scalaVersion := "2.13.16"
 
 resolvers += "Sonatype OSS Releases" at "https://oss.sonatype.org/content/repositories/releases/"
 
-val ammoniteVersion = "3.0.2"
 val ujsonVersion = "4.1.0"
 
 enablePlugins(JavaAppPackaging)
@@ -16,8 +15,9 @@ dependencyOverrides ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "com.lihaoyi" % "ammonite_2.13.16" % ammoniteVersion,
-  "com.lihaoyi" %% "ujson" % ujsonVersion,
+  "com.lihaoyi" %% "ujson" % "3.1.3",
+  "org.scala-lang" % "scala-compiler" % scalaVersion.value,
+  "org.scala-lang" % "scala-reflect" % scalaVersion.value,
   "com.sparkjava" % "spark-core" % "2.9.4"
 )
 
