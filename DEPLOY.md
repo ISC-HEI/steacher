@@ -22,9 +22,11 @@ docker compose exec web python manage.py collectstatic --noinput
 
 # Nginx config or certs changed:
 docker compose up -d --no-deps proxy
+# or?
+docker compose --env-file .env.production up -d --build --no-deps proxy
 
 # Scala interpreter code changed:
-docker compose up -d --build --no-deps scala_interpreter
+docker compose --env-file .env.production up -d --build --no-deps scala_interpreter
 
 # Post-checks:
 docker compose ps
@@ -541,4 +543,10 @@ Kind of for small tests to check if parallelism is working.
 
 ```bash
 docker exec scala-interpreter-container sh -lc 'seq 1 50 | xargs -I{} -P 20 sh -lc "curl -s -X POST -H \"Content-Type: application/json\" -d '\''{\"code\":\"Thread.sleep(300); println(\\\"hi\\\")\"}'\'' http://localhost:8642/execute; echo"'
+```
+
+on VM:
+
+```bash
+docker exec steacher_app-scala_interpreter-1 sh -lc 'seq 1 50 | xargs -I{} -P 20 sh -lc "curl -s -X POST -H \"Content-Type: application/json\" -d '\''{\"code\":\"println(\\\"hi\\\")\",\"timeoutMs\":8000}'\'' http://localhost:8642/execute; echo"'
 ```

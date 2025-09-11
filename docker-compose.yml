@@ -101,6 +101,33 @@ services:
       - compute
 
 
+  newrelic_infra:
+    image: newrelic/infrastructure:latest
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    environment:
+      - NRIA_LICENSE_KEY=${NEW_RELIC_LICENSE_KEY}
+      - NRIA_LOG_FILE=stdout
+      - NRIA_OVERRIDE_HOST_ROOT=/host
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_READ_SEARCH
+      - SYS_PTRACE
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/db/newrelic-infra
+      - /var/log/newrelic-infra
+    volumes:
+      - /:/host:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+
+
   certbot:
     image: certbot/certbot
     volumes:
