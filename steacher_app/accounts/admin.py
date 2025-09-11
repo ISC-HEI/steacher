@@ -14,8 +14,6 @@ class UserAdmin(DjangoUserAdmin):
             {
                 "fields": (
                     "is_active",
-                    "is_staff",
-                    "is_superuser",
                     "groups",
                     "user_permissions",
                 )
@@ -32,8 +30,13 @@ class UserAdmin(DjangoUserAdmin):
             },
         ),
     )
-    list_display = ("username", "email", "first_name", "last_name", "preferred_language", "is_staff", "is_superuser")
+    list_display = ("username", "email", "first_name", "last_name", "preferred_language")
     search_fields = ("username", "first_name", "last_name", "email")
     ordering = ("username",)
+
+    def get_readonly_fields(self, request, obj=None):
+        # Prevent any attempt to toggle staff/superuser via admin UI
+        readonly = super().get_readonly_fields(request, obj) or ()
+        return tuple(set(readonly) | {"is_staff", "is_superuser"})
 
 
