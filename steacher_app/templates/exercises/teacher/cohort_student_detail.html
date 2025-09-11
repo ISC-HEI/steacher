@@ -1,0 +1,148 @@
+{% extends "exercises/base.html" %}
+{% load markdown %}
+
+{% block content %}
+<div class="container">
+    <h1 class="title">
+        <span class="icon mr-2"><i class="fas fa-user"></i></span>
+        <span>{{ student.get_full_name|default:student.username }}</span>
+        <span class="has-text-weight-normal is-size-4 ml-5">
+            in cohort <a href="{% url 'teachers:cohort_detail' selected_cohort.pk %}">{{ selected_cohort.name }}</a>
+        </span>
+    </h1>
+    
+    <hr>
+    <div class="columns">
+        <div class="column">
+            <label>Completed: {{ completed_count }} / {{ total_exercises }}</label>
+            <progress class="progress is-success" value="{{ completed_count }}" max="{{ total_exercises }}"></progress>
+        </div>
+        <div class="column">
+            <label>Attempted: {{ attempted_count }} / {{ total_exercises }}</label>
+            <progress class="progress is-info" value="{{ attempted_count }}" max="{{ total_exercises }}"></progress>
+        </div>
+        <div class="column">
+            <p class="title is-4">{{ total_hints }}</p>
+            <p class="subtitle is-6">Hints Used</p>
+        </div>
+    </div>
+    <hr>
+
+
+    {% for module_data in modules_data %}
+        <div class="box mb-5">
+            <h2 class="title is-4">{{ module_data.module.name }}</h2>
+            <hr>
+            {% for data in module_data.exercises %}
+                <details class="mb-4">
+                    <summary style="cursor: pointer; font-size: 1.2rem; font-weight: 400;">
+                        {% if data.attempt.complete %}
+                            <span class="icon has-text-success">
+                                <i class="fas fa-check-circle" title="Exercise completed"></i>
+                            </span>
+                        {% elif data.attempt %}
+                            <span class="icon has-text-grey-light">
+                                <i class="far fa-hourglass" title="Exercise in progress"></i><!-- exercise in progress -->
+                            </span>
+                        {% else %}
+                            <span class="icon has-text-grey-light">
+                                <i class="far fa-circle" title="Exercise not attempted"></i>
+                            </span>
+                        {% endif %}
+                        {{ data.exercise.title }}
+                        <!-- link to exercise -->
+                        <a href="{% url 'exercises:exercise_detail' pk=data.exercise.pk %}">
+                            <span class="icon is-size-6 ml-2"><i class="fas fa-external-link-alt" title="View exercise"></i></span>
+                        </a>
+                    </summary>
+                    <div class="content mt-3 ml-4">
+                        <div class="content">
+                            <blockquote>{{ data.exercise.question_i18n.en | markdown }}</blockquote>
+                        </div>
+                        {% if data.attempt %}
+                            <p><strong>Submissions:</strong> {{ data.submissions_count }} | <strong>Hints:</strong> {{ data.hints_count }}</p>
+                            
+                            
+
+                            {% for trace in data.traces %}
+                                <div class="columns mb-4">
+                                    <div class="column is-two-fifths">
+                                        {% if data.exercise.exercise_type == 'python' %}
+                                            <pre><code>{{ trace.user_metadata.code }}</code></pre>
+                                        {% elif data.exercise.exercise_type == 'open_question' %}
+                                            <div class="content">
+                                                <blockquote>{{ trace.user_metadata.answer }}</blockquote>
+                                            </div>
+                                        {% else %}
+                                             <pre><code>{{ trace.user_content }}</code></pre>
+                                        {% endif %}
+                                    </div>
+                                    <div class="column is-two-fifths" style="margin-top: 4rem;">
+                                        {% if trace.user_metadata.action == 'ask_hint' %}
+                                            <div class="message is-info">
+                                                <div class="message-header">
+                                                    <p>Hint Requested</p>
+                                                </div>
+                                                <div class="message-body">
+                                                    {{ trace.assistant_content|safe }}
+                                                    {% if forloop.last and data.attempt.complete %}
+                                                        <hr>
+                                                        <p class="has-text-success">
+                                                            <span class="icon"><i class="fas fa-tada"></i></span>
+                                                            <span>Exercise successfully completed!</span>
+                                                        </p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        {% elif trace.user_metadata.action == 'ask_question' %}
+                                            <div class="message is-primary">
+                                                <div class="message-header">
+                                                    <p>Question</p>
+                                                </div>
+                                                <div class="message-body">
+                                                    <p><strong>Student:</strong> {{ trace.user_metadata.question }}</p>
+                                                    <hr>
+                                                    <p><strong>Tutor:</strong> {{ trace.assistant_content|safe }}</p>
+                                                    {% if forloop.last and data.attempt.complete %}
+                                                        <hr>
+                                                        <p class="has-text-success">
+                                                            <span class="icon"><i class="fas fa-tada"></i></span>
+                                                            <span>Exercise successfully completed!</span>
+                                                        </p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        {% else %}
+                                             <div class="message">
+                                                <div class="message-header">
+                                                    <p>Tutor Feedback</p>
+                                                </div>
+                                                <div class="message-body">
+                                                    {{ trace.assistant_content|safe }}
+                                                    {% if forloop.last and data.attempt.complete %}
+                                                        <hr>
+                                                        <p class="has-text-success">
+                                                            <span class="icon"><i class="fas fa-tada"></i></span>
+                                                            <span>Exercise successfully completed!</span>
+                                                        </p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endfor %}
+
+                        {% else %}
+                            <p>No attempt for this exercise.</p>
+                        {% endif %}
+                    </div>
+                </details>
+            {% endfor %}
+        </div>
+    {% empty %}
+        <p>This course has no modules or exercises for this student.</p>
+    {% endfor %}
+
+</div>
+{% endblock %}

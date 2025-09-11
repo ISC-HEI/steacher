@@ -1,4 +1,5 @@
 from django.contrib.auth.decorators import login_required
+from django.conf import settings
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST
@@ -19,14 +20,19 @@ from .logic import generate_authoring_update
 from .logic import generate_i18n_translations
 from .schemas import ExerciseData, AnswerData
 from pydantic import ValidationError
+from django.contrib.auth import get_user_model
+from itertools import groupby
+from operator import attrgetter
+
+User = get_user_model()
 
 logger = logging.getLogger(__name__)
 
 
 @login_required
-@course_roles_required(['owner','editor'], course_kw='pk')
+@course_roles_required(['owner','editor', 'viewer'], course_kw='pk')
 def course_detail(request, pk):
-    course = get_object_or_404(Course.objects.prefetch_related('modules__exercises'), pk=pk)
+    course: Course = request.course
     # Remember last visited course for teacher dashboard defaulting
     try:
         request.session['last_teacher_course_id'] = course.id
@@ -81,10 +87,10 @@ def dashboard(request):
 
 
 @login_required
-@cohort_roles_required(['owner', 'teacher'], cohort_kw='pk')
-def cohort_detail(request, pk):
+@cohort_roles_required(['owner', 'teacher', 'viewer'], cohort_kw='pk')
+def cohort_detail(request, pk): # pylint: disable=unused-argument
     """Cohort detail analytics page (moved from old dashboard)."""
-    selected_cohort = get_object_or_404(Cohort.objects.select_related('course'), pk=pk)
+    selected_cohort = request.cohort
     try:
         request.session['last_teacher_cohort_id'] = selected_cohort.id
     except Exception:
@@ -95,7 +101,7 @@ def cohort_detail(request, pk):
     max_bar_count = 0
     exercise_completion_bars = []
 
-    course = selected_cohort.course
+    course: Course = selected_cohort.course
     ordered_exercises = list(
         Exercise.objects
         .filter(module__course=course, visible=True)
@@ -231,6 +237,67 @@ def cohort_detail(request, pk):
         'histogram': histogram,
         'max_bar_count': max_bar_count,
         'exercise_completion_bars': exercise_completion_bars,
+    })
+
+
+@login_required
+@cohort_roles_required(['owner', 'teacher', 'viewer'], cohort_kw='cohort_id')
+def cohort_student_detail(request, cohort_id, student_id):  # pylint: disable=unused-argument
+    """Cohort student detail page. Packs the exercises and attempts for the student into a single page, sorted by module."""
+    selected_cohort: Cohort = request.cohort
+    student: User = get_object_or_404(get_user_model(), pk=student_id)
+    course: Course = selected_cohort.course
+    
+    exercises = Exercise.objects.filter(
+        module__course=course
+    ).select_related('module').order_by('module__order', 'order')
+    
+    attempts = Attempt.objects.filter(
+        user=student,
+        cohort=selected_cohort,
+        exercise__in=exercises
+    ).prefetch_related('traces')
+
+    attempts_by_exercise = {attempt.exercise_id: attempt for attempt in attempts}
+
+    total_hints = 0
+    modules_data = []
+    for module, module_exercises_iter in groupby(exercises, key=attrgetter('module')):
+        module_exercises = []
+        for exercise in module_exercises_iter:
+            attempt = attempts_by_exercise.get(exercise.id)
+            traces = sorted(attempt.traces.all(), key=lambda t: t.rank_order) if attempt else []
+            
+            hints_count = 0
+            for trace in traces:
+                if trace.user_metadata.get('action') == 'ask_hint':
+                    hints_count += 1
+            total_hints += hints_count
+
+            module_exercises.append({
+                'exercise': exercise,
+                'attempt': attempt,
+                'traces': traces,
+                'submissions_count': len(traces),
+                'hints_count': hints_count,
+            })
+        modules_data.append({
+            'module': module,
+            'exercises': module_exercises
+        })
+
+    completed_count = sum(1 for m in modules_data for e in m['exercises'] if e['attempt'] and e['attempt'].complete)
+    attempted_count = sum(1 for m in modules_data for e in m['exercises'] if e['attempt'])
+    total_exercises = len(exercises)
+
+    return render(request, 'exercises/teacher/cohort_student_detail.html', {
+        'selected_cohort': selected_cohort,
+        'student': student,
+        'modules_data': modules_data,
+        'total_exercises': total_exercises,
+        'completed_count': completed_count,
+        'attempted_count': attempted_count,
+        'total_hints': total_hints,
     })
 
 

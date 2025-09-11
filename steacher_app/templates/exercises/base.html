@@ -78,7 +78,7 @@
                             Settings
                         </a> <hr class="navbar-divider"> -->
                         
-                        {% if request.resolver_match.view_name == 'exercises:exercise_detail' and exercise and user.is_staff %}
+                        {% if request.resolver_match.view_name == 'exercises:exercise_detail' and exercise and can_edit %}
                         <form method="post" action="{% url 'exercises:delete_user_answers' exercise.id %}">
                             {% csrf_token %}
                             <button type="submit" class="navbar-item">

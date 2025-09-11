@@ -54,7 +54,11 @@
                 <tbody>
                     {% for s in students %}
                     <tr>
-                        <td>{{ s.user.display_name }}</td>
+                        <td>
+                            <a href="{% url 'teachers:cohort_student_detail' selected_cohort.pk s.user.pk %}">
+                                {{ s.user.get_full_name|default:s.user.username }}
+                            </a>
+                        </td>
                         <td>
                             <div class="is-flex is-align-items-center">
                                 <progress class="progress is-primary mr-2" value="{{ s.percent }}" max="100" style="flex: 1"></progress>

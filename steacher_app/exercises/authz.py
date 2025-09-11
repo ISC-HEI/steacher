@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
@@ -6,9 +7,12 @@ import logging
 import time
 
 from .models import CourseMembership, CohortMembership, Course, Cohort, Exercise
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 
-def get_user_course_role(user, course) -> str | None:
+def get_user_course_role(user: User, course: Course) -> str | None:
     """
     Get the role of the user in the course, through the `CourseMembership` model.
     """
@@ -21,7 +25,7 @@ def get_user_course_role(user, course) -> str | None:
         return None
 
 
-def can_view_course(user, course) -> bool:
+def can_view_course(user: User, course: Course) -> bool:
     """
     Check if the user can view the course.
     Allows: any course owner/editor/viewer, any cohort member on this course.
@@ -36,7 +40,7 @@ def can_view_course(user, course) -> bool:
     except Exception:
         return False
 
-def can_view_exercise(user, exercice : Exercise):
+def can_view_exercise(user: User, exercice : Exercise):
     """
     Check if the user can view the exercise.
     Allows: any course owner/editor/viewer, any cohort member on this course.
@@ -48,12 +52,12 @@ def can_view_exercise(user, exercice : Exercise):
     return False    
 
 
-def can_edit_course(user, course) -> bool:
+def can_edit_course(user: User, course: Course) -> bool:
     role = get_user_course_role(user, course)
     return role in {'owner', 'editor'}
 
 
-def get_user_cohort_role(user, cohort) -> str | None:
+def get_user_cohort_role(user: User, cohort: Cohort) -> str | None:
     if not user or not getattr(user, 'is_authenticated', False) or not cohort:
         return None
     try:
@@ -63,33 +67,33 @@ def get_user_cohort_role(user, cohort) -> str | None:
         return None
 
 
-def can_manage_cohort_students(user, cohort) -> bool:
+def can_manage_cohort_students(user: User, cohort: Cohort) -> bool:
     role = get_user_cohort_role(user, cohort)
     return role in {'owner', 'teacher', 'assistant'}
 
 
-def assert_can_view_exercise(user, exercise):
+def assert_can_view_exercise(user: User, exercise: Exercise):
     if not can_view_exercise(user, exercise):
         raise PermissionDenied("Forbidden")
 
 
-def assert_can_view_course(user, course):
+def assert_can_view_course(user: User, course: Course):
     if not can_view_course(user, course):
         raise PermissionDenied("Forbidden")
 
 
-def assert_can_edit_course(user, course):
+def assert_can_edit_course(user: User, course: Course):
     if not can_edit_course(user, course):
         raise PermissionDenied("Forbidden")
 
 
-def assert_can_view_cohort(user, cohort):
+def assert_can_view_cohort(user: User, cohort: Cohort):
     role = get_user_cohort_role(user, cohort)
     if role not in {'owner', 'teacher', 'assistant', 'student'}:
         raise PermissionDenied("Forbidden")
 
 
-def assert_can_manage_cohort(user, cohort):
+def assert_can_manage_cohort(user: User, cohort: Cohort):
     if not can_manage_cohort_students(user, cohort):
         raise PermissionDenied("Forbidden")
 
@@ -98,14 +102,18 @@ def course_roles_required(roles=None, *, course_kw='course_pk'):
     """
     Decorator to check if the user has the required role in the course.
     Allows: any course owner/editor/viewer.
+    Attaches `request.course` and `request.course_role` if permission is granted.
     """
-    roles = set(roles or [])
+    roles: set[str] = set(roles or [])
 
     def decorator(view_func):
         def _wrapped(request, *args, **kwargs):
-            course = get_object_or_404(Course, pk=int(kwargs.get(course_kw)))
-            role = get_user_course_role(request.user, course)
+            course: Course = get_object_or_404(Course, pk=int(kwargs.get(course_kw)))
+            role: str | None = get_user_course_role(request.user, course)
             if role in roles:
+                # Attach course to request for the view to use
+                request.course = course
+                request.course_role = role
                 return view_func(request, *args, **kwargs)
             raise PermissionDenied("Forbidden")
         return _wrapped
@@ -116,14 +124,23 @@ def cohort_roles_required(roles=None, *, cohort_kw='cohort_pk'):
     """
     Decorator to check if the user has the required role in the cohort.
     Allows: any cohort owner/teacher/assistant/student.
+    Attaches `request.cohort` and `request.cohort_role` if permission is granted.
     """
-    roles = set(roles or [])
+    roles: set[str] = set(roles or [])
 
     def decorator(view_func):
         def _wrapped(request, *args, **kwargs):
-            cohort = get_object_or_404(Cohort, pk=int(kwargs.get(cohort_kw)))
-            role = get_user_cohort_role(request.user, cohort)
+            pk: str | None = kwargs.get(cohort_kw)
+            if not pk:
+                raise PermissionDenied("Cohort identifier not found in URL.")
+            
+            # Fetch cohort and related course once, reducing DB hits.
+            cohort: Cohort = get_object_or_404(Cohort.objects.select_related('course'), pk=int(pk))
+            
+            role: str | None = get_user_cohort_role(request.user, cohort)
             if role in roles:
+                request.cohort = cohort  # Attach cohort to request for the view to use
+                request.cohort_role = role
                 return view_func(request, *args, **kwargs)
             raise PermissionDenied("Forbidden")
         return _wrapped

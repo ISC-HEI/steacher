@@ -598,41 +598,41 @@ def generate_learning_pathway_recommendation(*, attempt: Attempt, interactions: 
 Your response MUST be a single JSON object with the following structure. Do not include any markdown formatting or explanatory text outside of the JSON structure.
 
 ```json
-{
-  "performance_feedback": {
+{{
+  "performance_feedback": {{
     "what_went_well": "A concise, encouraging sentence (max 25 words) highlighting a specific strength the student demonstrated. Example: 'You did a great job using the `GROUP BY` clause to aggregate the data correctly!'",
     "key_learnings": "A concise, encouraging sentence (max 25 words) summarizing the main skill or concept learned in this exercise. Example: 'This exercise was a great step in mastering how to join multiple tables.' "
-  },
-  "main_recommendation": {
+  }},
+  "main_recommendation": {{
     "exercise_id": "...",
     "title": "...",
     "what_it_is_about": "A single sentence explaining the topic of this exercise, contextualized to what the student just did. Example: 'This exercise will build on your knowledge of joins by introducing subqueries.'",
     "why_you_should_do_it": "A single sentence justifying why this is the best next step for the student. Example: 'Based on your work with joins, this is the perfect next challenge to expand your SQL skills.'"
-  },
+  }},
   "alternatives": [
-    {
+    {{
       "exercise_id": "...",
       "title": "...",
       "what_it_is_about": "...",
       "why_you_should_do_it": "...",
       "recommendation_type": "review"
-    },
-    {
+    }},
+    {{
       "exercise_id": "...",
       "title": "...",
       "what_it_is_about": "...",
       "why_you_should_do_it": "...",
       "recommendation_type": "accelerated"
-    },
-    {
+    }},
+    {{
       "exercise_id": "...",
       "title": "...",
       "what_it_is_about": "...",
       "why_you_should_do_it": "...",
       "recommendation_type": "accelerated"
-    }
+    }}
   ]
-}
+}}
 ```
 
 ** Output Language:**
