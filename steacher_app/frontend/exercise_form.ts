@@ -348,6 +348,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     const assistant_message: string = result.assistant_message || '';
                     const updated_exercise: ExerciseFormData = result.updated_exercise || this.exercise;
 
+                    // Ensure the nested structure for unit tests exists in the AI's response.
+                    if (!updated_exercise.answer_data) {
+                        updated_exercise.answer_data = { unit_tests: { setup_code: '', test_cases: [], timeout_seconds: 10 }, correct_answers: [], hints: '' };
+                    }
+                    if (!updated_exercise.answer_data.unit_tests) {
+                        updated_exercise.answer_data.unit_tests = { setup_code: '', test_cases: [], timeout_seconds: 10 };
+                    }
+
                     this.lastAppliedSnapshot = this.deepClone(this.exercise);
                     this.exercise = this.deepClone(updated_exercise);
 
