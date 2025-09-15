@@ -1,4 +1,4 @@
-
+# Redeploy on prod
 
 ```bash
 ssh into vm
@@ -33,6 +33,8 @@ docker compose ps
 docker compose logs -n 100 web | cat
 docker compose logs -n 100 proxy | cat
 ```
+
+
 ------
 
 
