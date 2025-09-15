@@ -250,6 +250,27 @@ const TeacherCourseApp = defineComponent({
             }
         };
 
+        const deleteExercise = async (exerciseId: string) => {
+            // eslint-disable-next-line no-alert
+            if (!window.confirm('Are you sure you want to delete this exercise?')) {
+                return;
+            }
+            try {
+                const modulesList = document.getElementById('modules-list') as HTMLElement | null;
+                const rawCourse = modulesList?.getAttribute('data-course-id');
+                const courseId = rawCourse ? parseInt(rawCourse, 10) : null;
+                const payload: any = {};
+                if (courseId != null) payload.course_pk = courseId;
+                await send(`/teachers/api/exercises/${exerciseId}/delete/`, payload);
+                window.location.reload();
+            } catch (e) {
+                // eslint-disable-next-line no-alert
+                alert(`Failed to delete exercise: ${e}`);
+                // eslint-disable-next-line no-console
+                console.error(e);
+            }
+        };
+
         const addModulePrompt = async () => {
             const title = window.prompt('Module title');
             if (title === null) return; // canceled
@@ -279,6 +300,7 @@ const TeacherCourseApp = defineComponent({
             toggleModuleVisibility,
             toggleExerciseVisibility,
             duplicateExercise,
+            deleteExercise,
             addModulePrompt
         };
     }

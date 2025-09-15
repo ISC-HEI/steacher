@@ -72,20 +72,22 @@
                                             <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" class="mr-2 ml-2">
                                               <span class="exercise-title">{{ exercise.title }}</span>
                                             </a>
-                                            <span class="tag is-light ml-2">{{ exercise.exercise_type }}</span>
-                                            <span class="ml-2 is-clickable"
-                                                  title="Exercise visibility"
-                                                  data-role="exercise-visibility-icon"
-                                                  data-visible="{{ exercise.visible|yesno:'true,false' }}"
-                                                  @click="toggleExerciseVisibility('{{ exercise.pk }}')"
-                                                  :class="{ 'has-text-success': exerciseVisible['{{ exercise.pk }}'], 'has-text-grey': !exerciseVisible['{{ exercise.pk }}'] }">
+                                            <span class="tag is-light ml-2 mr-2">{{ exercise.exercise_type }}</span>
+                                            <button class="button is-white is-small mr-1"
+                                                    title="Exercise visibility"
+                                                    data-role="exercise-visibility-icon"
+                                                    data-visible="{{ exercise.visible|yesno:'true,false' }}"
+                                                    @click="toggleExerciseVisibility('{{ exercise.pk }}')">
                                                 <span class="icon"><i class="fas" :class="exerciseVisible['{{ exercise.pk }}'] ? 'fa-eye' : 'fa-eye-slash'"></i></span>
-                                            </span>
-                                            <a href="{% url 'teachers:exercise_edit' course_pk=course.pk exercise_pk=exercise.pk %}" class="button is-white is-small mr-1" title="Edit exercise">
+                                            </button>
+                                            <button class="button is-white is-small mr-1" title="Edit exercise" @click="editExercise('{{ exercise.pk }}')">
                                                 <span class="icon"><i class="fas fa-pencil-alt"></i></span>
-                                            </a>
+                                            </button>
                                             <button class="button is-white is-small mr-1" title="Duplicate exercise" @click="duplicateExercise('{{ exercise.pk }}')">
                                               <span class="icon"><i class="fas fa-clone"></i></span>
+                                            </button>
+                                            <button class="button is-white is-small mr-1" title="Delete exercise" @click="deleteExercise('{{ exercise.pk }}')">
+                                                <span class="icon"><i class="fas fa-trash"></i></span>
                                             </button>
                                         </div>
                                         <div class="exercise-description ml-7 mb-3 mt-0 pt-0">

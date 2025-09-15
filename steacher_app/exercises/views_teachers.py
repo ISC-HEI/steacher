@@ -609,6 +609,19 @@ def duplicate_exercise(request, exercise_id):
 @login_required
 @require_POST
 @transaction.atomic
+def delete_exercise(request, exercise_id):
+    try:
+        exercise = get_object_or_404(Exercise.objects.select_related('module__course'), pk=exercise_id)
+        assert_can_edit_course(request.user, exercise.module.course)
+        exercise.delete()
+        return JsonResponse({'status': 'success'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
+@require_POST
+@transaction.atomic
 def create_module(request):
     try:
         body = json.loads(request.body or '{}')
@@ -643,19 +656,23 @@ def create_module(request):
 
 
 @login_required
-def exercise_form(request, course_pk, exercise_pk=None):
+def exercise_form(request, course_pk, exercise_pk=None, module_pk=None):
     course = get_object_or_404(Course, pk=course_pk)
     assert_can_edit_course(request.user, course)
+
     # Remember last visited course for teacher dashboard defaulting
     try:
         request.session['last_teacher_course_id'] = course.id
     except Exception:
         pass
 
-    if exercise_pk:
+    if exercise_pk:  # edit existing exercise
         exercise = get_object_or_404(Exercise, pk=exercise_pk, module__course=course)
-    else:
-        selected_module = course.modules.first()
+    else:  # create new exercise
+        if module_pk:
+            selected_module = get_object_or_404(Module, pk=module_pk, course=course)
+        else:
+            selected_module = course.modules.first()  # fallback to first module. should not happen, though
         if not selected_module:
             return HttpResponse("Cannot add exercise: This course has no modules.", status=400)
         exercise = Exercise(

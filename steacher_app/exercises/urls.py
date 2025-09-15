@@ -33,7 +33,7 @@ teachers_urlpatterns = [
     path('cohorts/<int:cohort_id>/students/<int:student_id>/', views_teachers.cohort_student_detail, name='cohort_student_detail'),
     path('cohorts/<int:cohort_id>/exercises/<int:exercise_id>/', views_teachers.cohort_exercise_detail, name='cohort_exercise_detail'),
     path('courses/<int:pk>/', views_teachers.course_detail, name='course_detail'),
-    path('courses/<int:course_pk>/add_exercise/', views_teachers.exercise_form, name='exercise_add'),
+    path('courses/<int:course_pk>/modules/<int:module_pk>/add_exercise/', views_teachers.exercise_form, name='exercise_add'),
     path('courses/<int:course_pk>/edit_exercise/<int:exercise_pk>/', views_teachers.exercise_form, name='exercise_edit'),
 
     path('api/reorder_modules/', views_teachers.reorder_modules, name='reorder_modules'),
@@ -42,6 +42,7 @@ teachers_urlpatterns = [
     path('api/modules/create/', views_teachers.create_module, name='create_module'),
     path('api/exercises/<int:exercise_id>/visibility/', views_teachers.set_exercise_visibility, name='set_exercise_visibility'),
     path('api/exercises/<int:exercise_id>/duplicate/', views_teachers.duplicate_exercise, name='duplicate_exercise'),
+    path('api/exercises/<int:exercise_id>/delete/', views_teachers.delete_exercise, name='delete_exercise'),
 
     path('ai/authoring_assistant/', views_teachers.exercise_authoring_assistant, name='authoring_assistant'),
     path('ai/translate_i18n/', views_teachers.translate_i18n, name='translate_i18n'),

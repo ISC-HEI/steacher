@@ -274,7 +274,7 @@ class Exercise(models.Model):
         default='python',
         help_text="Type of the exercise, e.g. 'open_question', 'python', 'scala', 'sql', 'turtle', etc."
     )
-    order = models.PositiveIntegerField(default=0, help_text="The order of the exercise within the course.")
+    order = models.PositiveIntegerField(default=0, help_text="The order of the exercise within its module.")
     exercise_data = models.JSONField(help_text="Contains fields like data-source, etc.")  # sent to frontend
     answer_data = models.JSONField(default=dict, help_text="Contains fields like expected_result, hints, etc.")  # backend only
     visible = models.BooleanField(default=True, help_text="Whether the exercise is visible to students.")
