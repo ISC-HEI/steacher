@@ -45,7 +45,7 @@
                 <!-- <a class="card-header-icon" aria-label="analyze module" href="{% url 'teachers:dashboard' %}" title="AI module analysis">
                     <button class="button is-small is-primary" disabled>AI module analysis</button>
                 </a> -->
-                <a class="card-header-icon" aria-label="add exercise" href="{% url 'teachers:exercise_add' course_pk=course.pk %}?module={{ module.pk }}" title="Add exercise to this module">
+                <a class="card-header-icon" aria-label="add exercise" href="{% url 'teachers:exercise_add' course_pk=course.pk module_pk=module.pk %}" title="Add exercise to this module">
                     <button class="button is-small is-primary">Add exercise</button>
                 </a>
                 <button class="card-header-icon" aria-label="more options" data-action="toggle-module" @click="toggleModuleExpanded('{{ module.pk }}')">

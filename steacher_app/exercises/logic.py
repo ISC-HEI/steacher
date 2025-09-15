@@ -194,11 +194,7 @@ Do not provide the entire solution, but give them enough to make meaningful prog
     prompt += f"\n\n# Exercise"
 
     # The question is now at the top-level of the exercise object.
-    q_map = getattr(exercise, 'question_i18n', {}) or {}
-    if isinstance(q_map, dict):
-        question_text = q_map.get(preferred_language_code) or q_map.get('en') or next(iter(q_map.values()), '')
-    else:
-        question_text = ''
+    question_text = localized_name(exercise, 'question_i18n', attempt.user, lang=preferred_language_code)
 
     if question_text:
         prompt += f"\n\n## Question given to the student\n\n{question_text}"

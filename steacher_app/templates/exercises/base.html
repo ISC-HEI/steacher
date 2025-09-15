@@ -86,6 +86,9 @@
                         </form>
                         <hr class="navbar-divider">
                         {% endif %}
+                        <a href="{% url 'password_change' %}" class="navbar-item">
+                            Change password
+                        </a>
                         <form method="post" action="{% url 'logout' %}">
                             {% csrf_token %}
                             <button type="submit" class="navbar-item">

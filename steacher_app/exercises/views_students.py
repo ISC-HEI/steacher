@@ -17,7 +17,7 @@ import time
 import json
 import os
 
-from .models import Exercise, ExerciseAsset, Course, Attempt, Module, UserInvite, ChatThread, CohortMembership, Trace, TraceEval, create_trace_for
+from .models import Exercise, ExerciseAsset, Course, Attempt, Module, UserInvite, ChatThread, CohortMembership, Trace, TraceEval, create_trace_for, localized_name
 from django.contrib.contenttypes.models import ContentType
 from .serializers import ExerciseFrontendSerializer
 from .authz import can_view_course, assert_can_view_exercise, assert_can_view_course, can_edit_course, can_manage_cohort_students, rate_limit
@@ -175,33 +175,13 @@ def dashboard(request):
 
     # Localize titles for dashboard (primary focus + recent attempts)
     try:
-        pref_lang = getattr(request.user, 'preferred_language', 'en') or 'en'
-    except Exception:
-        pref_lang = 'en'
-
-    def pick_i18n(d: dict) -> str:
-        if not isinstance(d, dict):
-            return ''
-        return d.get(pref_lang) or d.get('en') or next(iter(d.values()), '')
-
-    try:
         if last_active_exercise:
-            try:
-                last_active_exercise.localized_title = pick_i18n(getattr(last_active_exercise, 'title_i18n', {}) or {})
-            except Exception:
-                last_active_exercise.localized_title = ''
+            last_active_exercise.localized_title = localized_name(last_active_exercise, 'title_i18n', request.user)
         if next_up_exercise:
-            try:
-                next_up_exercise.localized_title = pick_i18n(getattr(next_up_exercise, 'title_i18n', {}) or {})
-            except Exception:
-                next_up_exercise.localized_title = ''
+            next_up_exercise.localized_title = localized_name(next_up_exercise, 'title_i18n', request.user)
         for a in (recent_attempts or []):
-            ex = getattr(a, 'exercise', None)
-            if ex is not None:
-                try:
-                    ex.localized_title = pick_i18n(getattr(ex, 'title_i18n', {}) or {})
-                except Exception:
-                    ex.localized_title = ''
+            if ex := getattr(a, 'exercise', None):
+                ex.localized_title = localized_name(ex, 'title_i18n', request.user)
     except Exception:
         pass
 
@@ -312,28 +292,12 @@ def course_detail(request, pk):
 
     # Localize exercise titles/descriptions for listing
     try:
-        pref_lang = getattr(request.user, 'preferred_language', 'en') or 'en'
-    except Exception:
-        pref_lang = 'en'
-
-    def pick_i18n(d: dict) -> str:
-        if not isinstance(d, dict):
-            return ''
-        return d.get(pref_lang) or d.get('en') or next(iter(d.values()), '')
-
-    try:
         for module in visible_modules:
             ex_qs = getattr(module, 'exercises', None)
             if hasattr(ex_qs, 'all'):
                 for ex in ex_qs.all():
-                    try:
-                        ex.localized_title = pick_i18n(getattr(ex, 'title_i18n', {}) or {})
-                    except Exception:
-                        ex.localized_title = ''
-                    try:
-                        ex.localized_description = pick_i18n(getattr(ex, 'description_i18n', {}) or {})
-                    except Exception:
-                        ex.localized_description = ''
+                    ex.localized_title = localized_name(ex, 'title_i18n', request.user)
+                    ex.localized_description = localized_name(ex, 'description_i18n', request.user)
     except Exception:
         pass
 
@@ -369,26 +333,13 @@ def exercise_detail(request, pk):
     assert_can_view_exercise(request.user, exercise)
 
     # Build localized exercise_json
-    try:
-        preferred_language = getattr(request.user, 'preferred_language', 'en') or 'en'
-    except Exception:
-        preferred_language = 'en'
-
-    title_map = getattr(exercise, 'title_i18n', {}) or {}
-    desc_map = getattr(exercise, 'description_i18n', {}) or {}
-    q_map = getattr(exercise, 'question_i18n', {}) or {}
-    def pick(d: dict) -> str:
-        if not isinstance(d, dict):
-            return ''
-        return d.get(preferred_language) or d.get('en') or next(iter(d.values()), '')
-
-    exercise.localized_title = pick(title_map)
+    exercise.localized_title = localized_name(exercise, 'title_i18n', request.user)
 
     exercise_json = {
         'id': exercise.id,
-        'title': pick(title_map),
-        'description': pick(desc_map),
-        'question': pick(q_map),
+        'title': localized_name(exercise, 'title_i18n', request.user),
+        'description': localized_name(exercise, 'description_i18n', request.user),
+        'question': localized_name(exercise, 'question_i18n', request.user),
         'exercise_type': exercise.exercise_type,
         'exercise_data': dict(exercise.exercise_data or {}),
         'created_at': exercise.created_at.isoformat(),

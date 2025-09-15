@@ -621,7 +621,7 @@ class ChatThread(models.Model):
 
 def localized_name(obj, field_name: str, user, lang: str=None) -> str:
     """
-    Return the localized name of the given object's i18n field for the given user.
+    Helper function to return the localized name of the given object's i18n field for the given user.
     If lang is provided, use it instead of the user's preferred language.
     """
     if not isinstance(obj, models.Model):
