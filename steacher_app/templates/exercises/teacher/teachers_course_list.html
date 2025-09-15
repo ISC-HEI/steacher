@@ -2,6 +2,12 @@
 
 {% block title %}All Courses{% endblock %}
 
+{% block page_title %}
+    <a href="{% url 'teachers:dashboard' %}">Dashboard</a>
+    <span style="margin: 0 0.5rem;">/</span>
+    <span>Courses</span>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <h1 class="mb-4 title is-2">All Courses</h1>

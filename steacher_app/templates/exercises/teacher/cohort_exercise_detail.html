@@ -1,6 +1,12 @@
 {% extends "exercises/base.html" %}
 {% load markdown %}
 
+{% block page_title %}
+    <a href="{% url 'teachers:cohort_detail' selected_cohort.pk %}">Cohort: {{ selected_cohort.name }}</a>
+    <span style="margin: 0 0.5rem;">/</span>
+    <span>Exercise: {{ exercise.title }}</span>
+{% endblock %}
+
 {% block styles %}
 <style>
     .ct-series-a .ct-slice-donut {

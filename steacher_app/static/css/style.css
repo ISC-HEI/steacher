@@ -540,9 +540,11 @@ code {
 .exercise-title-line { font-weight: bold; }
 .exercise-list {
     min-height: 50px; /* Make empty lists droppable */
+    padding: 10px;
+}
+.teacher-view .exercise-list {
     border: 1px dashed #dbdbdb;
     border-radius: 4px;
-    padding: 10px;
 }
 .exercise-list:empty {
     background-color: #fafafa;

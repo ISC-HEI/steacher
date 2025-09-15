@@ -382,6 +382,8 @@ def exercise_detail(request, pk):
             return ''
         return d.get(preferred_language) or d.get('en') or next(iter(d.values()), '')
 
+    exercise.localized_title = pick(title_map)
+
     exercise_json = {
         'id': exercise.id,
         'title': pick(title_map),
@@ -470,7 +472,7 @@ def exercise_detail(request, pk):
         can_edit = False
 
     return render(request, template_name, {
-        'exercise': exercise,
+        'exercise': exercise,  # TODO refactor and possibly remove this
         'exercise_json': exercise_json,
         'interactions': interactions,
         'attempt_id': attempt_id,

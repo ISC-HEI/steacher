@@ -3,12 +3,18 @@
 
 {% block title %}{% if exercise.pk %}Edit Exercise{% else %}Create Exercise{% endif %}{% endblock %}
 
+{% block page_title %}
+    <a href="{% url 'teachers:course_detail' pk=course.pk %}">{{ course.name }}</a>
+    <span style="margin: 0 0.5rem;">/</span>
+    <span>{% if exercise.pk %}Edit Exercise{% else %}Create Exercise{% endif %}</span>
+{% endblock %}
+
 {% block container_class %}container is-fluid wide-container{% endblock %}
 
 
 {% block content %}
 <div id="exercise-form-app" class="mt-4">
-    <h1 class="title is-3 mb-3">{% if exercise.pk %}Edit Exercise: {{ exercise.sequence_label }} — {{ exercise.title }}{% else %}Create New Exercise{% endif %}</h1>
+    <h1 class="title is-3 mb-3">{% if exercise.pk %}Edit Exercise : {{ exercise.title }}{% else %}Create New Exercise{% endif %}</h1>
     <div class="columns">
         <div class="column is-three-quarters">
             <div v-if="loading" class="notification is-info">Saving...</div>

@@ -23,7 +23,7 @@
     </div>
 
 
-    <div id="modules-list" class="mt-5">
+    <div id="modules-list" class="mt-5 student-view">
         {% if modules %}
         {% for module in modules %}
         <div class="card mb-3">
@@ -35,13 +35,13 @@
             <div class="card-content">
                 <div class="content">
                     <div class="exercise-list">
-                        {% for exercise in module.exercises.all %}
+                        {% for exercise in module.visible_exercises %}
                         <a class="exercise-link list-group-item mb-3" style="min-height: 2em;" href="{% url 'exercises:exercise_detail' pk=exercise.pk %}">
                             <div class="level">
                                 <div class="level-left">
                                     <div class="exercise-info columns is-mobile is-gapless">
                                         <div class="column is-narrow" style="width: 70px;">
-                                            <span class="order-number mr-1">{{ exercise.sequence_label }}</span>
+                                            <span class="order-number mr-1">{{ forloop.counter }}</span>
                                             {% if completed_exercise_ids and exercise.id in completed_exercise_ids %}
                                                 <span class="icon has-text-success" title="Completed">
                                                     <i class="fas fa-check-circle"></i>
@@ -86,14 +86,13 @@
                 <div class="card-content">
                     <div class="content">
                         <div class="exercise-list">
-                            {% for exercise in module.exercises.all %}
-                            {% if exercise.visible %}
+                            {% for exercise in module.visible_exercises %}
                             <a class="exercise-link list-group-item mb-3" style="min-height: 5em;" href="{% url 'exercises:exercise_detail' pk=exercise.pk %}">
                                 <div class="level">
                                     <div class="level-left">
                                         <div class="exercise-info columns is-mobile is-gapless">
                                             <div class="column is-narrow" style="width: 70px;">
-                                                <span class="order-number mr-2">{{ exercise.sequence_label }}</span>
+                                                <span class="order-number mr-2">{{ forloop.counter }}</span>
                                                 {% if completed_exercise_ids and exercise.id in completed_exercise_ids %}
                                                     <span class="icon has-text-success" title="Completed">
                                                         <i class="fas fa-check-circle"></i>
@@ -116,7 +115,6 @@
                                     </div>
                                 </div>
                             </a>
-                            {% endif %}
                             {% empty %}
                             <p>This module does not have any exercises yet.</p>
                             {% endfor %}
