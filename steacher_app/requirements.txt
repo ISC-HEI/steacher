@@ -16,3 +16,5 @@ requests
 pydantic
 newrelic
 markdown2
+whitenoise
+brotli
