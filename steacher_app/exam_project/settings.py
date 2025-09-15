@@ -144,40 +144,16 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-STATIC_URL = '/static/'
+STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Add the node_modules directory to the static files search path only in DEBUG
+# Add the node_modules directory to the static files search path
 STATICFILES_DIRS = [
     BASE_DIR / "static",
+    BASE_DIR / "node_modules",
 ]
-if DEBUG:
-    STATICFILES_DIRS.append(BASE_DIR / "node_modules")
-
-# Use ManifestStaticFilesStorage in production for caching (via STORAGES)
-if not DEBUG:
-    STORAGES = {
-        'default': {
-            'BACKEND': 'django.core.files.storage.FileSystemStorage',
-        },
-        'staticfiles': {
-            'BACKEND': 'django.contrib.staticfiles.storage.ManifestStaticFilesStorage',
-            'OPTIONS': {
-                'manifest_strict': False,  # tolerate missing entries (e.g. .map files)
-            },
-        },
-    }
-else:
-    STORAGES = {
-        'default': {
-            'BACKEND': 'django.core.files.storage.FileSystemStorage',
-        },
-        'staticfiles': {
-            'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
-        },
-    }
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

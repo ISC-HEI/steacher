@@ -74,8 +74,6 @@ document.addEventListener('DOMContentLoaded', function() {
         data(): PythonDataContext {
             const datasetEl = appElement as HTMLElement;
             const staticPrefix = datasetEl?.getAttribute('data-static-prefix') || '/static/';
-            const workerUrlAttr = datasetEl?.getAttribute('data-worker-url') || '';
-            const pyodideModuleUrlAttr = datasetEl?.getAttribute('data-pyodide-module-url') || '';
             const timeoutAttr = datasetEl?.getAttribute('data-execution-timeout');
             const executionTimeoutMs = timeoutAttr ? parseInt(timeoutAttr, 10) : 8000;
             return {
@@ -89,7 +87,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 pendingResolvers: {},
                 executionTimeoutMs,
                 staticPrefix,
-                start_timestamp: new Date().toISOString(),
+                start_timestamp: new Date().toISOString()
             }
         },
         
@@ -127,10 +125,8 @@ document.addEventListener('DOMContentLoaded', function() {
             async startWorker() {
                 try {
                     this.loadingState = 'pyodide-loading';
-                    // Prefer template-provided hashed URL when available
-                    const datasetEl = document.getElementById('python-exercise-app') as HTMLElement | null;
-                    const datasetWorkerUrl = datasetEl?.getAttribute('data-worker-url');
-                    const workerUrl = datasetWorkerUrl || `${this.staticPrefix}js/dist/python_worker.js`;
+                    // Create a module worker from the built JS path under static
+                    const workerUrl = `${this.staticPrefix}js/dist/python_worker.js`;
                     const w = new Worker(workerUrl, { type: 'module' });
                     this.worker = w;
 
@@ -159,9 +155,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     };
 
                     // Initialize pyodide inside the worker using local static files
-                    const datasetEl2 = document.getElementById('python-exercise-app') as HTMLElement | null;
-                    const datasetPyodideUrl = datasetEl2?.getAttribute('data-pyodide-module-url');
-                    const pyodideModuleUrl = datasetPyodideUrl || `${this.staticPrefix}pyodide/pyodide.mjs`;
+                    const pyodideModuleUrl = `${this.staticPrefix}pyodide/pyodide.mjs`;
                     // indexURL will be computed by the worker if not provided
                     w.postMessage({ type: 'init', pyodideModuleUrl });
                 } catch (error) {

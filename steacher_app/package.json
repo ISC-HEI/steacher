@@ -13,30 +13,30 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@codemirror/commands": "^6.8.1",
-    "@codemirror/lang-python": "^6.2.1",
-    "@codemirror/lang-sql": "^6.9.1",
+    "@codemirror/commands": "^6.3.0",
+    "@codemirror/lang-python": "^6.1.2",
+    "@codemirror/lang-sql": "^6.9.0",
     "@codemirror/legacy-modes": "6.5.1",
     "@codemirror/state": "^6.5.2",
-    "@codemirror/view": "^6.38.2",
-    "@electric-sql/pglite": "^0.3.8",
-    "@fortawesome/fontawesome-free": "^7.0.1",
+    "@codemirror/view": "^6.38.0",
+    "@electric-sql/pglite": "0.3.4",
+    "@fortawesome/fontawesome-free": "^6.7.2",
     "@types/dompurify": "^3.2.0",
     "@types/marked": "^6.0.0",
     "bulma": "^1.0.4",
     "canvas-confetti": "^1.9.3",
     "codemirror": "^6.0.2",
     "dompurify": "^3.2.6",
-    "marked": "^16.3.0",
-    "prismjs": "^1.30.0",
-    "pyodide": "^0.28.2",
-    "vue": "^3.5.21"
+    "marked": "^16.0.0",
+    "pyodide": "^0.28.0",
+    "vue": "^3.4.27",
+    "prismjs": "^1.29.0"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^28.0.6",
     "@rollup/plugin-node-resolve": "^16.0.1",
     "@types/canvas-confetti": "^1.9.0",
-    "rollup": "^4.50.2",
-    "typescript": "^5.9.2"
+    "rollup": "^4.44.2",
+    "typescript": "^5.4.5"
   }
 }

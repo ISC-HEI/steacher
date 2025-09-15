@@ -1,4 +1,4 @@
-# Redeploy on prod
+
 
 ```bash
 ssh into vm
@@ -6,23 +6,16 @@ ssh into vm
 # backup
 docker compose exec -T db pg_dump -U steacher_admin steacher_prod > ~/dev/manual_backup_db/db_$(date +%F).sql
 
-# 1) Get latest code
 git pull
 
-# 2) Build the web image (so collectstatic runs against the new code)
-docker compose build web
+# rebuild/recreate only the app
+docker compose  up -d --build --no-deps web
 
-# 3) Collect static into STATIC_ROOT and write manifest
- docker compose run --rm --no-deps --entrypoint "" web python manage.py collectstatic --noinput --clear --ignore "*.map"
-
-# 4) Recreate/start the app with the new image
-docker compose up -d --no-deps web
-
-# 5) Apply DB migrations if models changed
+# migrate when models changed
 docker compose exec web python manage.py migrate
 
-# maybe?
-docker compose restart web proxy
+# update static assets
+docker compose exec web python manage.py collectstatic --noinput
 
 
 # Only restart other services when they change:
@@ -40,8 +33,6 @@ docker compose ps
 docker compose logs -n 100 web | cat
 docker compose logs -n 100 proxy | cat
 ```
-
-
 ------
 
 
