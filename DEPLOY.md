@@ -6,16 +6,23 @@ ssh into vm
 # backup
 docker compose exec -T db pg_dump -U steacher_admin steacher_prod > ~/dev/manual_backup_db/db_$(date +%F).sql
 
+# 1) Get latest code
 git pull
 
-# rebuild/recreate only the app
-docker compose  up -d --build --no-deps web
+# 2) Build the web image (so collectstatic runs against the new code)
+docker compose build web
 
-# migrate when models changed
+# 3) Collect static into STATIC_ROOT and write manifest
+ docker compose run --rm --no-deps --entrypoint "" web python manage.py collectstatic --noinput --clear --ignore "*.map"
+
+# 4) Recreate/start the app with the new image
+docker compose up -d --no-deps web
+
+# 5) Apply DB migrations if models changed
 docker compose exec web python manage.py migrate
 
-# update static assets
-docker compose exec web python manage.py collectstatic --noinput
+# maybe?
+docker compose restart web proxy
 
 
 # Only restart other services when they change:

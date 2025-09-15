@@ -164,6 +164,9 @@ if not DEBUG:
         },
         'staticfiles': {
             'BACKEND': 'django.contrib.staticfiles.storage.ManifestStaticFilesStorage',
+            'OPTIONS': {
+                'manifest_strict': False,  # tolerate missing entries (e.g. .map files)
+            },
         },
     }
 else:
