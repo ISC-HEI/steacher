@@ -17,23 +17,23 @@
     <meta name="csrf-token" content="{{ csrf_token }}">
     
     <!-- Bulma CSS from node_modules -->
-    <link rel="stylesheet" href="{% static 'bulma/css/bulma.min.css' %}">
+    <link rel="stylesheet" href="{% static 'vendor/bulma/css/bulma.min.css' %}">
     
     <!-- Font Awesome from node_modules -->
-    <link rel="stylesheet" href="{% static '@fortawesome/fontawesome-free/css/all.min.css' %}">
+    <link rel="stylesheet" href="{% static 'vendor/@fortawesome/fontawesome-free/css/all.min.css' %}">
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 
     <!-- Prism.js for syntax highlighting (Python, Scala, SQL) served locally -->
-    <link rel="stylesheet" href="{% static 'prismjs/themes/prism.min.css' %}">
-    <script defer src="{% static 'prismjs/prism.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'vendor/prismjs/themes/prism.min.css' %}">
+    <script defer src="{% static 'vendor/prismjs/prism.js' %}"></script>
     <!-- Prism language components (order matters for dependencies) -->
-    <script defer src="{% static 'prismjs/components/prism-clike.min.js' %}"></script>
-    <script defer src="{% static 'prismjs/components/prism-java.min.js' %}"></script>
-    <script defer src="{% static 'prismjs/components/prism-scala.min.js' %}"></script>
-    <script defer src="{% static 'prismjs/components/prism-python.min.js' %}"></script>
-    <script defer src="{% static 'prismjs/components/prism-sql.min.js' %}"></script>
+    <script defer src="{% static 'vendor/prismjs/components/prism-clike.min.js' %}"></script>
+    <script defer src="{% static 'vendor/prismjs/components/prism-java.min.js' %}"></script>
+    <script defer src="{% static 'vendor/prismjs/components/prism-scala.min.js' %}"></script>
+    <script defer src="{% static 'vendor/prismjs/components/prism-python.min.js' %}"></script>
+    <script defer src="{% static 'vendor/prismjs/components/prism-sql.min.js' %}"></script>
     <script>
     window.addEventListener('load', function() {
         if (window.Prism && typeof window.Prism.highlightAll === 'function') {

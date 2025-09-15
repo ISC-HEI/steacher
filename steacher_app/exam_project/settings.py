@@ -55,7 +55,6 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -157,14 +156,14 @@ STATICFILES_DIRS = [
 if DEBUG:
     STATICFILES_DIRS.append(BASE_DIR / "node_modules")
 
-# Use WhiteNoise's CompressedManifestStaticFilesStorage in production for caching (via STORAGES)
+# Use ManifestStaticFilesStorage in production for caching (via STORAGES)
 if not DEBUG:
     STORAGES = {
         'default': {
             'BACKEND': 'django.core.files.storage.FileSystemStorage',
         },
         'staticfiles': {
-            'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+            'BACKEND': 'django.contrib.staticfiles.storage.ManifestStaticFilesStorage',
         },
     }
 else:
@@ -177,11 +176,9 @@ else:
         },
     }
 
-# WhiteNoise caching for non-hashed files (seconds)
-WHITENOISE_MAX_AGE = int(os.getenv('WHITENOISE_MAX_AGE', '60')) if not DEBUG else 0
-
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS

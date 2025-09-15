@@ -8,7 +8,7 @@
      v-cloak
      data-static-prefix="{% get_static_prefix %}"
      data-worker-url="{% static 'js/dist/python_worker.js' %}"
-     data-pyodide-module-url="{% static 'pyodide/pyodide.mjs' %}"
+     data-pyodide-module-url="{% static 'vendor/pyodide/pyodide.mjs' %}"
      data-execution-timeout="8000">
     {% csrf_token %}
     <div class="exercise-container">
@@ -81,12 +81,12 @@
 <script type="importmap">
 {
   "imports": {
-    "vue": "{% static 'vue/dist/vue.esm-browser.js' %}",
-    "pyodide": "{% static 'pyodide/pyodide.mjs' %}",
-    "canvas-confetti": "{% static 'canvas-confetti/dist/confetti.module.mjs' %}",
+    "vue": "{% static 'vendor/vue/dist/vue.esm-browser.js' %}",
+    "pyodide": "{% static 'vendor/pyodide/pyodide.mjs' %}",
+    "canvas-confetti": "{% static 'vendor/canvas-confetti/dist/confetti.module.mjs' %}",
     "./ChatbotPanel.js": "{% static 'js/dist/ChatbotPanel.js' %}",
-    "marked": "{% static 'marked/lib/marked.esm.js' %}",
-    "dompurify": "{% static 'dompurify/dist/purify.es.mjs' %}",
+    "marked": "{% static 'vendor/marked/lib/marked.esm.js' %}",
+    "dompurify": "{% static 'vendor/dompurify/dist/purify.es.mjs' %}",
     "./CodeMirrorEditor.js": "{% static 'js/dist/CodeMirrorEditor.js' %}",
     "codemirror-bundle": "{% static 'js/dist/codemirror-bundle.js' %}"
   }
