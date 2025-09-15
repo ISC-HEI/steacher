@@ -398,45 +398,50 @@ def exercise_detail(request, pk):
     attempt_id = None
     interactions = []
     attempt = None
-    completion_feedback = None
-    if request.user.is_authenticated:
-        attempt, _ = Attempt.objects.get_or_create(user=request.user, exercise=exercise)
-        # Ensure attempt is linked to the student's active cohort for this course TODO refactor
-        try:
-            if getattr(attempt, 'cohort_id', None) is None:
-                active_membership = (
-                    CohortMembership.objects
-                    .filter(user=request.user, status='active', cohort__course=exercise.module.course)
-                    .select_related('cohort')
-                    .order_by('-joined_at')
-                    .first()
-                )
-                if active_membership is not None:
-                    attempt.cohort = active_membership.cohort
-                    attempt.save(update_fields=['cohort', 'updated_at'])
-        except Exception:
-            # Non-fatal: if we cannot resolve cohort, we still proceed
-            pass
-        attempt_id = attempt.id
-        if attempt.completion_feedback:
-            completion_feedback = attempt.completion_feedback
-        # Map traces to shape expected by frontend
-        traces = attempt.traces.filter(channel='exercise_guidance').order_by('rank_order', 'id')
-        interactions = []
-        for tr in traces:
-            interactions.append({
-                'user_submission': {
-                    'role': 'user',
-                    'content': tr.user_content or '',
-                    'metadata': tr.user_metadata or {},
-                },
-                'llm_response': {
-                    'role': 'assistant',
-                    'content': tr.assistant_content or '',
-                    'trace_id': tr.id,
-                    'metadata': tr.assistant_metadata or {},
-                },
-            })
+    
+    attempt, _ = Attempt.objects.get_or_create(user=request.user, exercise=exercise)
+    # Ensure attempt is linked to the student's active cohort for this course TODO refactor
+    try:
+        if getattr(attempt, 'cohort_id', None) is None:
+            active_membership = (
+                CohortMembership.objects
+                .filter(user=request.user, status='active', cohort__course=exercise.module.course)
+                .select_related('cohort')
+                .order_by('-joined_at')
+                .first()
+            )
+            if active_membership is not None:
+                attempt.cohort = active_membership.cohort
+                attempt.save(update_fields=['cohort', 'updated_at'])
+    except Exception:
+        # Non-fatal: if we cannot resolve cohort, we still proceed
+        pass
+    attempt_id = attempt.id
+    # Map traces to shape expected by frontend
+    traces = attempt.traces.filter(channel='exercise_guidance').order_by('rank_order', 'id')
+    interactions = []
+    for tr in traces:
+        interactions.append({
+            'user_submission': {
+                'role': 'user',
+                'content': tr.user_content or '',
+                'metadata': tr.user_metadata or {},
+            },
+            'llm_response': {
+                'role': 'assistant',
+                'content': tr.assistant_content or '',
+                'trace_id': tr.id,
+                'metadata': tr.assistant_metadata or {},
+            },
+        })
+
+    # Try to find an existing learning pathway recommendation. Last one wins.
+    completion_feedback_data = attempt.traces.filter(channel='learning_pathway').order_by('-rank_order', 'id').first()
+    if completion_feedback_data:
+        completion_feedback = completion_feedback_data.assistant_metadata.get('learning_pathway', None)
+    else:
+        completion_feedback = None
+
 
     # Determine neighbors within the same module by order
     previous_exercise = (
@@ -848,53 +853,14 @@ def recommend_learning_pathway(request, attempt_id):
         # Re-fetch interactions from the DB to ensure we have the canonical, untampered history
         # as the single source of truth, rather than trusting client-side state.
         traces = attempt.traces.filter(channel='exercise_guidance').order_by('rank_order', 'id')
-        interactions = [
-            {
-                'user_submission': {
-                    'role': 'user',
-                    'content': tr.user_content or '',
-                    'metadata': tr.user_metadata or {},
-                },
-                'llm_response': {
-                    'role': 'assistant',
-                    'content': tr.assistant_content or '',
-                    'metadata': tr.assistant_metadata or {},
-                },
-            }
-            for tr in traces
-        ]
 
         # Call the core logic function to get the recommendation from the LLM
-        recommendation_data, prompt = generate_learning_pathway_recommendation(
-            attempt=attempt,
-            interactions=interactions
-        )
+        recommendation_data = generate_learning_pathway_recommendation(attempt, traces)
 
         if "error" in recommendation_data:
-            return JsonResponse({'status': 'error', 'message': recommendation_data.get('details', 'Failed to get recommendation.')}, status=500)
-
-        # Persist the recommendation as a Trace in the learning_pathway channel (and keep existing field for now)
-        try:
-            # Determine if this is the first pathway trace; if so, store a minimal system prompt marker
-            has_any_pathway = attempt.traces.filter(channel='learning_pathway').exists()
-            lp_fields = {
-                'user_content': 'request_learning_pathway',
-                'assistant_content': 'learning_pathway_recommendation',
-                'assistant_metadata': {
-                    'learning_pathway': recommendation_data,
-                },
-            }
-            if not has_any_pathway:
-                lp_fields['system_prompt'] = prompt
-            create_trace_for(attempt, request.user, channel='learning_pathway', **lp_fields)
-        except Exception:
-            pass
-
-        # Also persist the recommendation in the attempt for backward compatibility
-        attempt.completion_feedback = recommendation_data
-        attempt.save(update_fields=['completion_feedback'])
-
-        return JsonResponse({'status': 'success', 'data': recommendation_data})
+            return JsonResponse({'status': 'error', 'message': recommendation_data.get('error', 'Failed to get recommendation.')}, status=500)
+        else:
+            return JsonResponse({'status': 'success', 'data': recommendation_data})
 
     except Attempt.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'Attempt not found.'}, status=404)

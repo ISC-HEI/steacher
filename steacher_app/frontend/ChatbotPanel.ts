@@ -122,19 +122,21 @@ export const ChatbotPanel = defineComponent({
               <p class="is-size-7 has-text-weight-semibold">{{ pathwayData.main_recommendation.why_you_should_do_it }}</p>
               <a :href="getExerciseUrl(pathwayData.main_recommendation.exercise_id)" class="button is-primary is-fullwidth mt-2">Start This Exercise</a>
           </div>
-          <hr>
           <!-- Alternatives -->
-          <div class="alternatives-section">
-              <h3 class="title is-5">Other exercises to explore</h3>
-              <div class="alternative-recommendations mt-3">
-                  <div v-for="alt in pathwayData.alternatives" :key="alt.exercise_id" class="recommendation-card">
-                      <p><strong><a :href="getExerciseUrl(alt.exercise_id)">{{ alt.title }}</a></strong></p>
-                      <p class="is-size-7"><em>{{ alt.what_it_is_about }}</em></p>
-                      <p class="is-size-7 has-text-weight-semibold">{{ alt.why_you_should_do_it }}</p>
-                      <a :href="getExerciseUrl(alt.exercise_id)" class="button is-success is-light is-fullwidth is-small mt-2">Try this one</a>
-                  </div>
-              </div>
-          </div>
+          <template v-if="pathwayData.alternatives.length > 0">
+            <hr>
+            <div class="alternatives-section">
+                <h3 class="title is-5">Other exercises to explore</h3>
+                <div class="alternative-recommendations mt-3">
+                    <div v-for="alt in pathwayData.alternatives" :key="alt.exercise_id" class="recommendation-card">
+                        <p><strong><a :href="getExerciseUrl(alt.exercise_id)">{{ alt.title }}</a></strong></p>
+                        <p class="is-size-7"><em>{{ alt.what_it_is_about }}</em></p>
+                        <p class="is-size-7 has-text-weight-semibold">{{ alt.why_you_should_do_it }}</p>
+                        <a :href="getExerciseUrl(alt.exercise_id)" class="button is-success is-light is-fullwidth is-small mt-2">Try this one</a>
+                    </div>
+                </div>
+            </div>
+          </template>
         </div>
 
         <!-- Typing indicator (while waiting for AI) - scrolls with content -->

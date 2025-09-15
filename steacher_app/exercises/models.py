@@ -353,7 +353,6 @@ class Attempt(models.Model):
     version = models.IntegerField(default=1, help_text="Version of the attempt, can be used to track changes in the attempt logic or prompt or eval version.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    completion_feedback = models.JSONField(null=True, blank=True, help_text="The structured feedback and next exercise recommendations from the LLM upon completing an exercise.")
     # Reverse link to all Trace rows that reference this Attempt as owner
     traces = GenericRelation('Trace', related_query_name='attempt_owner')
 
@@ -618,3 +617,18 @@ class ChatThread(models.Model):
 
     def __str__(self):
         return f"ChatThread {self.id} by {self.owner} - {self.title}"
+
+
+def localized_name(obj, field_name: str, user, lang: str=None) -> str:
+    """
+    Return the localized name of the given object's i18n field for the given user.
+    If lang is provided, use it instead of the user's preferred language.
+    """
+    if not isinstance(obj, models.Model):
+        return ''
+    try:
+        return getattr(obj, field_name).get(lang or getattr(user, 'preferred_language', 'en'), getattr(obj, field_name).get('en', ''))
+    except Exception:
+        if isinstance(getattr(obj, field_name), dict):
+            return getattr(obj, field_name).get('en', '')
+        return ''

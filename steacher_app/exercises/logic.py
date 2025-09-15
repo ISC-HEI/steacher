@@ -1,13 +1,18 @@
 import json
 import openai
+from google import genai
 import time
 from django.conf import settings
-from .models import Trace, Exercise, Attempt, Course, create_trace_for
+from .models import Trace, Exercise, Attempt, Course, create_trace_for, localized_name
 from django.contrib.contenttypes.models import ContentType
 from .schemas import ExerciseData, AnswerData, get_pydantic_schema_as_string
 import logging
 
+# TODO: remove the openai client once all calls are migrated to the google client
 client = openai.OpenAI(api_key=settings.GEMINI_API_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
+
+gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+
 logger = logging.getLogger(__name__)
 MODEL_FAST = "gemini-2.5-flash"
 MODEL_PRO = "gemini-2.5-pro"
@@ -577,7 +582,7 @@ def generate_i18n_translations(*, source_lang: str, targets: list, fields: dict,
     return translations
 
 
-def generate_learning_pathway_recommendation(*, attempt: Attempt, interactions: list) -> (dict, str):
+def generate_learning_pathway_recommendation(attempt: Attempt, traces: list) -> (dict, str):
     """
     Analyzes a student's completed attempt and generates personalized feedback
     and recommendations for the next exercise.
@@ -586,13 +591,27 @@ def generate_learning_pathway_recommendation(*, attempt: Attempt, interactions: 
     - the recommendation data, as a dict.
     - the system prompt + user prompt, as a string. This is used to store the prompt in the trace.
     """
+
+    # format user interactions
+    user_interactions = ""
+    for tr in traces:
+        user_interactions += f"""
+        **User:** 
+        {tr.user_content.strip() or ''}
+
+        **Assistant:** 
+        {tr.assistant_content.strip() or ''}
+
+        """
+
+
     # 1. System Prompt Construction
     preferred_language_code = attempt.user.preferred_language or 'en'
     system_prompt = f"""You are an expert pedagogical advisor in a learning platform. Your task is to provide encouraging, personalized feedback to a student who has just completed an exercise. Based on their conversation with the AI tutor, you will also recommend the best next exercise for them to tackle from a provided list.
 
 **Your analysis should be based on the following:**
 - The full conversation history between the student and the AI tutor for the just-completed exercise. Look for signs of struggle (e.g., frequent requests for hints, repeated errors, expressions of confusion) or signs of mastery (e.g., quick correct answers, clear explanations, few interactions).
-- A list of exercises in the course, including their completion status and any feedback from previous pathway recommendations.
+- A list of exercises in the course before and after the just-completed exercise, including their completion status.
 
 **Output Format:**
 Your response MUST be a single JSON object with the following structure. Do not include any markdown formatting or explanatory text outside of the JSON structure.
@@ -601,7 +620,7 @@ Your response MUST be a single JSON object with the following structure. Do not 
 {{
   "performance_feedback": {{
     "what_went_well": "A concise, encouraging sentence (max 25 words) highlighting a specific strength the student demonstrated. Example: 'You did a great job using the `GROUP BY` clause to aggregate the data correctly!'",
-    "key_learnings": "A concise, encouraging sentence (max 25 words) summarizing the main skill or concept learned in this exercise. Example: 'This exercise was a great step in mastering how to join multiple tables.' "
+    "key_learnings": "A concise sentence (max 25 words) summarizing the main skill or concept learned in this exercise. Example: 'In this exercise, you learned how to join multiple tables.' "
   }},
   "main_recommendation": {{
     "exercise_id": "...",
@@ -636,7 +655,7 @@ Your response MUST be a single JSON object with the following structure. Do not 
 ```
 
 ** Output Language:**
-Your response MUST be in {preferred_language_code}.
+Your response MUST be in the student's preferred language: {preferred_language_code}.
 
 **Instructions for Selecting Exercises:**
 1. From the provided list of `course_exercises`, select one `main_recommendation`. This should typically be the next uncompleted logical exercise in the sequence, unless the student showed significant struggle or mastery.
@@ -654,83 +673,100 @@ Your response MUST be in {preferred_language_code}.
     current_exercise = attempt.exercise
     course = current_exercise.module.course
     
-    # Fetch the last 20 exercises in the course to provide context
+    # Fetch all visible exercises in the course to provide context
     # This includes exercises before and after the current one
     all_course_exercises = Exercise.objects.filter(
-        module__course=course
+        module__course=course,
+        module__visible=True,
+        visible=True,
     ).select_related('module').order_by('module__order', 'order')
-
+    # Find the index of the current exercise
     current_exercise_index = -1
     for i, ex in enumerate(all_course_exercises):
         if ex.id == current_exercise.id:
             current_exercise_index = i
             break
 
-    start_index = max(0, current_exercise_index - 10)
-    end_index = current_exercise_index + 11  # +1 for current, +10 for after
-    context_exercises = all_course_exercises[start_index:end_index]
-
     # Get all student attempts for these exercises to determine status
     student_attempts = Attempt.objects.filter(
         user=attempt.user,
-        exercise__in=context_exercises
+        exercise__in=all_course_exercises
     ).order_by('-updated_at')
-
     attempts_map = {}
     for sa in student_attempts:
         if sa.exercise_id not in attempts_map:
             attempts_map[sa.exercise_id] = sa
 
-    exercise_context_for_llm = []
-    for ex in context_exercises:
-        attempt_for_ex = attempts_map.get(ex.id)
-        ## LATER: add previous pathway feedback        
+    # 1. Add the previous 7 uncompleted exercises
+    previous_exercises = []
+    uncompleted_count = 0
+    for i in range(current_exercise_index - 1, -1, -1):
+        if uncompleted_count >= 7:
+            break
+        ex = all_course_exercises[i]
+        attempt_for_ex : Attempt = attempts_map.get(ex.id)
+        is_complete = attempt_for_ex and attempt_for_ex.complete
+        if not is_complete:
+            previous_exercises.append({
+                'exercise_id': ex.id,
+                'title': localized_name(ex, 'title_i18n', attempt.user),
+                'description': localized_name(ex, 'description_i18n', attempt.user),
+                'question': localized_name(ex, 'question_i18n', attempt.user),
+                'topic': ex.module.name,
+                'sequence_number': i + 1,
+                'status': 'attempted' if attempt_for_ex else 'not_attempted',
+            })
+            uncompleted_count += 1
+    previous_exercises.reverse() # reverse to make them in the correct order
+    logger.info(f"previous_exercises: {previous_exercises}")
 
-        exercise_context_for_llm.append({
-            'exercise_id': ex.id,
-            'title': ex.title,
-            'description': ex.description,
-            'question': ex.question_i18n.get(getattr(attempt.user, 'preferred_language', 'en'), ex.question_i18n.get('en', '')),
-            'status': 'completed' if attempt_for_ex and attempt_for_ex.complete else ('attempted' if attempt_for_ex else 'not_attempted'),
-        })
+    # 2. Find and add the next 7 uncompleted exercises
+    next_exercises = []
+    uncompleted_count = 0
+    start_search_index = max(0, current_exercise_index + 1)
+    for i in range(start_search_index, len(all_course_exercises)):
+        if uncompleted_count >= 7:
+            break
+        
+        ex : Exercise = all_course_exercises[i]
+        attempt_for_ex = attempts_map.get(ex.id)
+        is_complete = attempt_for_ex and attempt_for_ex.complete
+
+        if not is_complete:
+            next_exercises.append({
+                'exercise_id': ex.id,
+                'title': localized_name(ex, 'title_i18n', attempt.user),
+                'description': localized_name(ex, 'description_i18n', attempt.user),
+                'question': localized_name(ex, 'question_i18n', attempt.user),
+                'topic': ex.module.name,
+                'sequence_number': i + 1,
+                'status': 'attempted' if attempt_for_ex else 'not_attempted',
+            })
+            uncompleted_count += 1
+
 
      # 3. Construct user prompt  #########################################################
 
      # Construct exercise context
 
-    # Localize current exercise question
-    q_map_current = getattr(current_exercise, 'question_i18n', {}) or {}
-    if isinstance(q_map_current, dict):
-        current_question_text = q_map_current.get('en') or next(iter(q_map_current.values()), '')
-    else:
-        current_question_text = ''
-
+   
     user_prompt = f"""
 ## Exercise Context
 Here is the exercise that the student just completed:
 
 **Title:** 
-{current_exercise.title}
+{localized_name(current_exercise, 'title_i18n', attempt.user)}
 
 **Description:** 
-{current_exercise.description}
+{localized_name(current_exercise, 'description_i18n', attempt.user)}
 
 **Question:** 
-{current_question_text}
+{localized_name(current_exercise, 'question_i18n', attempt.user)}
+
+** Theme:**
+{current_exercise.module.name}
 
 """
-
-    # format user interactions
-    user_interactions = ""
-    for interaction in interactions:
-        user_interactions += f"""
-        **User:** 
-        {interaction['user_submission']['content']}
-
-        **Assistant:** 
-        {interaction['llm_response']['content']}
-
-        """
 
     user_prompt += f"""
 ## Student's Performance Context
@@ -739,35 +775,61 @@ Here is the full conversation history for the exercise that the student just com
 {user_interactions}
 
 ## Course Exercises Context
-Here is the list of available exercises in the course for you to choose from for your recommendations.
+
+Here is the list of the previous uncompleted exercises in the course:
 
 ```json
-{json.dumps(exercise_context_for_llm, indent=2)}
+{json.dumps(previous_exercises, indent=2)}
+```
+
+Here is the list of the next uncompleted exercises in the course:
+
+```json
+{json.dumps(next_exercises, indent=2)}
 ```
 
 Based on all this context, please generate your response in the required JSON format.
 """
 
     # 4. Call LLM  #########################################################
-    messages_for_llm = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt}
-    ]
-
     try:
-        completion = client.chat.completions.create(
-            model=MODEL_FAST,  # Use the light model for speed
-            messages=messages_for_llm,
-            temperature=0.3,
-            response_format={"type": "json_object"},
+        start_time = time.time()
+        response = gemini_client.models.generate_content(
+            model=MODEL_FAST,
+            config=genai.types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+                temperature=0.3,
+                thinking_config=genai.types.ThinkingConfig(thinking_budget=512),
+            ),
+            contents=user_prompt
         )
-        content = (completion.choices[0].message.content or '').strip()
+        time_taken = time.time() - start_time
         
-        # Basic cleanup if the model wraps the response in markdown
-        content = _strip_markdown_fences(content)
+        response_data = json.loads(response.text)
+        logger.info(f"learning pathway recommendation, response={response}")
 
-        response_data = json.loads(content)
-        return response_data, system_prompt + "\n\n-------\n\n" + user_prompt
+        # Persist the recommendation as a Trace in the learning_pathway channel (and keep existing field for now)
+        lp_fields = {
+            'system_prompt': system_prompt,
+            'user_content': user_prompt,
+            'assistant_content': '',
+            'assistant_metadata': {
+                'learning_pathway': response_data,
+                'usage_data': {
+                    'prompt_tokens': response.usage_metadata.prompt_token_count,
+                    'candidates_token_count': response.usage_metadata.candidates_token_count,
+                    'total_token_count': response.usage_metadata.total_token_count,
+                    'cached_content_token_count': response.usage_metadata.cached_content_token_count,
+                },
+                'model': response.model_version,
+                'finish_reason': response.candidates[0].finish_reason.name if response.candidates else 'UNKNOWN',
+                'time_taken': time_taken,
+            },
+        }
+        create_trace_for(attempt, attempt.user, channel='learning_pathway', **lp_fields)
+
+        return response_data
 
     except Exception as e:
         logger.error(f"Failed to generate learning pathway recommendation for attempt {attempt.id}: {e}")
