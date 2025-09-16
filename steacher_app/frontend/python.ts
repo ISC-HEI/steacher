@@ -127,37 +127,104 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.loadingState = 'pyodide-loading';
                     // Create a module worker from the built JS path under static
                     const workerUrl = `${this.staticPrefix}js/dist/python_worker.js`;
-                    const w = new Worker(workerUrl, { type: 'module' });
-                    this.worker = w;
-
-                    w.onmessage = (evt: MessageEvent) => {
-                        const msg = evt.data as any;
-                        if (!msg || !msg.type) return;
-                        if (msg.type === 'ready') {
-                            this.workerReady = true;
-                            this.loadingState = 'idle';
-                            return;
-                        }
-                        if (msg.type === 'init-error') {
-                            this.executionError = 'Failed to initialize Python interpreter: ' + String(msg.error);
-                            this.loadingState = 'idle';
-                            return;
-                        }
-                        if (msg.type === 'result') {
-                            const { runId } = msg;
-                            const resolver = this.pendingResolvers[runId];
-                            if (resolver) {
-                                resolver(msg);
-                                delete this.pendingResolvers[runId];
+                    // Helper to wire message handling
+                    const attachWorkerHandlers = (w: Worker) => {
+                        w.onmessage = (evt: MessageEvent) => {
+                            const msg = evt.data as any;
+                            if (!msg || !msg.type) return;
+                            if (msg.type === 'ready') {
+                                this.workerReady = true;
+                                this.loadingState = 'idle';
+                                return;
                             }
-                            return;
-                        }
+                            if (msg.type === 'init-error') {
+                                this.executionError = 'Failed to initialize Python interpreter: ' + String(msg.error);
+                                this.loadingState = 'idle';
+                                return;
+                            }
+                            if (msg.type === 'result') {
+                                const { runId } = msg;
+                                const resolver = this.pendingResolvers[runId];
+                                if (resolver) {
+                                    resolver(msg);
+                                    delete this.pendingResolvers[runId];
+                                }
+                                return;
+                            }
+                        };
                     };
 
-                    // Initialize pyodide inside the worker using local static files
-                    const pyodideModuleUrl = `${this.staticPrefix}pyodide/pyodide.mjs`;
-                    // indexURL will be computed by the worker if not provided
-                    w.postMessage({ type: 'init', pyodideModuleUrl });
+                    const tryInit = (w: Worker, moduleUrl: string, indexURL?: string, timeoutMs = 7000) => {
+                        return new Promise<void>((resolve, reject) => {
+                            let done = false;
+                            const handle = (evt: MessageEvent) => {
+                                const msg = evt.data as any;
+                                if (!msg || !msg.type) return;
+                                if (msg.type === 'ready') {
+                                    if (done) return;
+                                    done = true;
+                                    w.removeEventListener('message', handle as any);
+                                    resolve();
+                                } else if (msg.type === 'init-error') {
+                                    if (done) return;
+                                    done = true;
+                                    w.removeEventListener('message', handle as any);
+                                    reject(new Error(String(msg.error)));
+                                }
+                            };
+                            w.addEventListener('message', handle as any);
+                            const to = setTimeout(() => {
+                                if (done) return;
+                                done = true;
+                                w.removeEventListener('message', handle as any);
+                                reject(new Error('Pyodide init timeout'));
+                            }, timeoutMs);
+                            // Kick off init
+                            // indexURL helps Pyodide fetch its .wasm and stdlib from the same base
+                            // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+                            (w as any).postMessage(indexURL ? { type: 'init', pyodideModuleUrl: moduleUrl, indexURL } : { type: 'init', pyodideModuleUrl: moduleUrl });
+                            // Clean up timer on settle
+                            const settle = (res: unknown) => {
+                                clearTimeout(to);
+                                return res;
+                            };
+                            (async () => {
+                                try {
+                                    await new Promise((_r) => {});
+                                } finally {
+                                    settle(undefined);
+                                }
+                            })();
+                        });
+                    };
+
+                    // CDN first, then fallback to local static assets
+                    const cdnVersion = 'v0.28.0';
+                    const cdnBase = `https://cdn.jsdelivr.net/pyodide/${cdnVersion}/full`;
+                    const cdnModule = `${cdnBase}/pyodide.mjs`;
+                    const localModule = `${this.staticPrefix}pyodide/pyodide.mjs`;
+
+                    // First attempt: CDN
+                    let w = new Worker(workerUrl, { type: 'module' });
+                    this.worker = w;
+                    attachWorkerHandlers(w);
+                    try {
+                        await tryInit(w, cdnModule, cdnBase);
+                        return;
+                    } catch (_) {
+                        try {
+                            // Tear down and try local fallback
+                            try { w.terminate(); } catch { /* noop */ }
+                            w = new Worker(workerUrl, { type: 'module' });
+                            this.worker = w;
+                            attachWorkerHandlers(w);
+                            await tryInit(w, localModule);
+                            return;
+                        } catch (err2) {
+                            this.executionError = 'Failed to initialize Python interpreter: ' + String(err2);
+                            this.loadingState = 'idle';
+                        }
+                    }
                 } catch (error) {
                     console.error('Failed to start worker:', error);
                     this.executionError = 'Failed to start Python worker: ' + String(error);
