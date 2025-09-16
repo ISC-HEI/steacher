@@ -316,7 +316,7 @@ export const ChatbotPanel = defineComponent({
                 this.fetchPathwayRecommendation();
             } else {
                 // This is the last exercise, show celebration
-                this.showCompletionModal = true;
+                // disabled for now this.showCompletionModal = true;
             }
         }
     },

@@ -16,6 +16,8 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.contrib.auth import views as auth_views
+from django.urls import reverse_lazy
 from exercises import urls as exercises_urls
 from exercises.views_students import register
 from django.shortcuts import redirect
@@ -27,6 +29,18 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/register/', register, name='register'),
+    # Override password reset confirm to redirect to home/dashboard after success
+    path(
+        'accounts/reset/<uidb64>/<token>/',
+        auth_views.PasswordResetConfirmView.as_view(success_url=reverse_lazy('dashboard_root')),
+        name='password_reset_confirm',
+    ),
+    # Override password change success to redirect to home/dashboard
+    path(
+        'accounts/password_change/',
+        auth_views.PasswordChangeView.as_view(success_url=reverse_lazy('dashboard_root')),
+        name='password_change',
+    ),
     path('accounts/', include('django.contrib.auth.urls')),
     path('exercises/', include((exercises_urls.students_urlpatterns, 'exercises'), namespace='exercises')),
     path('teachers/', include((exercises_urls.teachers_urlpatterns, 'teachers'), namespace='teachers')),

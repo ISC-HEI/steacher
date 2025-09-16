@@ -1,4 +1,5 @@
 {% extends "exercises/base.html" %}
+{% load markdown %}
 
 {% block title %}{{ course.name }}{% endblock %}
 
@@ -8,11 +9,11 @@
 
 {% block content %}
 <div class="container mt-4">
-    <div class="level">
+    <div class="level mb-1">
         <div class="level-left">
             <div>
                 <h1 class="mb-3 title is-2">{{ course.name }}</h1>
-                <p class="lead">{{ course.description }}</p>
+                
             </div>
         </div>
         {% if can_teacher_view %}
@@ -20,7 +21,12 @@
             <a class="button is-light" href="{% url 'teachers:course_detail' pk=course.pk %}">Teacher view</a>
         </div>
         {% endif %}
+        
     </div>
+    <div class="content">
+        <div class="lead is-size-5 ml-0 mr-4 mt-0 mb-6">{{ course.description | markdown }}</div>
+    </div>
+
 
 
     <div id="modules-list" class="mt-5 student-view">

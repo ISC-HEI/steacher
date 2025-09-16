@@ -176,6 +176,12 @@ class CourseAdmin(admin.ModelAdmin):
     def save_formset(self, request, form, formset, change):
         try:
             instances = formset.save(commit=False)
+            # Process deletions first so uniqueness constraints don't interfere
+            for obj in getattr(formset, 'deleted_objects', []):
+                try:
+                    obj.delete()
+                except Exception:
+                    continue
             for obj in instances:
                 if isinstance(obj, CourseMembership) and not getattr(obj, 'added_by_id', None):
                     obj.added_by = request.user
@@ -570,6 +576,12 @@ class CohortAdmin(admin.ModelAdmin):
 
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
+        # Handle deletions first
+        for obj in getattr(formset, 'deleted_objects', []):
+            try:
+                obj.delete()
+            except Exception:
+                continue
         for obj in instances:
             if isinstance(obj, CohortMembership) and not getattr(obj, 'added_by_id', None):
                 obj.added_by = request.user
