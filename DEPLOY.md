@@ -21,7 +21,7 @@ docker compose up -d --no-deps web
 # 5) Apply DB migrations if models changed
 docker compose exec web python manage.py migrate
 
-# maybe?
+# 6) somehow needed
 docker compose restart web proxy
 
 

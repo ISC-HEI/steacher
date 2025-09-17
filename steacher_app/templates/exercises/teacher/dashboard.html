@@ -22,7 +22,7 @@
                     <li class="mb-2">
                         {% if course.id in editable_course_ids %}
                             <a href="{% url 'teachers:course_detail' course.id %}">{{ course.name }}</a>
-                        {% else %}
+                        {% else %} {% comment %} TODO: fix this {% endcomment %}
                             <a href="{% url 'exercises:course_detail' course.id %}">{{ course.name }}</a>
                         {% endif %}
                     </li>
@@ -40,7 +40,7 @@
                 <ul>
                 {% for c in cohorts %}
                     <li class="mb-2">
-                        <a href="{% url 'teachers:cohort_detail' c.id %}">{{ c.course.name }} — {{ c.name }}</a>
+                        <a href="{% url 'teachers:cohort_detail' c.id %}"><strong>{{ c.name }}</strong> // {{ c.course.name }}</a>
                     </li>
                 {% endfor %}
                 </ul>
