@@ -91,11 +91,6 @@ services:
       nproc: 512
       nofile: 4096
     stop_grace_period: 5s
-    #deploy:
-    #  resources:
-    #    limits:
-    #      cpus: '0.5'
-    #      memory: '1G'
     networks:
       # internal network prevents outbound Internet; only containers on this network can talk
       - compute
@@ -110,7 +105,8 @@ services:
       - NRIA_LOG_FILE=/var/log/newrelic-infra/newrelic-infra.log
       - NRIA_OVERRIDE_HOST_ROOT=/host
       - NRIA_LOG_LEVEL=info
-      - NRIA_DISPLAY_NAME=steacher1
+      - NRIA_DISPLAY_NAME=steacher_infra
+      - NRIA_OVERRIDE_HOSTNAME=steacher_infra
       - NRIA_CUSTOM_ATTRIBUTES={"env":"prod","service":"steacher"}
     security_opt:
       - no-new-privileges:true

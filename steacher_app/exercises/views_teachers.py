@@ -6,15 +6,12 @@ from django.views.decorators.http import require_POST
 from django.db import transaction, models
 import json
 import logging
-
 from .authz import (
     course_roles_required,
-    assert_can_view_course,
     assert_can_edit_course,
     cohort_roles_required,
 )
 from .models import Exercise, Course, Module, ExerciseAsset, Cohort, CohortMembership, Attempt, create_trace_for, CourseMembership
-from django.contrib.contenttypes.models import ContentType
 from .unit_testing import run_unit_tests
 from .logic import generate_authoring_update
 from .logic import generate_i18n_translations
@@ -23,6 +20,7 @@ from pydantic import ValidationError
 from django.contrib.auth import get_user_model
 from itertools import groupby
 from operator import attrgetter
+import newrelic.agent as nr
 
 User = get_user_model()
 
@@ -765,6 +763,10 @@ def exercise_form(request, course_pk, exercise_pk=None, module_pk=None):
 @login_required
 @require_POST
 def exercise_authoring_assistant(request):
+
+    nr.set_background_task(True)     # removes it from web Apdex
+    nr.suppress_apdex_metric()       # belt-and-suspenders
+    
     try:
         body = json.loads(request.body)
     except json.JSONDecodeError:

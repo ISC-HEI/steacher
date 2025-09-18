@@ -10,17 +10,15 @@ from django.views.decorators.http import require_POST, require_GET
 from django.db import models
 from django.db.models import Prefetch, Max
 from django.utils import timezone
-from django.core.exceptions import PermissionDenied
 from datetime import timedelta, date
 import requests
 import time
 import json
 import os
+import newrelic.agent as nr
 
 from .models import Exercise, ExerciseAsset, Course, Attempt, Module, UserInvite, ChatThread, CohortMembership, Trace, TraceEval, create_trace_for, localized_name
-from django.contrib.contenttypes.models import ContentType
-from .serializers import ExerciseFrontendSerializer
-from .authz import can_view_course, assert_can_view_exercise, assert_can_view_course, can_edit_course, can_manage_cohort_students, rate_limit
+from .authz import assert_can_view_exercise, assert_can_view_course, can_edit_course, can_manage_cohort_students, rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -464,6 +462,9 @@ def get_guidance(request, exercise_id, attempt_id):
     exercise = get_object_or_404(Exercise, pk=exercise_id)
     assert_can_view_exercise(request.user, exercise)
 
+    nr.set_background_task(True)     # removes it from web Apdex
+    nr.suppress_apdex_metric()       # belt-and-suspenders
+
     from .logic import fetch_ai_guidance  # local import to avoid circulars
     from pydantic import ValidationError
 
@@ -678,6 +679,9 @@ def chat_thread_send(request, thread_id: int):
     Append a user message, call the AI, append assistant reply, and return updated messages.
     """
     try:
+        nr.set_background_task(True)     # removes it from web Apdex
+        nr.suppress_apdex_metric()       # belt-and-suspenders
+
         thread = get_object_or_404(ChatThread, id=thread_id, owner=request.user)
         try:
             payload = json.loads(request.body or '{}')
@@ -794,6 +798,9 @@ def recommend_learning_pathway(request, attempt_id):
     Analyzes a completed attempt and returns personalized feedback and next-step recommendations.
     """
     from .logic import generate_learning_pathway_recommendation
+
+    nr.set_background_task(True)     # removes it from web Apdex
+    nr.suppress_apdex_metric()       # belt-and-suspenders
 
     try:
         attempt = get_object_or_404(Attempt, id=attempt_id, user=request.user)
