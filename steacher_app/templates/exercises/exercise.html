@@ -27,18 +27,21 @@
     </div>
     {% if can_edit %}
     <div class="level-right">
-        
+        <a class="button is-light" href="{% url 'teachers:exercise_add' course_pk=exercise.module.course.pk module_pk=exercise.module.pk %}">
+            <span class="icon"><i class="fas fa-plus"></i></span>
+            <span>New exercise</span>
+        </a>
         <form method="post" action="{% url 'teachers:duplicate_exercise' exercise_id=exercise.pk %}" style="display:inline; margin-left: 0.5rem;">
             {% csrf_token %}
             <input type="hidden" name="redirect" value="1">
             <button class="button is-light" title="Duplicate & Edit">
                 <span class="icon"><i class="fas fa-clone"></i></span>
-                <span>Duplicate & Edit</span>
+                <span>Duplicate</span>
             </button>
         </form>
         <a class="button is-light ml-4" href="{% url 'teachers:exercise_edit' course_pk=exercise.module.course.pk exercise_pk=exercise.pk %}">
             <span class="icon"><i class="fas fa-pencil-alt"></i></span>
-            <span>Edit exercise</span>
+            <span>Edit Exercise</span>
         </a>
     </div>
     {% endif %}

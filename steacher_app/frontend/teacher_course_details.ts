@@ -271,6 +271,12 @@ const TeacherCourseApp = defineComponent({
             }
         };
 
+        const editExercise = (exerciseId: string) => {
+            const modulesList = document.getElementById('modules-list') as HTMLElement | null;
+            const rawCourse = modulesList?.getAttribute('data-course-id');
+            window.location.href = `/teachers/courses/${rawCourse}/edit_exercise/${exerciseId}/`;
+        };
+
         const addModulePrompt = async () => {
             const title = window.prompt('Module title');
             if (title === null) return; // canceled
@@ -301,6 +307,7 @@ const TeacherCourseApp = defineComponent({
             toggleExerciseVisibility,
             duplicateExercise,
             deleteExercise,
+            editExercise,
             addModulePrompt
         };
     }

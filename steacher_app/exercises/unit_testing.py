@@ -202,6 +202,8 @@ def format_test_results_for_ai_with_lang(results: dict, language: str) -> str:
         status = "✓ PASSED test" if test['passed'] else "✗ FAILED test"
         output += f"### {status}: {test['description']}\n"
         output += f"**Test code:**\n```{language}\n{test['test_code']}\n```\n"
+        output += f"**Expected output:**\n```\n{test['expected_output']}\n```\n"
+        output += f"**Actual output from student's code:**\n```\n{test['actual_output']}\n```\n"
         if not test['passed']:
             if test.get('error'):
                 output += f"**Error:**\n```\n{test['error']}\n```\n"
