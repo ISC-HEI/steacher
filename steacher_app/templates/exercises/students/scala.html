@@ -19,6 +19,7 @@
                     <div class="field mb-0">
                         <div class="control">
                             <code-mirror-editor
+                                persistence-key="scala-{{ exercise.id }}"
                                 language="scala"
                                 v-model="userCode"
                                 :placeholder="'// Write your Scala code here'"

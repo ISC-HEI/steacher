@@ -9,17 +9,25 @@ interface CodeMirrorEditorData {
 // CodeMirror Editor Component
 export const CodeMirrorEditor = defineComponent({
     props: {
+        // like sql, python, scala
         language: {
             type: String,
             default: 'text'
         },
+        // where the code that the user is writing is stored
         modelValue: {
             type: String,
             default: ''
         },
+        // what the user sees when the editor is empty
         placeholder: {
             type: String,
             default: '-- Write your code here'
+        },
+        // where the code that the user is writing is stored, so that if the user refreshes the page, the code is not lost
+        persistenceKey: {
+            type: String,
+            default: null
         }
     },
     emits: ['update:modelValue', 'run-query'],
@@ -36,12 +44,28 @@ export const CodeMirrorEditor = defineComponent({
             const container = this.$refs.editorContainer as HTMLDivElement;
             if (!container) return;
 
+            let initialDoc = this.modelValue;
+            // If a persistenceKey is provided, attempt to restore the editor's
+            // content from localStorage. This allows users to refresh the page
+            // or navigate away without losing their work.
+            if (this.persistenceKey) {
+                const savedContent = localStorage.getItem(this.persistenceKey);
+                // We only restore the content if there's something saved AND
+                // if the editor hasn't already been populated with content from
+                // the server (e.g., from a previous submission). This prevents
+                // overwriting server-side state with stale local state.
+                if (savedContent && !initialDoc) {
+                    this.$emit('update:modelValue', savedContent);
+                    initialDoc = savedContent;
+                }
+            }
+
             // Get language extension based on prop
             const languageExtension = this.getLanguageExtension();
 
             // Create editor state
             const state = EditorState.create({
-                doc: this.modelValue,
+                doc: initialDoc,
                 extensions: [
                     basicSetup,
                     keymap.of([
@@ -111,19 +135,15 @@ export const CodeMirrorEditor = defineComponent({
 
     watch: {
         modelValue(newValue: string) {
+            if (this.persistenceKey) {
+                localStorage.setItem(this.persistenceKey, newValue);
+            }
             const editor = this.editor;
             if (editor && editor.state.doc.toString() !== newValue) {
                 editor.dispatch({
                     changes: { from: 0, to: editor.state.doc.length, insert: newValue }
                 });
             }
-        }
-    },
-
-    beforeUnmount() {
-        if (this.editor) {
-            this.editor.destroy();
-            this.editor = null;
         }
     }
 }); 

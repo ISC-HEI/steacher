@@ -20,6 +20,7 @@
                     <div class="field">
                         <div class="control">
                             <code-mirror-editor
+                                persistence-key="python-{{ exercise.id }}"
                                 language="python"
                                 v-model="userCode"
                                 :placeholder="'# Write your Python code here'"

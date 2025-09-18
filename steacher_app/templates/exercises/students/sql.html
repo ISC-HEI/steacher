@@ -71,6 +71,7 @@
                     <div class="field">
                         <div class="control">
                             <code-mirror-editor
+                                persistence-key="sql-{{ exercise.id }}"
                                 language="sql"
                                 v-model="userQuery"
                                 :placeholder="'-- Write your SQL query here'"
