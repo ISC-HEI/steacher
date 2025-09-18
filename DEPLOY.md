@@ -13,7 +13,8 @@ git pull
 docker compose build web
 
 # 3) Collect static into STATIC_ROOT and write manifest
-docker compose run --rm --no-deps --entrypoint "" web python manage.py collectstatic --noinput --clear 
+docker compose run --rm --no-deps --entrypoint "" web python manage.py collectstatic --noinput 
+# optionally --clear 
 
 # 4) Recreate/start the app with the new image
 docker compose up -d --no-deps web

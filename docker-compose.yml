@@ -107,12 +107,11 @@ services:
     env_file:
       - .env.production
     environment:
-      - NRIA_LICENSE_KEY=${NEW_RELIC_LICENSE_KEY}
       - NRIA_LOG_FILE=/var/log/newrelic-infra/newrelic-infra.log
       - NRIA_OVERRIDE_HOST_ROOT=/host
       - NRIA_LOG_LEVEL=info
       - NRIA_DISPLAY_NAME=steacher1
-      - NRIA_CUSTOM_ATTRIBUTES=env:prod,service:steacher
+      - NRIA_CUSTOM_ATTRIBUTES={"env":"prod","service":"steacher"}
     security_opt:
       - no-new-privileges:true
     cap_drop:
