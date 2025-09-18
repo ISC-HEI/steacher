@@ -14,6 +14,7 @@
     <link rel="apple-touch-icon" href="{% static 'images/favicon/apple-touch-icon.png' %}">
     <link rel="manifest" href="{% static 'images/favicon/site.webmanifest' %}">
     <meta name="theme-color" content="#ffffff">
+    <meta name="theme-color" content="#0b0b0b" media="(prefers-color-scheme: dark)">
     <meta name="csrf-token" content="{{ csrf_token }}">
     
     <!-- Bulma CSS from node_modules -->
@@ -26,7 +27,8 @@
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 
     <!-- Prism.js for syntax highlighting (Python, Scala, SQL) served locally -->
-    <link rel="stylesheet" href="{% static 'prismjs/themes/prism.min.css' %}">
+    <link rel="stylesheet" href="{% static 'prismjs/themes/prism.min.css' %}" media="(prefers-color-scheme: light)">
+    <link rel="stylesheet" href="{% static 'prismjs/themes/prism-okaidia.min.css' %}" media="(prefers-color-scheme: dark)">
     <script defer src="{% static 'prismjs/prism.js' %}"></script>
     <!-- Prism language components (order matters for dependencies) -->
     <script defer src="{% static 'prismjs/components/prism-clike.min.js' %}"></script>

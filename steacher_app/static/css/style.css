@@ -169,6 +169,44 @@ code {
     color: #222;
 }
 
+/* Inline code from markdown (not within pre) */
+:not(pre) > code {
+    background-color: #f5f5f5;
+    padding: 0.15rem 0.35rem;
+    border-radius: 0.25rem;
+}
+
+/* Dark mode adjustments for code readability */
+@media (prefers-color-scheme: dark) {
+    /* Inline code */
+    :not(pre) > code,
+    #chatbot :not(pre) > code {
+        background-color: #2a2a2a;
+        color: #eaeaea;
+    }
+
+    /* Fenced code blocks (Prism or plain) */
+    pre,
+    pre code,
+    pre[class*="language-"],
+    code[class*="language-"] {
+        background-color: #1e1e1e !important;
+        color: #eaeaea;
+    }
+
+    /* Generic code color override */
+    code,
+    #chatbot code {
+        color: #eaeaea;
+    }
+
+    /* Notifications containing code */
+    .exercise .notification code {
+        background-color: rgba(255, 255, 255, 0.08);
+        color: #eaeaea;
+    }
+}
+
 .user-message {
     background-color: #E8E8E880; /* Light gray background for user messages */
 
