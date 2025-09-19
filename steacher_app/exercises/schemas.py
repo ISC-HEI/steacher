@@ -3,7 +3,8 @@ from pydantic import BaseModel, Field
 
 
 class TestCase(BaseModel):
-    """Pydantic model for a test case. This is used for automated unit testing. Applies to programming exercises only (e.g. Python, Scala). 
+    """Pydantic model for a test case. This is used for automated unit testing. Applies to programming exercises only (e.g. Python, Scala).
+    Never just write a `description` without a `test_code`. You may omit the `expected_output` if your `test_code` uses assertions, but if it prints something to the console, you must have an `expected_output`.
     The AI assistant will not have to run the unit tests itself, as it will be run by the system. The AI assistant will see the test results in the student's prompt and shall assess if the student code is correct.
     Exceptions in the code cause the test to fail, so make sure to handle them. You don't need to use a try/except block, just let the exception bubble up.
     Avoid non-deterministic tests, like tests that depend on the order of elements in a list. If necessary (e.g. working with random numbers), make sure to set the seed to a fixed value.
@@ -14,7 +15,7 @@ class TestCase(BaseModel):
     - `expected_output`: `6`
     """
     description: str = Field(default="", description="The description of the test case, in English. Not strictly mandatory, but make sure you create one to give context to the test case. The description is not shared with the student, but is used by the AI assistant to understand the test case.")
-    test_code: str = Field(description="The test code. It should use the student's answer and `print` something to the console. For example: `print(student_function('test'))`. When you create tests, use the approach to print to console and put the expected result in the `expected_output` field**. If the user prefers to use `assert` statements, allow them to do so. The unit testing system will then run the test code and check if the output matches the expected output. If the test fails, the AI assistant will see the error message in the student's prompt and shall assess if the student code is correct.")
+    test_code: str = Field(description="The test code. It should use the student's code (e.g. a function that the student has written) and `print` something to the console. For example: `print(student_function('test'))`. When you create tests, use the approach to print to console and put the expected result in the `expected_output` field**. If the user prefers to use `assert` statements, allow them to do so. The unit testing system will then run the test code and check if the output matches the expected output. If the test fails, the AI assistant will see the error message in the student's prompt and shall assess if the student code is correct.")
     expected_output: str = Field(default="", description="The expected output of the test code in the console (stdout only). This should be a case-sensitive exact match of type string, including newlines. Both the output of running the `test_code` and the value of the `expected_output` field will be trimmed of leading and trailing whitespace prior to comparison. For a test that prints the number 15, this should just be '15'. For a test that prints the numbers 1 to 4 on separate lines, this should be '1\\n2\\n3\\n4'. Blank lines are significant. The unit testing system will then run the test code and check if the output matches the expected output. If you don't have an expected output, leave this field empty.")
 
 
@@ -37,7 +38,7 @@ class ExerciseData(BaseModel):
     Not all question types require all these fields, so leave them empty if not applicable.
     For backend and frontend, so this data is shown to the student.
     """
-    answer_template: str = Field(default="", description="A template for the answer. It might be a starter code, a query, or a text. ATM this is not translated so choose carefully.")
+    answer_template: str = Field(default="", description="A template for the answer. It might be a starter code, a query, or a text. ATM this is not translated so write it in English.")
     db: str = Field(default="", description="For SQL exercises only. The name of the database asset file to use.")
 
     class Config:

@@ -12,7 +12,7 @@ from .authz import (
     cohort_roles_required,
 )
 from .models import Exercise, Course, Module, ExerciseAsset, Cohort, CohortMembership, Attempt, create_trace_for, CourseMembership
-from .unit_testing import run_unit_tests
+from .unit_testing import run_unit_tests, run_unit_tests_scala
 from .logic import generate_authoring_update
 from .logic import generate_i18n_translations
 from .schemas import ExerciseData, AnswerData
@@ -715,12 +715,23 @@ def exercise_form(request, course_pk, exercise_pk=None, module_pk=None):
             exercise.description_i18n = description_i18n
             exercise.question_i18n = question_i18n
             
+            # run unit tests (python and scala) and raise an error if any test fails
             if exercise.exercise_type == 'python' and 'unit_tests' in exercise.answer_data:
                 unit_tests = exercise.answer_data_obj.unit_tests.model_dump()
                 correct_answers = exercise.answer_data_obj.correct_answers
                 for i, correct_answer in enumerate(correct_answers):
                     code_to_test = correct_answer.answer
                     test_results = run_unit_tests(code_to_test, unit_tests)
+                    if not test_results.get('all_passed'):
+                        failed_tests = [res for res in test_results['test_results'] if not res['passed']]
+                        error_message = f"Correct Answer #{i+1} failed {len(failed_tests)} unit test(s). Please fix the answer or the tests."
+                        return JsonResponse({'status': 'error', 'message': error_message, 'details': failed_tests}, status=400)
+            elif exercise.exercise_type == 'scala' and 'unit_tests' in exercise.answer_data:
+                unit_tests = exercise.answer_data_obj.unit_tests.model_dump()
+                correct_answers = exercise.answer_data_obj.correct_answers
+                for i, correct_answer in enumerate(correct_answers):
+                    code_to_test = correct_answer.answer
+                    test_results = run_unit_tests_scala(code_to_test, unit_tests)
                     if not test_results.get('all_passed'):
                         failed_tests = [res for res in test_results['test_results'] if not res['passed']]
                         error_message = f"Correct Answer #{i+1} failed {len(failed_tests)} unit test(s). Please fix the answer or the tests."

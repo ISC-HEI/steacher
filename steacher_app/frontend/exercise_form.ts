@@ -136,6 +136,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         errorMessage += `- ${detail.description}\n`;
                         errorMessage += `  - Expected: ${detail.expected_output}\n`;
                         errorMessage += `  - Got: ${detail.actual_output}\n`;
+                        if (detail.error) {
+                            errorMessage += `  - Error: ${detail.error}\n`;
+                        }
                     });
                 }
                 return errorMessage;
