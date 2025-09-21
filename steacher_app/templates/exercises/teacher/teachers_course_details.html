@@ -1,5 +1,6 @@
 {% extends "exercises/base.html" %}
 {% load static %}
+{% load markdown %}
 
 {% block title %}{{ course.name }}{% endblock %}
 
@@ -15,15 +16,17 @@
         <div class="level-left">
             <div>
                 <h1 class="mb-3 title is-2">{{ course.name }}</h1>
-                <p class="lead">{{ course.description }}</p>
             </div>
         </div>
         <div class="level-right">
+            <a class="button is-light" href="{% url 'teachers:course_analytics_dashboard' course.id %}">Analytics</a>
             <button class="button is-primary" @click="addModulePrompt">Add module</button>
             <a class="button is-light" href="{% url 'exercises:course_detail' pk=course.pk %}">View as student</a>
         </div>
     </div>
-
+    <div class="content">
+        <div class="lead is-size-5 ml-0 mr-4 mt-0 mb-6">{{ course.description | markdown }}</div>
+    </div>
     <hr class="my-4">
 
     <div id="modules-list" class="sortable-list teacher-view" data-course-id="{{ course.pk }}">
@@ -86,6 +89,9 @@
                                             <button class="button is-white is-small mr-1" title="Duplicate exercise" @click="duplicateExercise('{{ exercise.pk }}')">
                                               <span class="icon"><i class="fas fa-clone"></i></span>
                                             </button>
+                                            <a class="button is-white is-small mr-1" title="Analytics" href="{% url 'teachers:exercise_analytics_detail' exercise.id %}">
+                                                <span class="icon"><i class="fas fa-chart-line"></i></span>
+                                            </a>
                                             <button class="button is-white is-small mr-1" title="Delete exercise" @click="deleteExercise('{{ exercise.pk }}')">
                                                 <span class="icon"><i class="fas fa-trash"></i></span>
                                             </button>

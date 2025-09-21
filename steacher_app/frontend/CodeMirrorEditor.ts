@@ -49,14 +49,16 @@ export const CodeMirrorEditor = defineComponent({
             // content from localStorage. This allows users to refresh the page
             // or navigate away without losing their work.
             if (this.persistenceKey) {
-                const savedContent = localStorage.getItem(this.persistenceKey);
-                // We only restore the content if there's something saved AND
-                // if the editor hasn't already been populated with content from
-                // the server (e.g., from a previous submission). This prevents
-                // overwriting server-side state with stale local state.
-                if (savedContent && !initialDoc) {
-                    this.$emit('update:modelValue', savedContent);
-                    initialDoc = savedContent;
+                try {
+                    const savedContent = localStorage.getItem(this.persistenceKey);
+                    // Prefer locally saved content when available and different from the server value.
+                    if (savedContent && savedContent !== initialDoc) {
+                        initialDoc = savedContent;
+                        this.$emit('update:modelValue', savedContent);
+                    }
+                } catch (e) {
+                    console.warn('Error restoring editor content from localStorage', e);
+                    // Ignore storage errors (e.g., private mode)
                 }
             }
 
@@ -77,10 +79,19 @@ export const CodeMirrorEditor = defineComponent({
                     indentOnInput(),
                     // Use 4 spaces indentation for Python
                     ...(this.language === 'python' ? [indentUnit.of('    ')] : []),
+                    // Save content to localStorage on every keystroke
                     EditorView.updateListener.of((update: ViewUpdate) => {
                         if (update.docChanged) {
                             const newValue = update.state.doc.toString();
                             this.$emit('update:modelValue', newValue);
+                            if (this.persistenceKey) {
+                                try {
+                                    localStorage.setItem(this.persistenceKey, newValue);
+                                } catch (e) {
+                                    // Ignore storage errors
+                                    console.warn('Error saving editor content to localStorage', e);
+                                }
+                            }
                         }
                     }),
                     EditorView.domEventHandlers({

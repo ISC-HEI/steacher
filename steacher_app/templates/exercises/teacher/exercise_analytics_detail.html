@@ -1,0 +1,72 @@
+{% extends "exercises/base.html" %}
+{% load markdown %}
+
+{% block page_title %}
+    <a href="{% url 'teachers:dashboard' %}">Teacher Dashboard</a> / 
+    <a href="{% url 'teachers:course_detail' exercise.module.course.id %}">{{ exercise.module.course.name }}</a> / 
+    <a href="{% url 'teachers:course_analytics_dashboard' exercise.module.course.id %}"> Course Analytics</a> / 
+    {{ exercise.title | truncatechars:80 }}
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <section class="section">
+        <h1 class="title is-2">Exercise Analytics for <a href="{% url 'exercises:exercise_detail' exercise.id %}">{{ exercise.title }}</a></h1>        
+        <div class="content card">
+            <div class="card-content">
+                <details>
+                    <summary class="title is-4 mb-2">Question</summary>
+                    {{ exercise.question_i18n.en|markdown }}
+                </details>
+                <details>
+                    <summary class="title is-4 mb-2">About these analytics</summary>
+                    <p>This is a tool to help you understand the uncertainty of the AI tutor's responses. It is based on the perplexity of the AI tutor's responses. The perplexity is a measure of how uncertain the AI tutor is about choosing the next token. The higher the perplexity, the more uncertain the AI tutor is about the next token.</p>
+                    <p>It is computed based on the LLM's log probabilities of the tokens in the response. It's not perfect, but it's cheap and a good starting point.</p>
+                </details>
+            </div>
+        </div>
+
+        <div class="level mt-5">
+            <div class="level-left">
+                <h2 class="title is-4">Most Uncertain Interactions</h2>
+            </div>
+            <div class="level-right">
+                <p class="is-size-7">Showing top 20 most uncertain interactions.</p>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            {% for item in trace_items %}
+                <div class="card mb-4 pt-2">
+                    <div class="is-flex is-align-items-center ml-5" style="gap: 1rem;">
+                        <p class="title is-size-6 mb-0" style="white-space: nowrap; margin: 0;" title="Perplexity (higher is more uncertain)">
+                            Perplexity: {{ item.perplexity|floatformat:2 }}
+                        </p>
+                        <progress class="progress is-link is-small" value="{{ item.percent|floatformat:0 }}" max="100" style="flex: 1; margin: 0; max-width: 150px;"></progress>
+                    </div>
+                    <div class="card-content">                        
+                        <div class="columns">
+                            <div class="column">
+                                <h3 class="title is-6">Student Submission</h3>
+                                <div class="content is-small">
+                                    <pre><code>{{ item.trace.user_content }}</code></pre>
+                                </div>
+                            </div>
+                            <div class="column">
+                                <h3 class="title is-6">AI Response</h3>
+                                <div class="content is-small">
+                                    {{ item.trace.assistant_content|markdown }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <p>No uncertain interactions found for this exercise within the selected filter.</p>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+

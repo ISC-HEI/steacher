@@ -4,17 +4,17 @@
 {% block page_title %}
     <a href="{% url 'exercises:course_detail' pk=exercise.module.course.pk %}" style="text-decoration: none;">{{ exercise.module.course.name }}</a>
     <span style="margin: 0 0.5rem;">/</span>
-    <span>{{ exercise.localized_title }}</span>
+    <span>{{ exercise.localized_title | truncatechars:80 }}</span>
 {% endblock %}
 
 {% block content %}
 
 <!-- Shared header with title and teacher edit link -->
-<div class="level" style="margin-bottom: 1rem;">
-    <div class="level-left">
+<div class="level" style="margin-bottom: 1rem; flex-wrap: wrap;">
+    <div class="level-left" style="flex: 1 1 auto; min-width: 0;">
         <div>
-            <h2 class="title is-4">
-                <span id="exercise-status-icon" class="icon mr-2" style="vertical-align: middle;">
+            <h2 class="title is-4" style="white-space: normal; overflow-wrap: anywhere; word-break: break-word;">
+                <span id="exercise-status-icon" class="icon mr-2">
                     {% if attempt and attempt.complete %}
                         <i class="fas fa-check-circle has-text-success"></i>
                     {% else %}
@@ -26,7 +26,11 @@
         </div>
     </div>
     {% if can_edit %}
-    <div class="level-right">
+    <div class="level-right" style="flex: 0 0 auto; margin-top: 0.5rem;">
+        <a class="button is-light" href="{% url 'teachers:exercise_analytics_detail' exercise.id %}">
+            <span class="icon"><i class="fas fa-chart-line"></i></span>
+            <span>Analytics</span>
+        </a>
         <a class="button is-light" href="{% url 'teachers:exercise_add' course_pk=exercise.module.course.pk module_pk=exercise.module.pk %}">
             <span class="icon"><i class="fas fa-plus"></i></span>
             <span>New exercise</span>

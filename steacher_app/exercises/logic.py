@@ -1,12 +1,15 @@
 import json
 import openai
-from google import genai
 import time
 from django.conf import settings
 from .models import Trace, Exercise, Attempt, Course, create_trace_for, localized_name
 from django.contrib.contenttypes.models import ContentType
 from .schemas import ExerciseData, AnswerData, get_pydantic_schema_as_string
 import logging
+import math
+from statistics import mean, pstdev
+from google import genai
+from google.genai.types import UserContent, ModelContent, Part, GenerateContentConfig
 
 # TODO: remove the openai client once all calls are migrated to the google client
 client = openai.OpenAI(api_key=settings.GEMINI_API_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
@@ -16,6 +19,122 @@ gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 logger = logging.getLogger(__name__)
 MODEL_FAST = "gemini-2.5-flash"
 MODEL_PRO = "gemini-2.5-pro"
+
+
+def _compute_uncertainty_from_logprobs(resp, first_k: int = 10, threshold_nll_nats: float = 4.8) -> dict:
+    """
+    Computes a dictionary of uncertainty metrics from a Gemini response object.
+
+    This helper processes the `logprobs_result` from a Gemini API response to calculate
+    various metrics that can be used as proxies for model uncertainty. It is designed
+    to be robust to minor variations in the response structure but expects the core
+    `chosen_candidates` and `top_candidates` fields to be present.
+
+    Args:
+        resp: The `GenerateContentResponse` object from the google.genai client.
+        first_k (int): The number of initial tokens to consider for the 'first_k_avg_nll' metric.
+        threshold_nll_nats (float): The negative log-probability threshold (in nats) for
+                                    calculating 'high_surprisal_frac'.
+
+    Returns:
+        A dictionary containing the calculated uncertainty metrics. Returns an empty
+        dict if logprobs are not available or if an error occurs.
+    """
+    # LATER (v1.1): Consider adding more advanced metrics:
+    #   - Repetition-adjusted perplexity (to penalize repetitive loops).
+    #   - Semantic coherence drift (embedding distance between response segments).
+    #   - Z-scores for perplexity relative to the exercise_type baseline.
+    try:
+        candidate = resp.candidates[0] if resp.candidates else None
+        lpr = candidate.logprobs_result if candidate else None
+        if not (lpr and lpr.chosen_candidates and lpr.top_candidates):
+            return {}
+
+        tokens, chosen_logps, alt_best_logps, observed_masses, entropies = [], [], [], [], []
+
+        # Filter out extremely large negative values (like -1.2676506e+30) which are likely sentinels from the API.
+        LOGPROB_THRESHOLD = -1e20
+
+        for i, chosen_item in enumerate(lpr.chosen_candidates):
+            token_text = chosen_item.token
+            token_id = chosen_item.token_id
+            token_logp = chosen_item.log_probability
+
+            topk_items = lpr.top_candidates[i].candidates if i < len(lpr.top_candidates) else []
+
+            # Sum the probabilities of the top-k candidates to get the observed probability mass, filtering outliers.
+            probs = [math.exp(float(item.log_probability)) for item in topk_items if item.log_probability is not None and float(item.log_probability) > LOGPROB_THRESHOLD]
+            
+            # Find the log probability of the best alternative token. This is used to calculate
+            # the 'topk_margin', which indicates how much more confident the model was in its
+            # chosen token compared to the next best option. We match by token_id to ensure
+            # we are not comparing the chosen token against itself.
+            best_alt_logp = None
+            for item in topk_items:
+                log_prob = item.log_probability
+                if log_prob is not None and item.token_id != token_id:
+                    # Filter out extremely large negative values which are likely sentinels from the API.
+                    if float(log_prob) > LOGPROB_THRESHOLD:
+                        if best_alt_logp is None or float(log_prob) > best_alt_logp:
+                            best_alt_logp = float(log_prob)
+            
+            observed_mass = sum(probs)
+            observed_masses.append(observed_mass)
+            
+            # Calculate the entropy of the observed top-k probability distribution. This serves
+            # as a proxy for the model's uncertainty at this token position. A higher entropy
+            # means the model was less certain and the probability was spread over more tokens.
+            if observed_mass > 1e-9: # Avoid division by zero for empty/zero probs
+                norm_probs = [p / observed_mass for p in probs]
+                entropies.append(sum(-p * math.log(p) for p in norm_probs if p > 0))
+            else:
+                entropies.append(0.0)
+
+            if token_text is not None and token_logp is not None:
+                tokens.append(token_text)
+                chosen_logps.append(float(token_logp))
+                alt_best_logps.append(best_alt_logp)
+
+        def is_format_token(tok: str) -> bool:
+            """Exclude common formatting/whitespace tokens from metric calculations."""
+            s = tok.strip()
+            return not s or s in {'```', '``', '`'}
+
+        valid_indices = [i for i, t in enumerate(tokens) if not is_format_token(t)]
+        if not valid_indices:
+            return {}
+
+        nlls = [-chosen_logps[i] for i in valid_indices]
+        avg_nll = mean(nlls)
+        sorted_nlls = sorted(nlls)
+        
+        # The margin is the log-prob difference between the chosen token and the best alternative.
+        # A smaller margin indicates higher uncertainty. We exclude tokens with log_prob of 0.0,
+        # as a probability of 1.0 makes the margin concept meaningless (infinite).
+        margins = [
+            chosen_logps[i] - alt_best_logps[i] 
+            for i in valid_indices 
+            if alt_best_logps[i] is not None and chosen_logps[i] != 0.0
+        ]
+
+        return {
+            'num_tokens_scored': len(nlls),
+            'avg_nll': avg_nll,
+            'perplexity': math.exp(avg_nll),
+            'std_nll': pstdev(nlls) if len(nlls) > 1 else 0.0,
+            'p95_nll': sorted_nlls[max(0, int(math.ceil(0.95 * len(sorted_nlls)) - 1))],
+            'max_nll': sorted_nlls[-1],
+            'high_surprisal_frac': sum(1 for x in nlls if x >= threshold_nll_nats) / float(len(nlls)),
+            'threshold_nll_nats': threshold_nll_nats,
+            'topk_margin_mean': mean(margins) if margins else 0.0,
+            'first_k_avg_nll': mean(nlls[:max(1, min(first_k, len(nlls)))]),
+            'observed_mass_topk': mean([observed_masses[i] for i in valid_indices]),
+            'observed_entropy_topk': mean([entropies[i] for i in valid_indices]),
+            'topk_value': 5,
+        }
+    except Exception as e:
+        logger.warning(f"Failed to compute uncertainty metrics: {e}")
+        return {}
 
 
 def _strip_markdown_fences(content: str) -> str:
@@ -68,7 +187,6 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
     Output: a dict with the following keys:
     - 'guidance': the AI-generated guidance message, as a string.
     - 'user_submission': the user's submission, as a dict in the form of an LLM message.
-    - 'cbm_result': the CBM result, if any, as a dict, to help the student understand the score breakdown.
     """
 
     logger.info(f"fetch_ai_guidance: exercise {exercise.id}, attempt {attempt.id}, data {data}")
@@ -78,7 +196,6 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
     # FIXME: this is a mess, refactor it
     user_prompt_content = ""
     action = data.get('action')
-    cbm_result = None
 
     if action == 'ask_question':
         user_prompt_content += f"I have a specific question: {data.get('question', '')}"
@@ -148,7 +265,6 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
     #    raise ValueError(f"Invalid action: {action}")
 
     # 2. Fetch conversation history (Trace-based)
-    messages = []
     # Use reverse GenericRelation for clarity and performance
     existing_traces = attempt.traces.all().order_by('rank_order', 'id')
 
@@ -225,62 +341,60 @@ Do not provide the entire solution, but give them enough to make meaningful prog
         if answer_data_obj.additional_context:
             prompt += f"\n\n## Additional context for this exercise\n\n{answer_data_obj.additional_context}"
         
-    messages.append({"role": "system", "content": prompt})
-
     logger.debug(f"System prompt:\n{prompt}")
 
-    # 4. Add past messages from traces, stripping metadata to save tokens
-    for i, tr in enumerate(existing_traces):
-        # First trace also stores the system prompt (mandatory)
-        if i == 0 and tr.system_prompt:
-            messages.append({'role': 'system', 'content': tr.system_prompt})
-        if tr.user_content:
-            messages.append({'role': 'user', 'content': tr.user_content})
-        if tr.assistant_content:
-            messages.append({'role': 'assistant', 'content': tr.assistant_content})
-
-    # 6. Add the current user message
-    user_submission = {
-        "role": "user",
-        "content": user_prompt_content
-    }
-    logger.debug(f"User prompt content:\n{user_prompt_content}")
-    messages.append(user_submission)
-
-    logger.debug(f"Messages:\n{messages}")
-    
-
-    # 7. Call the OpenAI API using JSON object response format
+    # 4. Use structured chat with history via Google genai Chats API
     llm_start_time = time.time()
-    llm_response = client.chat.completions.create(
-        model=MODEL_FAST,
-        messages=messages,
-        temperature=0.7,
-        response_format={"type": "json_object"} if debug else None,
-        #max_tokens=500
-    )
+    try:
+        history_parts = []
+        for tr in existing_traces:
+            if tr.user_content:
+                history_parts.append(UserContent(parts=[Part(text=tr.user_content)]))
+            if tr.assistant_content:
+                history_parts.append(ModelContent(parts=[Part(text=tr.assistant_content)]))
+
+        chat_config = GenerateContentConfig(
+            system_instruction=prompt,
+            response_mime_type="application/json" if debug else "text/plain",
+            temperature=0.7,
+            response_logprobs=True,
+            logprobs=5,
+        )
+        chat_session = gemini_client.chats.create(
+            model=MODEL_FAST,
+            config=chat_config,
+            history=history_parts,
+        )
+        gen_response = chat_session.send_message(Part(text=user_prompt_content))
+    except Exception as e:
+        logger.error(f"Gemini generate_content failed for exercise {exercise.id}: {e}")
+        # As a fallback, return a graceful error-style message
+        gen_response = None
     llm_duration = time.time() - llm_start_time
     logger.info(f"LLM call for exercise {exercise.id} took {llm_duration:.2f} seconds.")
-    logger.info(f"LLM response: model={llm_response.model}, usage={llm_response.usage}, choices={llm_response.choices}")    
 
-    if debug:
-        # parse the response as a JSON object, to obtain the answer and the *ambiguity*
-        assistant_content_raw = llm_response.choices[0].message.content or ""
-        logger.info(f"Assistant content raw: {assistant_content_raw}")
-        assistant_content_json_str = _strip_markdown_fences(assistant_content_raw)
-
+    # 6. Extract answer and optional debug JSON
+    ambiguity = []
+    if gen_response is None:
+        answer = "I'm sorry, I couldn't process your request right now. Please try again."
+    else:
         try:
-            assistant_content_json = json.loads(assistant_content_json_str)
-            answer = assistant_content_json.get("answer", "")
-            ambiguity = assistant_content_json.get("ambiguity", [])
-            if not isinstance(ambiguity, list):
-                ambiguity = [str(ambiguity)]
-        except Exception as e:
-            answer = assistant_content_json_str
-            ambiguity = [f"Failed to parse JSON: {str(e)}"]
-    else:        
-        # just return the text of the response
-        answer = (llm_response.choices[0].message.content or "").strip()
+            raw_text = (gen_response.text or '').strip()
+        except Exception:
+            raw_text = ''
+        if debug:
+            assistant_content_json_str = _strip_markdown_fences(raw_text)
+            try:
+                assistant_content_json = json.loads(assistant_content_json_str)
+                answer = assistant_content_json.get("answer", "")
+                ambiguity = assistant_content_json.get("ambiguity", [])
+                if not isinstance(ambiguity, list):
+                    ambiguity = [str(ambiguity)]
+            except Exception as e:
+                answer = assistant_content_json_str
+                ambiguity = [f"Failed to parse JSON: {str(e)}"]
+        else:
+            answer = raw_text
 
     # 7.a. Detect completion tag and mark the attempt as complete if present
     try:
@@ -290,6 +404,8 @@ Do not provide the entire solution, but give them enough to make meaningful prog
             logger.info(f"Attempt {attempt.id} marked as complete based on LLM output tag.")
     except Exception as e:
         logger.warning(f"Failed to set attempt {attempt.id} as complete: {e}")
+
+    uncertainty_metrics = _compute_uncertainty_from_logprobs(gen_response) if gen_response else {}
 
     # 7. Create the log entry
     interaction_log = {
@@ -302,22 +418,22 @@ Do not provide the entire solution, but give them enough to make meaningful prog
             "role": "assistant",
             "content": answer,
             "metadata": {
-                "model": llm_response.model, 
+                "model": getattr(gen_response, 'model_version', MODEL_FAST), 
                 "usage": {
-                     "completion_tokens": llm_response.usage.completion_tokens,
-                     "prompt_tokens": llm_response.usage.prompt_tokens,
-                     "total_tokens": llm_response.usage.total_tokens,
+                     "completion_tokens": getattr(getattr(gen_response, 'usage_metadata', None), 'candidates_token_count', None),
+                     "prompt_tokens": getattr(getattr(gen_response, 'usage_metadata', None), 'prompt_token_count', None),
+                     "total_tokens": getattr(getattr(gen_response, 'usage_metadata', None), 'total_token_count', None),
+                     "thoughts_token": getattr(getattr(gen_response, 'usage_metadata', None), 'thoughts_token_count', None),
                 },
-                "finish_reason": llm_response.choices[0].finish_reason
+                "finish_reason": (gen_response.candidates[0].finish_reason.name if getattr(gen_response, 'candidates', None) else 'UNKNOWN')
             }
         }
     }
     if debug:
         interaction_log['llm_response']['metadata']['ambiguity'] = ambiguity
+    if uncertainty_metrics:
+        interaction_log['llm_response']['metadata']['uncertainty'] = uncertainty_metrics
     
-    if cbm_result:
-        interaction_log['user_submission']['metadata']['cbm_result'] = cbm_result
-
     # 7.b. Persist as a Trace. Ensure first trace stores system_prompt (mandatory)
     first_trace = (existing_traces.first() if hasattr(existing_traces, 'first') else None)
     fields = {
@@ -325,18 +441,16 @@ Do not provide the entire solution, but give them enough to make meaningful prog
         'user_metadata': data,
         'assistant_content': answer,
         'assistant_metadata': {
-            'model': llm_response.model,
-            'usage': {
-                'completion_tokens': llm_response.usage.completion_tokens,
-                'prompt_tokens': llm_response.usage.prompt_tokens,
-                'total_tokens': llm_response.usage.total_tokens,
-            },
-            'finish_reason': llm_response.choices[0].finish_reason
+            'model': interaction_log['llm_response']['metadata']['model'],
+            'usage': interaction_log['llm_response']['metadata']['usage'],
+            'finish_reason': interaction_log['llm_response']['metadata']['finish_reason'],
         }
     }
     if debug:
         # Preserve ambiguity when debugging
         fields['assistant_metadata']['ambiguity'] = ambiguity
+    if uncertainty_metrics:
+        fields['assistant_metadata']['uncertainty'] = uncertainty_metrics
     if not first_trace: # if there is no first trace, then this is the first trace
         # Always store the system prompt on the first trace
         fields['system_prompt'] = prompt
@@ -349,9 +463,6 @@ Do not provide the entire solution, but give them enough to make meaningful prog
         'assistant_trace_id': getattr(created_trace, 'id', None)
     }
     
-    if cbm_result:
-        response_data['cbm_result'] = cbm_result
-        
     overall_duration = time.time() - overall_start_time
     logger.info(f"Total fetch_ai_guidance for exercise {exercise.id} took {overall_duration:.2f} seconds.")
     return response_data

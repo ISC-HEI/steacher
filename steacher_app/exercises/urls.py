@@ -35,6 +35,9 @@ teachers_urlpatterns = [
     path('courses/<int:pk>/', views_teachers.course_detail, name='course_detail'),
     path('courses/<int:course_pk>/modules/<int:module_pk>/add_exercise/', views_teachers.exercise_form, name='exercise_add'),
     path('courses/<int:course_pk>/edit_exercise/<int:exercise_pk>/', views_teachers.exercise_form, name='exercise_edit'),
+    # Analytics routes
+    path('courses/<int:course_id>/analytics/', views_teachers.course_analytics_dashboard, name='course_analytics_dashboard'),
+    path('exercises/<int:exercise_id>/analytics/', views_teachers.exercise_analytics_detail, name='exercise_analytics_detail'),
 
     path('api/reorder_modules/', views_teachers.reorder_modules, name='reorder_modules'),
     path('api/reorder_exercises/', views_teachers.reorder_exercises, name='reorder_exercises'),

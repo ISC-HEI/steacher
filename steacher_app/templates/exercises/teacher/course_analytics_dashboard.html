@@ -1,0 +1,80 @@
+{% extends "exercises/base.html" %}
+
+{% block page_title %}
+    <a href="{% url 'teachers:dashboard' %}">Teacher Dashboard</a> / 
+    <a href="{% url 'teachers:course_detail' course.id %}">{{ course.name | truncatechars:80 }}</a> / 
+    Course Analytics
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <section class="section">
+        <h1 class="title is-2">Course Analytics for <a href="{% url 'teachers:course_detail' course.id %}">{{ course.name }}</a></h1>
+        <div class="level">
+            <div class="level-right">
+                <form method="get" class="level-item">
+                    <div class="field has-addons">
+                        <div class="control">
+                            <div class="select">
+                                <select name="filter">
+                                    <option value="all" {% if selected_filter == 'all' %}selected{% endif %}>No filtering</option>
+                                    <option value="last_edit" {% if selected_filter == 'last_edit' %}selected{% endif %}>Since last edit</option>
+                                    {% for days in day_filters %}
+                                        <option value="{{ days }}" {% if selected_filter|stringformat:'s' == days|stringformat:'s' %}selected{% endif %}>{{ days }} days</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="control">
+                            <button class="button is-primary" type="submit">Apply</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div id="dashboard-table-container">
+            <table class="table is-fullwidth is-striped is-hoverable">
+                <thead>
+                    <tr>
+                        <th>Exercise</th>
+                        <th>Avg. Perplexity &darr;</th>
+                        <th>Completion Rate</th>
+                        <th>Avg. Iterations</th>
+                        <th>Avg. Time</th>
+                        <th>Avg. Hints</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in exercise_metrics %}
+                    <tr>
+                        <td>
+                            <a href="{% url 'teachers:exercise_analytics_detail' item.exercise.id %}">{{ item.exercise.title }}</a>
+                            <p class="is-size-7 has-text-grey">{{ item.exercise.module.name }}</p>
+                        </td>
+                        <td class="{% if item.avg_perplexity > 2.5 %}has-text-danger has-text-weight-bold{% endif %}">
+                            {{ item.avg_perplexity|floatformat:2|default:"N/A" }}
+                        </td>
+                        <td class="{% if item.completion_rate < 50 %}has-text-danger has-text-weight-bold{% endif %}">
+                            {{ item.completion_rate|floatformat:1 }}%
+                        </td>
+                        <td>{{ item.avg_iterations|floatformat:1 }}</td>
+                        <td>{{ item.avg_time_seconds|floatformat:0 }}s</td>
+                        <td>{{ item.avg_hints|floatformat:1 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="has-text-centered">
+                            No data available for the selected filter.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+    </section>
+</div>
+{% endblock %}
+
+

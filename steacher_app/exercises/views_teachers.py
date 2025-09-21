@@ -9,9 +9,10 @@ import logging
 from .authz import (
     course_roles_required,
     assert_can_edit_course,
+    assert_can_view_course,
     cohort_roles_required,
 )
-from .models import Exercise, Course, Module, ExerciseAsset, Cohort, CohortMembership, Attempt, create_trace_for, CourseMembership
+from .models import Exercise, Course, Module, ExerciseAsset, Cohort, CohortMembership, Attempt, create_trace_for, CourseMembership, Trace
 from .unit_testing import run_unit_tests, run_unit_tests_scala
 from .logic import generate_authoring_update
 from .logic import generate_i18n_translations
@@ -21,6 +22,89 @@ from django.contrib.auth import get_user_model
 from itertools import groupby
 from operator import attrgetter
 import newrelic.agent as nr
+from django.contrib import messages
+from django.utils import timezone
+from django.db.models import Avg, Count, F, ExpressionWrapper, fields, Subquery, OuterRef, Q, Max, Min
+from django.db.models.functions import Cast, JSONObject
+from django.utils import timezone
+from datetime import timedelta
+from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.fields import GenericRelation
+
+
+def get_exercise_analytics(exercises, filter_days_str='all'):
+    """
+    Calculates analytics metrics for a queryset of exercises.
+    """
+    exercise_metrics = []
+    
+    # Handle date filtering setup
+    start_date = None
+    if filter_days_str.isdigit():
+        start_date = timezone.now() - timedelta(days=int(filter_days_str))
+
+    # Base attempts queryset for all exercises in the list
+    base_attempts = Attempt.objects.filter(exercise__in=exercises)
+    if start_date:
+        base_attempts = base_attempts.filter(updated_at__gte=start_date)
+
+    for exercise in exercises:
+        attempts_for_exercise = base_attempts.filter(exercise=exercise)
+        
+        if filter_days_str == 'last_edit':
+            attempts_for_exercise = attempts_for_exercise.filter(updated_at__gte=exercise.updated_at)
+
+        # Calculate metrics for the filtered attempts
+        metrics = attempts_for_exercise.aggregate(
+            total_attempts=Count('id', distinct=True),
+            completed_attempts=Count('id', filter=Q(complete=True), distinct=True),
+            avg_time_to_complete=Avg(
+                ExpressionWrapper(F('updated_at') - F('created_at'), output_field=fields.DurationField()),
+                filter=Q(complete=True)
+            )
+        )
+        
+        # Calculate perplexity from traces
+        traces_for_exercise = Trace.objects.filter(
+            object_id__in=Subquery(attempts_for_exercise.values('id')),
+            content_type=ContentType.objects.get_for_model(Attempt),
+            channel='exercise_guidance',
+            assistant_metadata__uncertainty__perplexity__isnull=False
+        )
+        
+        perplexity_avg = traces_for_exercise.aggregate(
+            avg_perplexity=Avg(Cast(F('assistant_metadata__uncertainty__perplexity'), fields.FloatField()))
+        )['avg_perplexity']
+
+        # Calculate iterations and hints
+        iterations_and_hints = attempts_for_exercise.aggregate(
+            total_iterations=Count('traces', filter=Q(traces__channel='exercise_guidance')),
+            total_hints=Count('traces', filter=Q(traces__user_metadata__action='ask_hint'))
+        )
+        
+        # Combine and format metrics
+        total_attempts = metrics['total_attempts']
+        completed_attempts = metrics['completed_attempts']
+        
+        avg_iterations = (iterations_and_hints['total_iterations'] / total_attempts) if total_attempts > 0 else 0
+        avg_hints = (iterations_and_hints['total_hints'] / total_attempts) if total_attempts > 0 else 0
+        completion_rate = (completed_attempts / total_attempts * 100) if total_attempts > 0 else 0
+        avg_time_seconds = metrics['avg_time_to_complete'].total_seconds() if metrics['avg_time_to_complete'] else 0
+
+        exercise_metrics.append({
+            'exercise': exercise,
+            'avg_perplexity': perplexity_avg,
+            'avg_iterations': avg_iterations,
+            'completion_rate': completion_rate,
+            'avg_time_seconds': avg_time_seconds,
+            'avg_hints': avg_hints,
+        })
+
+    # Sort by perplexity by default
+    exercise_metrics.sort(key=lambda x: (x['avg_perplexity'] is None, x['avg_perplexity']), reverse=True)
+    return exercise_metrics
+
 
 User = get_user_model()
 
@@ -42,6 +126,96 @@ def course_detail(request, pk):
         'course': course,
         'completed_exercise_ids': completed_ids,
     })
+
+
+@login_required
+def course_analytics_dashboard(request, course_id):
+    """
+    Displays the course analytics dashboard for exercises and performance metrics.
+    """
+    course = get_object_or_404(Course, pk=course_id)
+    assert_can_view_course(request.user, course)
+
+    # Handle date filtering
+    filter_days_str = request.GET.get('filter', 'all')
+    
+    # Get all exercises for the course and calculate metrics
+    exercises = Exercise.objects.filter(module__course=course).select_related('module').order_by('module__order', 'order')
+    exercise_metrics = get_exercise_analytics(exercises, filter_days_str)
+
+    context = {
+        'course': course,
+        'course_name': course.name,
+        'nav': 'courses',
+        'exercise_metrics': exercise_metrics,
+        'day_filters': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+        'selected_filter': filter_days_str,
+    }
+    
+    return render(request, 'exercises/teacher/course_analytics_dashboard.html', context)
+
+
+@login_required
+def exercise_analytics_detail(request, exercise_id):
+    """
+    Displays analytics for a single exercise (e.g., top uncertain interactions).
+    """
+    exercise = get_object_or_404(Exercise, pk=exercise_id)
+    assert_can_view_course(request.user, exercise.module.course)
+
+    # Handle date filtering
+    filter_days_str = request.GET.get('filter', 'all')
+    end_date = timezone.now()
+    start_date = None
+
+    if filter_days_str.isdigit():
+        start_date = end_date - timedelta(days=int(filter_days_str))
+
+    # Base attempts queryset
+    attempts = Attempt.objects.filter(exercise=exercise)
+    if start_date:
+        attempts = attempts.filter(updated_at__gte=start_date)
+    elif filter_days_str == 'last_edit':
+        attempts = attempts.filter(updated_at__gte=exercise.updated_at)
+
+    # Get top 20 uncertain traces
+    uncertain_traces = Trace.objects.filter(
+        object_id__in=Subquery(attempts.values('id')),
+        content_type=ContentType.objects.get_for_model(Attempt),
+        channel='exercise_guidance',
+        assistant_metadata__uncertainty__perplexity__isnull=False
+    ).order_by(
+        Cast(F('assistant_metadata__uncertainty__perplexity'), fields.FloatField()).desc()
+    )[:20]
+
+    # Prepare scaled progress values for the template
+    scale_factor = 30.0
+    trace_items = []
+    for tr in uncertain_traces:
+        metadata = tr.assistant_metadata or {}
+        uncertainty = metadata.get('uncertainty') or {}
+        try:
+            perplexity_val = float(uncertainty.get('perplexity') or 0.0)
+        except Exception:
+            perplexity_val = 0.0
+        percent = perplexity_val * scale_factor
+        if percent < 0:
+            percent = 0.0
+        if percent > 100:
+            percent = 100.0
+        trace_items.append({
+            'trace': tr,
+            'perplexity': perplexity_val,
+            'percent': percent,
+        })
+
+    context = {
+        'exercise': exercise,
+        'nav': 'courses',
+        'trace_items': trace_items,
+        'scale_factor': int(scale_factor),
+    }
+    return render(request, 'exercises/teacher/exercise_analytics_detail.html', context)
 
 
 @login_required
