@@ -78,16 +78,6 @@
                         <!-- <a href="#" class="navbar-item">
                             Settings
                         </a> <hr class="navbar-divider"> -->
-                        
-                        {% if request.resolver_match.view_name == 'exercises:exercise_detail' and exercise and can_edit %}
-                        <form method="post" action="{% url 'exercises:delete_user_answers' exercise.id %}">
-                            {% csrf_token %}
-                            <button type="submit" class="navbar-item">
-                                Delete all my answers for this question
-                            </button>
-                        </form>
-                        <hr class="navbar-divider">
-                        {% endif %}
                         <a href="{% url 'password_change' %}" class="navbar-item">
                             Change password
                         </a>
