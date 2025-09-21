@@ -288,15 +288,25 @@ def course_detail(request, pk):
         .prefetch_related(Prefetch('exercises', queryset=Exercise.objects.filter(visible=True).order_by('order')))
     )
 
-    # Localize exercise titles/descriptions for listing
+    # Build per-module view-model with localized titles/descriptions for listing
     try:
         for module in visible_modules:
-            ex_qs = getattr(module, 'exercises', None)
-            if hasattr(ex_qs, 'all'):
-                for ex in ex_qs.all():
-                    ex.localized_title = localized_name(ex, 'title_i18n', request.user)
-                    ex.localized_description = localized_name(ex, 'description_i18n', request.user)
+            # Compute localized fields on the actual visible queryset so we don't lose them
+            localized_list = []
+            for ex in module.exercises.filter(visible=True).order_by('order'):
+                localized_list.append({
+                    'id': ex.id,
+                    'pk': ex.pk,
+                    'localized_title': localized_name(ex, 'title_i18n', request.user),
+                    'localized_description': localized_name(ex, 'description_i18n', request.user),
+                    # Fallbacks for templates that still expect legacy fields
+                    'title': ex.title,
+                    'description': ex.description,
+                })
+            # Attach for template iteration
+            module.localized_visible_exercises = localized_list
     except Exception:
+        # Non-fatal: if localization fails, templates will fall back to legacy fields
         pass
 
     # Determine if current user can access teacher view for this course

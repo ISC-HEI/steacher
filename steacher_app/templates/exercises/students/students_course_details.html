@@ -18,7 +18,10 @@
         </div>
         {% if can_teacher_view %}
         <div class="level-right">
-            <a class="button is-light" href="{% url 'teachers:course_detail' pk=course.pk %}">Teacher view</a>
+            <a class="button is-light" href="{% url 'teachers:course_detail' pk=course.pk %}">
+                <span class="icon"><i class="fas fa-user-shield"></i></span>
+                <span>Teacher view</span>
+            </a>
         </div>
         {% endif %}
         
@@ -41,14 +44,15 @@
             <div class="card-content">
                 <div class="content">
                     <div class="exercise-list">
-                        {% for exercise in module.visible_exercises %}
-                        <a class="exercise-link list-group-item mb-3" style="min-height: 2em;" href="{% url 'exercises:exercise_detail' pk=exercise.pk %}">
+                        {% for exercise in module.localized_visible_exercises|default:module.visible_exercises %}
+                        {% with exercise.pk|default:exercise.id as eid %}
+                        <a class="exercise-link list-group-item mb-3" style="min-height: 2em;" href="{% url 'exercises:exercise_detail' pk=eid %}">
                             <div class="level">
                                 <div class="level-left">
                                     <div class="exercise-info columns is-mobile is-gapless">
                                         <div class="column is-narrow" style="width: 70px;">
                                             <span class="order-number mr-1">{{ forloop.counter }}</span>
-                                            {% if completed_exercise_ids and exercise.id in completed_exercise_ids %}
+                                            {% if completed_exercise_ids and eid in completed_exercise_ids %}
                                                 <span class="icon has-text-success" title="Completed">
                                                     <i class="fas fa-check-circle"></i>
                                                 </span>
@@ -70,6 +74,7 @@
                                 </div>
                             </div>
                         </a>
+                        {% endwith %}
                         {% empty %}
                         <p>This module does not have any exercises yet.</p>
                         {% endfor %}
@@ -92,14 +97,15 @@
                 <div class="card-content">
                     <div class="content">
                         <div class="exercise-list">
-                            {% for exercise in module.visible_exercises %}
-                            <a class="exercise-link list-group-item mb-3" style="min-height: 5em;" href="{% url 'exercises:exercise_detail' pk=exercise.pk %}">
+                            {% for exercise in module.localized_visible_exercises|default:module.visible_exercises %}
+                            {% with exercise.pk|default:exercise.id as eid %}
+                            <a class="exercise-link list-group-item mb-3" style="min-height: 5em;" href="{% url 'exercises:exercise_detail' pk=eid %}">
                                 <div class="level">
                                     <div class="level-left">
                                         <div class="exercise-info columns is-mobile is-gapless">
                                             <div class="column is-narrow" style="width: 70px;">
                                                 <span class="order-number mr-2">{{ forloop.counter }}</span>
-                                                {% if completed_exercise_ids and exercise.id in completed_exercise_ids %}
+                                                {% if completed_exercise_ids and eid in completed_exercise_ids %}
                                                     <span class="icon has-text-success" title="Completed">
                                                         <i class="fas fa-check-circle"></i>
                                                     </span>
@@ -121,6 +127,7 @@
                                     </div>
                                 </div>
                             </a>
+                            {% endwith %}
                             {% empty %}
                             <p>This module does not have any exercises yet.</p>
                             {% endfor %}

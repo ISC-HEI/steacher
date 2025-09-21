@@ -19,9 +19,18 @@
             </div>
         </div>
         <div class="level-right">
-            <a class="button is-light" href="{% url 'teachers:course_analytics_dashboard' course.id %}">Analytics</a>
-            <button class="button is-primary" @click="addModulePrompt">Add module</button>
-            <a class="button is-light" href="{% url 'exercises:course_detail' pk=course.pk %}">View as student</a>
+            <a class="button is-light" href="{% url 'teachers:course_analytics_dashboard' course.id %}">
+                <span class="icon"><i class="fas fa-chart-line"></i></span>
+                <span>Analytics</span>
+            </a>
+            <button class="button is-primary" @click="addModulePrompt">
+                <span class="icon"><i class="fas fa-plus"></i></span>
+                <span>Add module</span>
+            </button>
+            <a class="button is-light" href="{% url 'exercises:course_detail' pk=course.pk %}">
+                <span class="icon"><i class="fas fa-user-graduate"></i></span>
+                <span>View as student</span>
+            </a>
         </div>
     </div>
     <div class="content">
@@ -49,7 +58,10 @@
                     <button class="button is-small is-primary" disabled>AI module analysis</button>
                 </a> -->
                 <a class="card-header-icon" aria-label="add exercise" href="{% url 'teachers:exercise_add' course_pk=course.pk module_pk=module.pk %}" title="Add exercise to this module">
-                    <button class="button is-small is-primary">Add exercise</button>
+                    <button class="button is-small is-primary">
+                        <span class="icon"><i class="fas fa-plus"></i></span>
+                        <span>Add exercise</span>
+                    </button>
                 </a>
                 <button class="card-header-icon" aria-label="more options" data-action="toggle-module" @click="toggleModuleExpanded('{{ module.pk }}')">
                     <span class="icon">
@@ -73,7 +85,7 @@
                                             <span class="order-number mr-1">{{ forloop.counter }}</span>
                                             
                                             <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" class="mr-2 ml-2">
-                                              <span class="exercise-title">{{ exercise.title }}</span>
+                                              <span class="exercise-title">{{ exercise.title | truncatechars:80 }}</span>
                                             </a>
                                             <span class="tag is-light ml-2 mr-2">{{ exercise.exercise_type }}</span>
                                             <button class="button is-white is-small mr-1"
@@ -114,8 +126,14 @@
             <p>This course does not have any modules yet.</p>
         {% endfor %}
         <div class="level-right mt-6 mb-6">
-            <button class="button is-primary" @click="addModulePrompt">Add module</button>
-            <a class="button is-light" href="{% url 'exercises:course_detail' pk=course.pk %}">View as student</a>
+            <button class="button is-primary" @click="addModulePrompt">
+                <span class="icon"><i class="fas fa-plus"></i></span>
+                <span>Add module</span>
+            </button>
+            <a class="button is-light" href="{% url 'exercises:course_detail' pk=course.pk %}">
+                <span class="icon"><i class="fas fa-user-graduate"></i></span>
+                <span>View as student</span>
+            </a>
         </div>
     </div>
 </div>
