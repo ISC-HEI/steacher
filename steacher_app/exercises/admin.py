@@ -82,21 +82,10 @@ def format_interactions(attempt):
         feedback = ai_response.get('content', '')
         if feedback:
             escaped_feedback = html.escape(feedback)
-            ambiguity = ai_metadata.get('ambiguity')
-            ambiguity_html = ""
-            if ambiguity:
-                ambiguity_items = "".join([f"<li>{html.escape(str(item))}</li>" for item in ambiguity])
-                ambiguity_html = f"""
-                    <div style="margin-top: 10px; padding: 10px; border: 1px solid #f0ad4e; border-radius: 5px; background-color: #fcf8e3;">
-                        <strong>LLM Ambiguity:</strong>
-                        <ul>{ambiguity_items}</ul>
-                    </div>
-                """
             html_output += f"""
                 <div style="display: flex; justify-content: flex-start; margin-bottom: 10px;">
                     <div style="max-width: 80%; padding: 10px; border-radius: 15px; background-color: #fff; border: 1px solid #ddd;">
                         {escaped_feedback}
-                        {ambiguity_html}
                     </div>
                 </div>
             """

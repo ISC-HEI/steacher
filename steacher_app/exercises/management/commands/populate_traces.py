@@ -99,8 +99,7 @@ class Command(BaseCommand):
                     llm_response = fetch_ai_guidance(
                         data=data_for_ai,
                         exercise=exercise,
-                        attempt=attempt,
-                        debug=True
+                        attempt=attempt
                     )
                     #print('llm_response: ', llm_response)
                     

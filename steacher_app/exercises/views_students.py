@@ -482,7 +482,7 @@ def get_guidance(request, exercise_id, attempt_id):
         data = json.loads(request.body)       
         attempt = get_object_or_404(Attempt, id=attempt_id, exercise=exercise, user=request.user)
 
-        response_data = fetch_ai_guidance(data, exercise, attempt, debug=True)
+        response_data = fetch_ai_guidance(data, exercise, attempt)
         return JsonResponse({'status': 'success', **response_data})
 
     except ValidationError as e:

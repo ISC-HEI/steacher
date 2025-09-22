@@ -153,21 +153,7 @@ def _strip_markdown_fences(content: str) -> str:
     return content
 
 
-# used for improving the prompt
-DEBUG_TEXT = """
-**Output Format**
-You will always respond in a JSON format with the following structure:
-```json
-{
-  "answer": "string",
-  "ambiguity": ["string"]
-}
-```
-- `answer`: Your Socratic response to the student.
-- `ambiguity`: An array of strings describing anything unclear or ambiguous in the prompt or in the given of the exercise. This is used by our AI engineers to improve the prompt. If nothing is unclear, return an empty array.
-"""
-
-def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: bool = False) -> dict:
+def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     """
     Fetches AI guidance for a given exercise and attempt.
     Input:
@@ -180,7 +166,6 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
         - 'error_message': the error message, if any.
         - 'output': the output of the code, if any.
         - 'answer': the answer provided by the user, if any.
-    - 'debug': a boolean flag to indicate if the debug mode is enabled. If True, the LLM will return a JSON object with the keys described in DEBUG_TEXT above.
 
     # TODO: refactor this data structure to make it cleaner
 
@@ -272,9 +257,6 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt, debug: b
     with open('exercises/general_prompt.md', 'r') as file:
         prompt = file.read()
 
-    if debug:
-        prompt += f"\n\n{DEBUG_TEXT}"
-
     if action == 'ask_hint':
         prompt += """
 # Hint Request Exception
@@ -355,7 +337,7 @@ Do not provide the entire solution, but give them enough to make meaningful prog
 
         chat_config = GenerateContentConfig(
             system_instruction=prompt,
-            response_mime_type="application/json" if debug else "text/plain",
+            response_mime_type="text/plain",
             temperature=0.7,
             response_logprobs=True,
             logprobs=5,
@@ -373,28 +355,14 @@ Do not provide the entire solution, but give them enough to make meaningful prog
     llm_duration = time.time() - llm_start_time
     logger.info(f"LLM call for exercise {exercise.id} took {llm_duration:.2f} seconds.")
 
-    # 6. Extract answer and optional debug JSON
-    ambiguity = []
+    # 6. Extract answer
     if gen_response is None:
         answer = "I'm sorry, I couldn't process your request right now. Please try again."
     else:
         try:
-            raw_text = (gen_response.text or '').strip()
+            answer = (gen_response.text or '').strip()
         except Exception:
-            raw_text = ''
-        if debug:
-            assistant_content_json_str = _strip_markdown_fences(raw_text)
-            try:
-                assistant_content_json = json.loads(assistant_content_json_str)
-                answer = assistant_content_json.get("answer", "")
-                ambiguity = assistant_content_json.get("ambiguity", [])
-                if not isinstance(ambiguity, list):
-                    ambiguity = [str(ambiguity)]
-            except Exception as e:
-                answer = assistant_content_json_str
-                ambiguity = [f"Failed to parse JSON: {str(e)}"]
-        else:
-            answer = raw_text
+            answer = ''
 
     # 7.a. Detect completion tag and mark the attempt as complete if present
     try:
@@ -429,8 +397,6 @@ Do not provide the entire solution, but give them enough to make meaningful prog
             }
         }
     }
-    if debug:
-        interaction_log['llm_response']['metadata']['ambiguity'] = ambiguity
     if uncertainty_metrics:
         interaction_log['llm_response']['metadata']['uncertainty'] = uncertainty_metrics
     
@@ -446,9 +412,6 @@ Do not provide the entire solution, but give them enough to make meaningful prog
             'finish_reason': interaction_log['llm_response']['metadata']['finish_reason'],
         }
     }
-    if debug:
-        # Preserve ambiguity when debugging
-        fields['assistant_metadata']['ambiguity'] = ambiguity
     if uncertainty_metrics:
         fields['assistant_metadata']['uncertainty'] = uncertainty_metrics
     if not first_trace: # if there is no first trace, then this is the first trace
