@@ -9,21 +9,32 @@ docker compose exec -T db pg_dump -U steacher_admin steacher_prod > ~/dev/manual
 # 1) Get latest code
 git pull
 
-# 2) Build the web image (so collectstatic runs against the new code)
+# 2) toggle maintenance mode
+touch nginx/maintenance/maintenance_on
+# restart proxy
+docker compose restart proxy
+
+
+# 3) Build the web image (so collectstatic runs against the new code)
 docker compose build web
 
-# 3) Collect static into STATIC_ROOT and write manifest
+# 4) Collect static into STATIC_ROOT and write manifest
 docker compose run --rm --no-deps --entrypoint "" web python manage.py collectstatic --noinput 
 # optionally --clear 
 
-# 4) Recreate/start the app with the new image
+# 5) Recreate/start the app with the new image
 docker compose up -d --no-deps web
 
-# 5) Apply DB migrations if models changed
+# 6) Apply DB migrations if models changed
 docker compose exec web python manage.py migrate
 
-# 6) somehow needed
+# 7) somehow needed
 docker compose restart web proxy
+
+# 8) remove maintenance mode and restart proxy
+rm nginx/maintenance/maintenance_on
+docker compose restart proxy
+
 
 
 # Only restart other services when they change:
