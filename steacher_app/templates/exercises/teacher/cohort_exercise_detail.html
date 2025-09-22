@@ -128,41 +128,69 @@
     <hr>
 
     <div class="box">
-        <table class="table is-fullwidth is-striped is-hoverable">
-            <thead>
-                <tr>
-                    <th>Student</th>
-                    <th>Status</th>
-                    <th>Submissions</th>
-                    <th>Hints</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for data in student_data %}
-                <tr>
-                    <td>
-                        <a href="{% url 'teachers:cohort_student_detail' selected_cohort.pk data.student.pk %}">
-                            {{ data.student.get_full_name|default:data.student.username }}
-                        </a>
-                    </td>
-                    <td>
-                        {% if data.attempt.complete %}
-                            <span class="tag is-success">Completed</span>
-                        {% elif data.attempt %}
-                            <span class="tag is-info">In Progress</span>
-                        {% else %}
-                            <span class="tag">Not Started</span>
-                        {% endif %}
-                    </td>
-                    <td>{{ data.submissions_count }}</td>
-                    <td>{{ data.hints_count }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div id="exercise-students-toggle" class="is-flex is-align-items-center is-clickable" style="cursor: pointer; user-select: none;">
+            <span class="icon mr-2" id="exercise-students-arrow"><i class="fas fa-chevron-right"></i></span>
+            <span class="is-size-5 has-text-weight-semibold">Student Attempts</span>
+        </div>
+        <div id="exercise-students-grid-container" style="display: none;">
+            <div id="exercise-students-grid" data-cohort-id="{{ selected_cohort.id }}"></div>
+        </div>
+        {{ student_rows_json|json_script:"exercise-students-data" }}
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
+{{ block.super }}
+<link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator_bulma.min.css" rel="stylesheet">
+<script type="text/javascript" src="https://unpkg.com/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var container = document.getElementById('exercise-students-grid-container');
+    var toggle = document.getElementById('exercise-students-toggle');
+    var arrow = document.getElementById('exercise-students-arrow');
+    if (toggle && arrow && container) {
+        toggle.addEventListener('click', function(){
+            var isHidden = container.style.display === 'none';
+            container.style.display = isHidden ? '' : 'none';
+            arrow.innerHTML = isHidden ? '<i class="fas fa-chevron-down"></i>' : '<i class="fas fa-chevron-right"></i>';
+        });
+    }
+
+    var el = document.getElementById('exercise-students-grid');
+    var dataScript = document.getElementById('exercise-students-data');
+    if (!el || !dataScript || !window.Tabulator) return;
+    var cohortId = el.getAttribute('data-cohort-id') || '';
+    var rows = [];
+    try { rows = JSON.parse(dataScript.textContent || '[]'); } catch (e) { rows = []; }
+
+    new Tabulator(el, {
+        data: rows,
+        layout: 'fitDataStretch',
+        columnDefaults: { resizable: true },
+        pagination: true,
+        paginationSize: 25,
+        columns: [
+            { title: 'Student', field: 'display_name', sorter: 'string', headerFilter: 'input', widthGrow: 3,
+              formatter: function(cell){
+                  var r = cell.getRow().getData();
+                  var name = (r.display_name.substring(0, r.display_name.indexOf('@') || r.display_name.length) || '');
+                  var href = '/teachers/cohorts/' + encodeURIComponent(cohortId) + '/students/' + encodeURIComponent(r.id || '') + '/';
+                  return '<a href="' + href + '">' + name + '</a>';
+              }
+            },
+            { title: 'Status', field: 'attempt_exists', sorter: 'boolean', headerFilter: true, width: 140,
+              formatter: function(cell){
+                  var r = cell.getRow().getData();
+                  if (r.attempt_complete) return '<span class="tag is-success">Completed</span>';
+                  if (r.attempt_exists) return '<span class="tag is-info">In Progress</span>';
+                  return '<span class="tag">Not Started</span>';
+              }
+            },
+            { title: 'Submissions', field: 'submissions_count', sorter: 'number', headerFilter: 'input', width: 130 },
+            { title: 'Hints', field: 'hints_count', sorter: 'number', headerFilter: 'input', width: 110 },
+        ]
+    });
+});
+</script>
 {% endblock %}

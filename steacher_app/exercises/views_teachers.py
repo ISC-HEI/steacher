@@ -268,7 +268,8 @@ def cohort_detail(request, pk): # pylint: disable=unused-argument
     except Exception:
         pass
 
-    students_data = []
+    # Build dataset for Grid.js (simple JSON rows only)
+    students_json = []
     histogram = []
     max_bar_count = 0
     exercise_completion_bars = []
@@ -317,14 +318,11 @@ def cohort_detail(request, pk): # pylint: disable=unused-argument
 
     def name_key(m):
         u = m.user
-        last = (u.last_name or '').lower()
-        first = (u.first_name or '').lower()
-        username = (u.username or '').lower()
-        return (last, first, username)
+        return u.get_display_name().lower()
 
     memberships_sorted = sorted(memberships, key=name_key)
 
-    for m in memberships_sorted:
+    for idx, m in enumerate(memberships_sorted, start=1):
         user = m.user
         user_attempts = attempts_by_student.get(user.id, [])
 
@@ -338,37 +336,61 @@ def cohort_detail(request, pk): # pylint: disable=unused-argument
         last_exercise = last_attempt.exercise if last_attempt else None
 
         hints_count = 0
+        submissions_count = 0
+        questions_count = 0
+        interactions_count = 0
+        # Counters restricted to completed exercises only
+        hints_on_completed = 0
+        submissions_on_completed = 0
+        questions_on_completed = 0
+        interactions_on_completed = 0
         for a in user_attempts:
             inters = interactions_by_attempt.get(a.id, [])
+            interactions_count += len(inters)
+            is_completed_attempt = bool(getattr(a, 'complete', False)) and getattr(getattr(a, 'exercise', None), 'visible', True)
             for tr in inters:
                 meta = (tr.user_metadata or {})
                 action = meta.get('action')
                 if action == 'ask_hint':
                     hints_count += 1
+                elif action == 'ask_question':
+                    questions_count += 1
+                elif action in ('run_submission', 'submit_answer'):
+                    submissions_count += 1
+            if is_completed_attempt:
+                interactions_on_completed += len(inters)
+                for tr in inters:
+                    meta2 = (tr.user_metadata or {})
+                    act2 = meta2.get('action')
+                    if act2 == 'ask_hint':
+                        hints_on_completed += 1
+                    elif act2 == 'ask_question':
+                        questions_on_completed += 1
+                    elif act2 in ('run_submission', 'submit_answer'):
+                        submissions_on_completed += 1
 
-        students_data.append({
-            'user': user,
+        # Append a lightweight row for frontend Grid.js
+        students_json.append({
+            'id': getattr(user, 'id', None),
+            'display_name': user.get_display_name(),
+            'student_number': idx,
+            'percent': percent,
             'completed_count': completed_count,
             'total_exercises': total_exercises,
-            'percent': percent,
-            'last_exercise': last_exercise,
+            'last_exercise_id': getattr(last_exercise, 'id', None) if last_exercise else None,
+            'last_exercise_title': getattr(last_exercise, 'title', '') if last_exercise else '',
             'last_attempt_complete': bool(getattr(last_attempt, 'complete', False)) if last_attempt else False,
-            'hints_count': hints_count,
+            'avg_hints_per_completed': (hints_on_completed / completed_count) if completed_count > 0 else 0.0,
+            'avg_submissions_per_completed': (submissions_on_completed / completed_count) if completed_count > 0 else 0.0,
+            'avg_questions_per_completed': (questions_on_completed / completed_count) if completed_count > 0 else 0.0,
+            'avg_interactions_per_completed': (interactions_on_completed / completed_count) if completed_count > 0 else 0.0,
         })
 
-        try:
-            display_name = (user.last_name or '').strip()
-            if user.first_name:
-                display_name = f"{display_name}, {user.first_name.strip()}" if display_name else user.first_name.strip()
-            if not display_name:
-                display_name = (user.username or '').strip()
-        except Exception:
-            display_name = (getattr(user, 'username', '') or '').strip()
         if completed_exercise_ids:
             highest_pos = max((exercise_pos.get(eid, 0) for eid in completed_exercise_ids), default=0)
         else:
             highest_pos = 0
-        bucket_map.setdefault(highest_pos, []).append(display_name)
+        bucket_map.setdefault(highest_pos, []).append(user.get_display_name())
 
         for eid in completed_exercise_ids:
             pos = exercise_pos.get(eid)
@@ -407,7 +429,7 @@ def cohort_detail(request, pk): # pylint: disable=unused-argument
 
     return render(request, 'exercises/teacher/cohort.html', {
         'selected_cohort': selected_cohort,
-        'students': students_data,
+        'students_json': students_json,
         'histogram': histogram,
         'max_bar_count': max_bar_count,
         'exercise_completion_bars': exercise_completion_bars,
@@ -527,10 +549,25 @@ def cohort_exercise_detail(request, cohort_id, exercise_id): # pylint: disable=u
     attempted_percent = (attempted_count / total_students * 100) if total_students > 0 else 0
     not_started_percent = (not_started_count / total_students * 100) if total_students > 0 else 0
 
+    # JSON rows for Tabulator (frontend)
+    student_rows_json = []
+    for row in student_data:
+        stu = row['student']
+        att = row['attempt']
+        student_rows_json.append({
+            'id': getattr(stu, 'id', None),
+            'display_name': getattr(stu, 'get_display_name', lambda: (stu.get_full_name() or getattr(stu, 'username', '') or '').strip())(),
+            'attempt_exists': bool(att is not None),
+            'attempt_complete': bool(getattr(att, 'complete', False)) if att else False,
+            'submissions_count': int(row.get('submissions_count', 0)),
+            'hints_count': int(row.get('hints_count', 0)),
+        })
+
     return render(request, 'exercises/teacher/cohort_exercise_detail.html', {
         'selected_cohort': selected_cohort,
         'exercise': exercise,
         'student_data': sorted(student_data, key=lambda x: x['student'].get_full_name() or x['student'].username),
+        'student_rows_json': student_rows_json,
         # Stats
         'total_students': total_students,
         'completed_count': completed_count,

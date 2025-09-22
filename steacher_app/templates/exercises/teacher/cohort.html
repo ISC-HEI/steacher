@@ -11,7 +11,7 @@
     <div class="level">
         <div class="level-left">
             <div>
-                <h1 class="title is-3">{{ selected_cohort.name }} // {{ selected_cohort.course.name }}</h1>
+                <h1 class="title is-3">{{ selected_cohort.name }} // <a href="{% url 'teachers:course_detail' selected_cohort.course.pk %}">{{ selected_cohort.course.name }}</a></h1>
             </div>
         </div>
     </div>
@@ -22,7 +22,7 @@
         <div class="histogram is-flex is-align-items-end" style="gap: 6px;">
             {% for bucket in histogram %}
             <div class="has-text-centered" style="width: 18px;">
-                <div class="tooltip" style="height: {{ bucket.height_px }}px; background-color: #00d1b2; border-radius: 3px;" title="{{ bucket.count }} student(s): {{ bucket.names|join:', ' }}"></div>
+                <div class="tooltip" data-height-px="{{ bucket.height_px }}" style="background-color: #00d1b2; border-radius: 3px;" title="{{ bucket.count }} student(s): {{ bucket.names|join:', ' }}"></div>
                 <div class="is-size-7 has-text-grey mt-1">{{ bucket.label }}</div>
             </div>
             {% endfor %}
@@ -34,7 +34,7 @@
         <div class="histogram is-flex is-align-items-end" style="gap: 6px;">
             {% for bar in exercise_completion_bars %}
             <a href="{% url 'teachers:cohort_exercise_detail' selected_cohort.pk bar.exercise_id %}" class="has-text-centered" style="width: 18px; display: block;">
-                <div class="tooltip" style="height: {{ bar.height_px }}px; background-color: #00d1b2; border-radius: 3px;" title="{{ bar.percent }}% ({{ bar.count }}/{{ bar.total }})"></div>
+                <div class="tooltip" data-height-px="{{ bar.height_px }}" style="background-color: #00d1b2; border-radius: 3px;" title="{{ bar.percent }}% ({{ bar.count }}/{{ bar.total }})"></div>
                 <div class="is-size-7 has-text-grey mt-1">{{ bar.label }}</div>
             </a>
             {% endfor %}
@@ -45,54 +45,133 @@
     {% endif %}
 
     <div class="box">
-        <div class="table-container">
-            <table class="table is-fullwidth is-striped is-hoverable">
-                <thead>
-                    <tr>
-                        <th>Student</th>
-                        <th>Progress (# ex. completed)</th>
-                        <th>Last exercise attempted</th>
-                        <th class="has-text-centered">Hints</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for s in students %}
-                    <tr>
-                        <td>
-                            <a href="{% url 'teachers:cohort_student_detail' selected_cohort.pk s.user.pk %}">
-                                {{ s.user.get_full_name|default:s.user.username }}
-                            </a>
-                        </td>
-                        <td>
-                            <div class="is-flex is-align-items-center">
-                                <progress class="progress is-primary mr-2" value="{{ s.percent }}" max="100" style="flex: 1"></progress>
-                                <span class="is-size-7">{{ s.completed_count }}/{{ s.total_exercises }} ({{ s.percent }}%)</span>
-                            </div>
-                        </td>
-                        <td>
-                            {% if s.last_exercise %}
-                                {{ s.last_exercise.title }}
-                                {% if s.last_attempt_complete %}
-                                    <span class="icon has-text-success" title="Completed"><i class="fas fa-check-circle"></i></span>
-                                {% else %}
-                                    <span class="icon has-text-grey-light" title="In progress"><i class="far fa-circle"></i></span>
-                                {% endif %}
-                            {% else %}
-                                —
-                            {% endif %}
-                        </td>
-                        <td class="has-text-centered">{{ s.hints_count }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="4" class="has-text-centered has-text-grey">No students in this cohort.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div id="students-progress-toggle" class="is-flex is-align-items-center is-clickable" style="cursor: pointer; user-select: none;">
+            <span class="icon mr-2" id="students-progress-arrow"><i class="fas fa-chevron-right"></i></span>
+            <span class="is-size-5 has-text-weight-semibold">Student Progress</span>
+        </div>
+        <div id="students-grid-container" style="display: none;">
+            <div id="students-grid" data-cohort-id="{{ selected_cohort.id }}"></div>
         </div>
     </div>
+    {{ students_json|json_script:"students-grid-data" }}
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('[data-height-px]').forEach(function (el) {
+            var h = parseInt(el.getAttribute('data-height-px') || '0', 10);
+            if (!isNaN(h)) {
+                el.style.height = h + 'px';
+            }
+        });
+        // Collapsible Student Progress
+        var toggle = document.getElementById('students-progress-toggle');
+        var arrow = document.getElementById('students-progress-arrow');
+        var container = document.getElementById('students-grid-container');
+        if (toggle && arrow && container) {
+            toggle.addEventListener('click', function(){
+                var isHidden = container.style.display === 'none';
+                container.style.display = isHidden ? '' : 'none';
+                arrow.innerHTML = isHidden ? '<i class="fas fa-chevron-down"></i>' : '<i class="fas fa-chevron-right"></i>';
+            });
+        }
+    });
+    </script>
 </div>
 {% endblock %}
 
 
+
+{% block scripts %}
+{{ block.super }}
+<link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator_bulma.min.css" rel="stylesheet">
+<script type="text/javascript" src="https://unpkg.com/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var el = document.getElementById('students-grid');
+    var dataScript = document.getElementById('students-grid-data');
+    if (!el || !dataScript || !window.Tabulator) return;
+    var cohortId = el.getAttribute('data-cohort-id') || '';
+    var data = [];
+    try { data = JSON.parse(dataScript.textContent || '[]'); } catch (e) { data = []; }
+
+    // Compute maxima for progress-bar style numeric columns
+    function columnMax(key) {
+        var m = 0;
+        for (var i = 0; i < data.length; i++) {
+            var v = Number(data[i][key] || 0);
+            if (v > m) m = v;
+        }
+        return m || 1; // avoid division by zero
+    }
+    var maxHints = columnMax('avg_hints_per_completed');
+    var maxSubmissions = columnMax('avg_submissions_per_completed');
+    var maxQuestions = columnMax('avg_questions_per_completed');
+    var maxInteractions = columnMax('avg_interactions_per_completed');
+
+    function barFormatterFactory(key, colorClass, decimals){
+        return function(cell){
+            var v = Number(cell.getValue() || 0);
+            var maxForKey = (
+                key === 'avg_hints_per_completed' ? maxHints :
+                key === 'avg_submissions_per_completed' ? maxSubmissions :
+                key === 'avg_questions_per_completed' ? maxQuestions :
+                maxInteractions
+            );
+            var pct = Math.round(Math.min(100, (v / maxForKey) * 100));
+            var label = (isFinite(v) ? v.toFixed(decimals) : '0');
+            return '<div style="position:relative; width:100%;">'
+                + '<progress class="progress ' + colorClass + ' is-small" value="' + pct + '" max="100" style="width:100%;"></progress>'
+                + '<span style="position:absolute; left:0; right:0; top:0; bottom:0; display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:#fff; text-shadow: 0 1px 1px rgba(0,0,0,0.4);">' + label + '</span>'
+                + '</div>';
+        }
+    }
+
+    new Tabulator(el, {
+        data: data,
+        layout: 'fitDataStretch',
+        columnDefaults: { resizable: true },
+        pagination: true,
+        paginationSize: 25,
+        columns: [
+            { title: 'Student', field: 'display_name', sorter: 'string', headerFilter: 'input', widthGrow: 3,
+              formatter: function(cell){
+                  var r = cell.getRow().getData();
+                  var name = (r.display_name.substring(0, r.display_name.indexOf('@') || r.display_name.length) || ('Student #' + (r.student_number || '')));
+                  var href = '/teachers/cohorts/' + encodeURIComponent(cohortId) + '/students/' + encodeURIComponent(r.id || '') + '/';
+                  return '<a href="' + href + '">' + name + '</a>';
+              }
+            },
+            { title: 'Progress', field: 'percent', sorter: 'number',
+              formatter: function(cell){
+                  var v = Number(cell.getValue() || 0);
+                  var r = cell.getRow().getData();
+                  var text = (r.completed_count || 0) + '/' + (r.total_exercises || 0) + ' (' + v + '%)';
+                  return '<div class="is-flex is-align-items-center">'
+                      + '<div style="position:relative; flex:1; min-width:40px;" class="mr-2">'
+                      +   '<progress class="progress is-primary is-small" value="' + v + '" max="100" style="width:100%;"></progress>'
+                      +   '<span style="position:absolute; left:0; right:0; top:0; bottom:0; display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:#fff; text-shadow: 0 1px 1px rgba(0,0,0,0.4);">' + v + '%</span>'
+                      + '</div>'
+                      + '<span class="is-size-7 pb-2">' + text + '</span>'
+                      + '</div>';
+              }
+            },
+            { title: 'Last exercise attempted', field: 'last_exercise_title', headerFilter: 'input',
+              formatter: function(cell){
+                  var r = cell.getRow().getData();
+                  if (!r.last_exercise_id) return '—';
+                  var icon = r.last_attempt_complete
+                      ? '<span class="icon has-text-success" title="Completed"><i class="fas fa-check-circle"></i></span>'
+                      : '<span class="icon has-text-grey-light" title="In progress"><i class="far fa-circle"></i></span>';
+                  var href = '/teachers/cohorts/' + encodeURIComponent(cohortId) + '/exercises/' + encodeURIComponent(r.last_exercise_id) + '/';
+                  return icon + ' <a href="' + href + '">' + (r.last_exercise_title.substring(0, 40) + (r.last_exercise_title.length > 40 ? '...' : '')) + '</a>';
+              }
+            },
+            { title: '⌀ Hints', field: 'avg_hints_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 120, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_hints_per_completed', 'is-link', 2) },
+            { title: '⌀ Subm.', field: 'avg_submissions_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 120, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_submissions_per_completed', 'is-info', 2) },
+            { title: '⌀ Questions', field: 'avg_questions_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 120, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_questions_per_completed', 'is-warning', 2) },
+            { title: '⌀ Interact.', field: 'avg_interactions_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 120, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_interactions_per_completed', 'is-success', 2) },
+        ]
+    });
+});
+</script>
+{% endblock %}

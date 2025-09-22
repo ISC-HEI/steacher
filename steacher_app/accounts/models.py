@@ -24,10 +24,6 @@ class User(AbstractUser):
         first = (self.first_name or "").strip()
         if last and first:
             return f"{last}, {first}"
-        if last:
-            return last
-        if first:
-            return first
         return (self.username or "").strip()
 
     @property
