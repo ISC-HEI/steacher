@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function() {
         layout: 'fitDataStretch',
         columnDefaults: { resizable: true },
         pagination: true,
-        paginationSize: 25,
+        paginationSize: 50,
         columns: [
             { title: 'Student', field: 'display_name', sorter: 'string', headerFilter: 'input', widthGrow: 3,
               formatter: function(cell){
@@ -141,17 +141,15 @@ document.addEventListener('DOMContentLoaded', function() {
                   return '<a href="' + href + '">' + name + '</a>';
               }
             },
-            { title: 'Progress', field: 'percent', sorter: 'number',
+            { title: 'Progress', field: 'percent', sorter: 'number', width: 120, hozAlign: 'center', headerHozAlign: 'center',
               formatter: function(cell){
                   var v = Number(cell.getValue() || 0);
                   var r = cell.getRow().getData();
-                  var text = (r.completed_count || 0) + '/' + (r.total_exercises || 0) + ' (' + v + '%)';
-                  return '<div class="is-flex is-align-items-center">'
-                      + '<div style="position:relative; flex:1; min-width:40px;" class="mr-2">'
-                      +   '<progress class="progress is-primary is-small" value="' + v + '" max="100" style="width:100%;"></progress>'
-                      +   '<span style="position:absolute; left:0; right:0; top:0; bottom:0; display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:#fff; text-shadow: 0 1px 1px rgba(0,0,0,0.4);">' + v + '%</span>'
-                      + '</div>'
-                      + '<span class="is-size-7 pb-2">' + text + '</span>'
+                  var completed = Number(r.completed_count || 0);
+                  var total = Number(r.total_exercises || 0);
+                  var title = completed + '/' + total + ' completed';
+                  return '<div style="position:relative; width:100%;" title="' + title + '">'
+                      + '<progress class="progress is-primary is-small" value="' + v + '" max="100" style="width:100%;"></progress>'
                       + '</div>';
               }
             },
@@ -170,6 +168,7 @@ document.addEventListener('DOMContentLoaded', function() {
             { title: '⌀ Subm.', field: 'avg_submissions_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 120, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_submissions_per_completed', 'is-info', 2) },
             { title: '⌀ Questions', field: 'avg_questions_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 120, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_questions_per_completed', 'is-warning', 2) },
             { title: '⌀ Interact.', field: 'avg_interactions_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 120, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_interactions_per_completed', 'is-success', 2) },
+            { title: '⌀ Solution Reveals', field: 'avg_solution_reveals_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 150, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_solution_reveals_per_completed', 'is-danger', 2) },
         ]
     });
 });

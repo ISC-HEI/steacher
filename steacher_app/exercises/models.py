@@ -350,6 +350,7 @@ class Attempt(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='attempts')
     cohort = models.ForeignKey('Cohort', null=True, blank=True, on_delete=models.SET_NULL, related_name='attempts')
     complete = models.BooleanField(default=False, help_text="True if the user has completed the exercise.")
+    asked_for_solution = models.BooleanField(default=False, help_text="True if the user has asked for the solution.")
     version = models.IntegerField(default=1, help_text="Version of the attempt, can be used to track changes in the attempt logic or prompt or eval version.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

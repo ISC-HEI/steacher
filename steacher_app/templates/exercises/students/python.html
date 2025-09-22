@@ -50,6 +50,15 @@
                             <span>Gimme a Hint</span>
                         </button>
                     </div>
+                    <div class="control" v-if="solutionUnlocked">
+                        <button
+                            @click="getGuidance('reveal_solution')"
+                            class="button is-info"
+                            :disabled="loadingState !== 'idle'"
+                            title="You have made enough attempts at this question. If you wish, you can reveal the solution.">
+                            <span>🧨 Show solution (spoiler)</span>
+                        </button>
+                    </div>
                     <div class="control" v-if="loadingState === 'pyodide-loading'">
                         <span class="tag is-light is-info is-medium">Loading Python interpreter...</span>
                     </div>
@@ -66,7 +75,10 @@
                 :loading="loadingState === 'getting-guidance'"
                 :attempt-id="{{ attempt_id }}"
                 next-exercise-url="{% if next_exercise %}{% url 'exercises:exercise_detail' next_exercise.pk %}{% endif %}"
+                :solution-unlocked-initial="{{ solution_unlocked|yesno:'true,false' }}"
                 @question-asked="handleQuestion"
+                @solution-unlocked="solutionUnlocked = $event"
+                @reveal-solution="getGuidance('reveal_solution')"
                 >
             </chatbot-panel>
         </div>

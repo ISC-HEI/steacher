@@ -92,6 +92,7 @@
 {% if completion_feedback %}
 {{ completion_feedback|json_script:"completion-feedback-data" }}
 {% endif %}
+{{ solution_unlocked|json_script:"solution-unlocked" }}
 {% endblock %}
 
 

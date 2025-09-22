@@ -18,6 +18,8 @@ interface ChatbotPanelData {
     showJumpToLatest: boolean;
     nextMessageId: number;
     isDarkMode: boolean;
+    solutionUnlocked: boolean;
+    _submissionsCount: number;
 }
 
 export const ChatbotPanel = defineComponent({
@@ -35,6 +37,10 @@ export const ChatbotPanel = defineComponent({
     nextExerciseUrl: {
         type: String,
         default: '',
+    },
+    solutionUnlockedInitial: {
+        type: Boolean,
+        default: false,
     }
   },
   // language=HTML
@@ -213,6 +219,8 @@ export const ChatbotPanel = defineComponent({
       showJumpToLatest: false,
       nextMessageId: 0,
       isDarkMode: typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : false,
+      solutionUnlocked: false,
+      _submissionsCount: 0,
     };
   },
   computed: {
@@ -229,6 +237,10 @@ export const ChatbotPanel = defineComponent({
         this.scrollToBottom();
       }
     });
+    // Initialize unlocked state from server-provided prop
+    this.solutionUnlocked = !!this.$props.solutionUnlockedInitial;
+    // Notify parent of initial state so it can show/hide the button in editors
+    try { this.$emit('solution-unlocked', this.solutionUnlocked); } catch (_) { /* noop */ }
   },
   watch: {
     processedMessages: {
@@ -279,15 +291,31 @@ export const ChatbotPanel = defineComponent({
     },
     displayMessage(message: any) {
         const isComplete = message.role === 'assistant' && message.content.includes('<exercise_completed>');
+        const isSolutionReveal = message.role === 'assistant' && message.content.includes('<solution_revealed>');
 
-        // Always clean the tag from the message before displaying it
-        const messageToDisplay = isComplete
-            ? { ...message, content: message.content.replace('<exercise_completed>', '').trim() }
+        // Always clean tags from the assistant message before displaying it
+        const messageToDisplay = (message.role === 'assistant')
+            ? { ...message, content: (message.content || '').replace('<exercise_completed>', '').replace('<solution_revealed>', '').trim() }
             : message;
 
         // Assign a unique ID for reactivity purposes
         const messageWithId = { ...messageToDisplay, _id: this.nextMessageId++ };
         this.internalMessages.push(messageWithId);
+
+        // Track qualifying submissions from user messages to unlock spoiler button
+        try {
+            if (messageWithId.role === 'user') {
+                const meta = (messageWithId.metadata || {});
+                const action = (meta.action || '').trim();
+                if (action === 'run_submission' || action === 'submit_answer') {
+                    this._submissionsCount += 1;
+                    if (!this.solutionUnlocked && this._submissionsCount >= 5) {
+                        this.solutionUnlocked = true;
+                        try { this.$emit('solution-unlocked', true); } catch (_) { /* noop */ }
+                    }
+                }
+            }
+        } catch (_) { /* noop */ }
 
         if (isComplete) {
             if (this.pathwayData || this.pathwayLoading) {
@@ -296,8 +324,12 @@ export const ChatbotPanel = defineComponent({
 
             // If we reach here, it's the first time processing completion.
             // Fire confetti and log for debugging.
-            console.log('Exercise complete: Firing confetti! 🎊');
-            confetti({ particleCount: 200, spread: 150, origin: { y: 0.6 } });
+            if (!isSolutionReveal) {
+                console.log('Exercise complete: Firing confetti! 🎊');
+                confetti({ particleCount: 200, spread: 150, origin: { y: 0.6 } });
+            } else {
+                console.log('Exercise complete (solution revealed): confetti suppressed.');
+            }
 
             // Trigger pathway logic
             if (this.nextExerciseUrl) {
@@ -430,7 +462,7 @@ export const ChatbotPanel = defineComponent({
             return '<span class="icon"><i class="fas fa-question-circle"></i></span> ' + (question || 'Question asked');
         }
 
-        else if (action === 'run_submission') {
+        else if (action === 'run_submission' || action === 'reveal_solution') {
             // Collapsible block for any submission (Python/SQL)
             let detailsContent = message.content || '';
             if (!detailsContent && code) {

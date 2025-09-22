@@ -84,7 +84,7 @@ Deployment of this application is handled outside of this codebase and is out of
 
 ## Prompt Sources and Composition
 
-The base tutor instructions come from `exercises/general_prompt.md` for the guidance during exercises. During cha sessions, the prompt is `exercises/chat_mode_prompt.md`. All remaining context (exercise text, course/class-specific details, prior attempts, and guidance history) is loaded from the database and composed per class/course and exercise at runtime by the server views, specifically in @exercises/logic.py. Course-level customization is available via `Course.chat_prompt` and `Course.llm_prompts` (per exercise type). Conversations persist as `Trace` rows under distinct channels; exercise guidance attaches to `Attempt`, study chat attaches to `ChatThread`.
+The base tutor instructions come from `exercises/prompts/general_prompt.md` for the guidance during exercises. During cha sessions, the prompt is `exercises/prompts/chat_mode_prompt.md`. All remaining context (exercise text, course/class-specific details, prior attempts, and guidance history) is loaded from the database and composed per class/course and exercise at runtime by the server views, specifically in @exercises/logic.py. Course-level customization is available via `Course.chat_prompt` and `Course.llm_prompts` (per exercise type). Conversations persist as `Trace` rows under distinct channels; exercise guidance attaches to `Attempt`, study chat attaches to `ChatThread`.
 
 ## Project Development Context for AI Assistant
 

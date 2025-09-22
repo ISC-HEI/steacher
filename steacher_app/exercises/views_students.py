@@ -416,6 +416,16 @@ def exercise_detail(request, pk):
         .first()
     )
 
+    # Determine if solution reveal is unlocked on initial load (requires 5 qualifying submissions)
+    try:
+        submissions_count = attempt.traces.filter(
+            channel='exercise_guidance',
+            user_metadata__action__in=['run_submission', 'submit_answer']
+        ).count()
+    except Exception:
+        submissions_count = 0
+    solution_unlocked = submissions_count >= 5
+
     template_map = {
         'sql': 'exercises/students/sql.html',
         'python': 'exercises/students/python.html',
@@ -446,6 +456,7 @@ def exercise_detail(request, pk):
         'next_exercise': next_exercise,
         'instructor_email': instructor_email,
         'can_edit': can_edit,
+        'solution_unlocked': solution_unlocked,
     })
 
 
@@ -479,8 +490,18 @@ def get_guidance(request, exercise_id, attempt_id):
     from pydantic import ValidationError
 
     try:
-        data = json.loads(request.body)       
+        data = json.loads(request.body)
         attempt = get_object_or_404(Attempt, id=attempt_id, exercise=exercise, user=request.user)
+
+        # Enforce spoiler unlock if user requests to reveal the solution. Prevents students from forging UI and ask for solution prematurely.
+        if (data.get('action') or '').strip() == 'reveal_solution':
+            submissions_count = attempt.traces.filter(
+                channel='exercise_guidance',
+                user_metadata__action__in=['run_submission', 'submit_answer']
+            ).count()
+            if submissions_count < 5:
+                # Do NOT create a Trace for denied reveal; return brief guidance message only
+                return JsonResponse({'status': 'success', 'guidance': 'Spoiler locked: make 5 submissions to unlock.'})
 
         response_data = fetch_ai_guidance(data, exercise, attempt)
         return JsonResponse({'status': 'success', **response_data})
@@ -719,7 +740,7 @@ def chat_thread_send(request, thread_id: int):
 
         # Build AI prompt (study mode prompt + course context)
         from .logic import client, MODEL_FAST  # reuse existing configured client
-        prompt_path = os.path.join(settings.BASE_DIR, 'exercises', 'chat_mode_prompt.md')
+        prompt_path = os.path.join(settings.BASE_DIR, 'exercises', 'prompts', 'chat_mode_prompt.md')
         with open(prompt_path, 'r') as file:
             base_prompt = file.read()
 

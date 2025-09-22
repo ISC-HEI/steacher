@@ -254,7 +254,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     existing_traces = attempt.traces.all().order_by('rank_order', 'id')
 
     # 3. Add system prompt and course prompt (the specific prompt for this kind of exercise)
-    with open('exercises/general_prompt.md', 'r') as file:
+    with open('exercises/prompts/general_prompt.md', 'r') as file:
         prompt = file.read()
 
     if action == 'ask_hint':
@@ -265,6 +265,10 @@ The student has explicitly asked for a hint, indicating they are stuck.
 You may provide a more direct hint, such as a small code snippet, a key part of a formula, or a clearer step-by-step instruction to help them overcome their current specific obstacle. 
 Do not provide the entire solution, but give them enough to make meaningful progress. Then, return to your Socratic style in subsequent interactions.
 """
+    elif action == 'reveal_solution':
+        # Use a dedicated, minimal solution reveal system prompt; do not include the general prompt
+        with open('exercises/prompts/solution_reveal_prompt.md', 'r') as f:
+            prompt = f.read()
     
     course_prompt = exercise.module.course.llm_prompts.get(exercise.exercise_type)
     if course_prompt:
@@ -335,10 +339,12 @@ Do not provide the entire solution, but give them enough to make meaningful prog
             if tr.assistant_content:
                 history_parts.append(ModelContent(parts=[Part(text=tr.assistant_content)]))
 
+        # Reduce temperature for reveal_solution to increase determinism/compliance
+        _temp = 0.2 if action == 'reveal_solution' else 0.7
         chat_config = GenerateContentConfig(
             system_instruction=prompt,
             response_mime_type="text/plain",
-            temperature=0.7,
+            temperature=_temp,
             response_logprobs=True,
             logprobs=5,
         )
@@ -364,18 +370,33 @@ Do not provide the entire solution, but give them enough to make meaningful prog
         except Exception:
             answer = ''
 
-    # 7.a. Detect completion tag and mark the attempt as complete if present
+    # 7.a. Detect completion/reveal tags and mark attempt accordingly
     try:
-        if "<exercise_completed>" in answer and not attempt.complete:
+        has_completed_tag = "<exercise_completed>" in answer
+        has_solution_revealed_tag = "<solution_revealed>" in answer
+
+        fields_to_update = []
+        if has_completed_tag and not attempt.complete:
             attempt.complete = True
-            attempt.save(update_fields=['complete'])
-            logger.info(f"Attempt {attempt.id} marked as complete based on LLM output tag.")
+            fields_to_update.append('complete')
+        # If solution was revealed, record it (even if not via action guard)
+        if has_solution_revealed_tag and not getattr(attempt, 'asked_for_solution', False):
+            attempt.asked_for_solution = True
+            fields_to_update.append('asked_for_solution')
+        if fields_to_update:
+            attempt.save(update_fields=fields_to_update)
+            logger.info(f"Attempt {attempt.id} updated on tags: {fields_to_update}")
     except Exception as e:
-        logger.warning(f"Failed to set attempt {attempt.id} as complete: {e}")
+        logger.error(f"Failed to update attempt {attempt.id} based on tags: {e}")
 
     uncertainty_metrics = _compute_uncertainty_from_logprobs(gen_response) if gen_response else {}
 
+    overall_duration = time.time() - overall_start_time
+    logger.info(f"Total fetch_ai_guidance for exercise {exercise.id} took {overall_duration:.2f} seconds.")
+
+
     # 7. Create the log entry
+    # TODO: refactor this to make it cleaner. we don't need both interaction_log and fields.
     interaction_log = {
         "user_submission": {
             "role": "user",
@@ -397,11 +418,8 @@ Do not provide the entire solution, but give them enough to make meaningful prog
             }
         }
     }
-    if uncertainty_metrics:
-        interaction_log['llm_response']['metadata']['uncertainty'] = uncertainty_metrics
     
     # 7.b. Persist as a Trace. Ensure first trace stores system_prompt (mandatory)
-    first_trace = (existing_traces.first() if hasattr(existing_traces, 'first') else None)
     fields = {
         'user_content': user_prompt_content,
         'user_metadata': data,
@@ -410,24 +428,25 @@ Do not provide the entire solution, but give them enough to make meaningful prog
             'model': interaction_log['llm_response']['metadata']['model'],
             'usage': interaction_log['llm_response']['metadata']['usage'],
             'finish_reason': interaction_log['llm_response']['metadata']['finish_reason'],
+            'time_taken': overall_duration,
         }
     }
     if uncertainty_metrics:
         fields['assistant_metadata']['uncertainty'] = uncertainty_metrics
+
+    # Always store the system prompt on the first trace
+    first_trace = (existing_traces.first() if hasattr(existing_traces, 'first') else None)
     if not first_trace: # if there is no first trace, then this is the first trace
-        # Always store the system prompt on the first trace
         fields['system_prompt'] = prompt
+
     created_trace: Trace = create_trace_for(attempt, attempt.user, channel='exercise_guidance', **fields)
 
     # 8. Prepare the data to be returned to the view
     response_data = {
         'guidance': answer,
         'user_submission': interaction_log['user_submission'],
-        'assistant_trace_id': getattr(created_trace, 'id', None)
-    }
-    
-    overall_duration = time.time() - overall_start_time
-    logger.info(f"Total fetch_ai_guidance for exercise {exercise.id} took {overall_duration:.2f} seconds.")
+        'assistant_trace_id': created_trace.id
+    }    
     return response_data
 
 

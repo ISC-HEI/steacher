@@ -344,6 +344,7 @@ def cohort_detail(request, pk): # pylint: disable=unused-argument
         submissions_on_completed = 0
         questions_on_completed = 0
         interactions_on_completed = 0
+        reveals_on_completed = 0
         for a in user_attempts:
             inters = interactions_by_attempt.get(a.id, [])
             interactions_count += len(inters)
@@ -359,6 +360,12 @@ def cohort_detail(request, pk): # pylint: disable=unused-argument
                     submissions_count += 1
             if is_completed_attempt:
                 interactions_on_completed += len(inters)
+                # Count solution reveal flag per completed attempt
+                try:
+                    if getattr(a, 'asked_for_solution', False):
+                        reveals_on_completed += 1
+                except Exception:
+                    pass
                 for tr in inters:
                     meta2 = (tr.user_metadata or {})
                     act2 = meta2.get('action')
@@ -384,6 +391,7 @@ def cohort_detail(request, pk): # pylint: disable=unused-argument
             'avg_submissions_per_completed': (submissions_on_completed / completed_count) if completed_count > 0 else 0.0,
             'avg_questions_per_completed': (questions_on_completed / completed_count) if completed_count > 0 else 0.0,
             'avg_interactions_per_completed': (interactions_on_completed / completed_count) if completed_count > 0 else 0.0,
+            'avg_solution_reveals_per_completed': (reveals_on_completed / completed_count) if completed_count > 0 else 0.0,
         })
 
         if completed_exercise_ids:
