@@ -3,16 +3,18 @@
 ```bash
 ssh into vm
 
-# backup
-docker compose exec -T db pg_dump -U steacher_admin steacher_prod > ~/dev/manual_backup_db/db_$(date +%F).sql
+# backup, at the millisecond
+TS=$(date +%F_%H-%M-%S)
+docker compose exec -T db pg_dump -U steacher_admin steacher_prod > ~/dev/manual_backup_db/db_$TS.sql
+wormhole send ~/dev/manual_backup_db/db_$TS.sql
 
 # 1) Get latest code
 git pull
 
-# 2) toggle maintenance mode
+# 2) toggle maintenance mode (from project root)
 touch nginx/maintenance/maintenance_on
-# restart proxy
-docker compose restart proxy
+# zero-downtime reload so Nginx picks up the flag
+docker compose exec -T proxy nginx -s reload
 
 
 # 3) Build the web image (so collectstatic runs against the new code)
@@ -31,12 +33,12 @@ docker compose exec web python manage.py migrate
 # 7) somehow needed
 docker compose restart web proxy
 
-# 8) remove maintenance mode and restart proxy
+# 8) remove maintenance mode and reload proxy
 rm nginx/maintenance/maintenance_on
-docker compose restart proxy
+docker compose exec -T proxy nginx -s reload
 
 
-
+You
 # Only restart other services when they change:
 
 # Nginx config or certs changed:
@@ -570,4 +572,37 @@ on VM:
 
 ```bash
 docker exec steacher_app-scala_interpreter-1 sh -lc 'seq 1 50 | xargs -I{} -P 20 sh -lc "curl -s -X POST -H \"Content-Type: application/json\" -d '\''{\"code\":\"println(\\\"hi\\\")\",\"timeoutMs\":8000}'\'' http://localhost:8642/execute; echo"'
+```
+
+
+
+----
+
+# Force maintenance mode
+
+```bash
+# Recreate proxy to pick up the /var/www mount
+docker compose up -d --no-deps --force-recreate proxy
+
+# Sanity checks
+docker compose exec -T proxy sh -lc 'ls -la /var/www | cat'     # should list maintenance_on
+docker compose exec -T proxy nginx -T | grep -n maintenance_on | cat
+
+# Now toggle (if not already on, create; otherwise just reload)
+touch nginx/maintenance/maintenance_on
+docker compose exec -T proxy nginx -s reload
+
+# Verify returns 503
+curl -I https://steacher.org/ | head -n 1
+```
+
+
+# Force normal mode
+
+```bash
+rm nginx/maintenance/maintenance_on
+docker compose exec -T proxy nginx -s reload
+
+# Verify returns 200
+curl -I https://steacher.org/ | head -n 1
 ```

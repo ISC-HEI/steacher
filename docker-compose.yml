@@ -109,7 +109,7 @@ services:
       - NRIA_LOG_FILE=/var/log/newrelic-infra/newrelic-infra.log
       - NRIA_OVERRIDE_HOST_ROOT=/host
       - NRIA_LOG_LEVEL=info
-      - NRIA_DISPLAY_NAME=steacher_infra
+      - NRIA_DISPLAY_NAME=steacher1
       - NRIA_OVERRIDE_HOSTNAME=steacher1
       - NRIA_CUSTOM_ATTRIBUTES={"env":"prod","service":"steacher"}
     security_opt:
