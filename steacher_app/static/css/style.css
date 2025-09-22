@@ -602,3 +602,22 @@ code {
 .exercise-link:hover {
     background-color: #cac8c8;
 }
+
+/* Dark mode: ensure readable text on intentionally light boxes */
+@media (prefers-color-scheme: dark) {
+    .has-background-light .title,
+    .box.has-background-light .title,
+    .has-background-light h1,
+    .has-background-light h2,
+    .has-background-light h3,
+    .has-background-light h4,
+    .has-background-light h5,
+    .has-background-light h6 {
+        color: #1a1a1a !important;
+    }
+
+    .has-background-light strong,
+    .box.has-background-light strong {
+        color: #1a1a1a !important;
+    }
+}

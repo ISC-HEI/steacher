@@ -1,75 +1,78 @@
 ---
 alwaysApply: true
-description: "High-level overview of this codebase called Steacher, including its purpose, architecture, and key technologies."
+description: "High-level overview of this codebase called Steacher, including its purpose, architecture, key technologies, and current models/features."
 ---
 
-# Project Overview: Steacher
+## Project Overview: Steacher
 
-**Steacher** is a web-based educational platform designed to help users learn and practice various subjects through interactive exercises. It features a Django backend, a PostgreSQL database, and a modern frontend built with TypeScript and Vue.js. The platform supports different types of exercises, including open questions, SQL, Scala and Python, and leverages the OpenAI API to provide AI-powered guidance and feedback to users.
+**Steacher** is a web-based educational platform for interactive exercises and AI-assisted learning. It uses a Django backend with PostgreSQL, a modern TypeScript + Vue 3 multi-page frontend, and integrates LLMs (OpenAI and Gemini) to guide learners through a Socratic approach.
 
 ## Key Files and Directories
 
-*   **Backend (Django)**
-    *   `exam_project/settings.py`: The main [settings file](mdc:exam_project/settings.py) for the Django project.
-    *   `exercises/models.py`: Defines the [database models](mdc:exercises/models.py) for courses, exercises, user traces, and AI guidance logs.
-    *   `exercises/views_teachers.py`: Contains the [application logic](mdc:exercises/views_teachers.py) for handling teacher requests, rendering templates, and interacting with the OpenAI API.
-    *   `exercises/views_students.py`: Contains the [application logic](mdc:exercises/views_students.py) for handling student requests, rendering templates, and interacting with the OpenAI API.
-    *   `exercises/urls.py`: Defines the [URL routing](mdc:exercises/urls.py) for the `exercises` app, wired from `exam_project/urls.py`.
-    *   `templates/`: Contains the [Django templates](mdc:templates/) for rendering the HTML pages.
+- **Backend (Django)**
+  - `exam_project/settings.py`: Project [settings](mdc:exam_project/settings.py) (Django 5, CORS, DRF, Argon2, email, logging, security).
+  - `exercises/models.py`: [Domain models](mdc:exercises/models.py) (courses, modules, exercises, attempts, traces, memberships, cohorts, assets, invites, chat threads, evals).
+  - `exercises/logic.py`: [Core logic](mdc:exercises/logic.py) and LLM orchestration.
+  - `exercises/views_students.py`: [Student flows](mdc:exercises/views_students.py) (exercise execution, guidance, study chat).
+  - `exercises/views_teachers.py`: [Teacher flows](mdc:exercises/views_teachers.py) (authoring, analytics, cohorts, assets).
+  - `exercises/urls.py`: [App routing](mdc:exercises/urls.py).
+  - `exercises/schemas.py`: [Pydantic schemas](mdc:exercises/schemas.py) for `exercise_data` and `answer_data` validation.
+  - `exercises/serializers.py`: [DRF serializers](mdc:exercises/serializers.py).
+  - `exercises/unit_testing.py`: [Unit-test helpers](mdc:exercises/unit_testing.py) for exercises.
+  - `templates/`: [Django templates](mdc:templates/).
+- **Frontend (TypeScript/Vue 3)**
+  - `frontend/`: [Source TypeScript](mdc:frontend/) components and page scripts.
+  - `frontend/ChatbotPanel.ts`: AI tutor UI [panel](mdc:frontend/ChatbotPanel.ts) (student chat, traces integration).
+  - `frontend/CodeMirrorEditor.ts`: Reusable [CodeMirror v6 editor](mdc:frontend/CodeMirrorEditor.ts); imports from bundled build.
+  - `static/js/dist/`: Built assets (TypeScript and CodeMirror bundle).
+  - `rollup.codemirror.config.mjs`: Rollup config for the CodeMirror bundle.
+- **Project Configuration**
+  - `README.md`: [Setup and docs](mdc:README.md) (CodeMirror bundling, E2E tests).
+  - `requirements.txt`: [Python dependencies](mdc:requirements.txt) (Django 5, DRF, CORS, OpenAI, Gemini, Playwright, etc.).
+  - `package.json`: [Frontend deps](mdc:package.json) (Vue 3, Pyodide, CodeMirror v6, PGlite, Bulma, Marked + DOMPurify, PrismJS) and watch scripts.
 
-*   **Frontend (TypeScript/Vue.js)**
-    *   `frontend/`: The main directory for all [frontend source code](mdc:frontend/).
-    *   `frontend/ChatbotPanel.ts`: Manages the user interface for the [AI tutor](mdc:frontend/ChatbotPanel.ts).
-    *   `frontend/CodeMirrorEditor.ts`: A reusable [CodeMirror component](mdc:frontend/CodeMirrorEditor.ts) for code editing.
+## Django Models
 
-*   **Project Configuration**
-    *   `README.md`: The main [project documentation](mdc:README.md) with setup instructions and architectural overview.
-    *   `requirements.txt`: The [Python dependencies](mdc:requirements.txt) for the backend.
-    *   `package.json`: The [Node.js dependencies](mdc:package.json) for the frontend.
-
-*   ** Django Models:**
-    *   `Course`: Represents a collection of modules.
-    *   `Module`: Represents a collection of exercises.
-    *   `Exercise`: Defines an individual exercise, with flexible data structures using JSON fields to support various exercise types.
-    *   `Trace`: Tracks a user's attempt at an exercise. Used to persist the conversation history between the user and the AI tutor.
-    *   `GuidanceLog`: Stores the conversation history between the user and the AI tutor.
-    *   `TraceEval`: Stores evaluations of a user's trace.
-    *   `ExerciseAsset`: Manages files associated with exercises.
-    *   `StudentInvite`: Manages student invitations to the platform.
-    *   `ChatThread`: Manages chat conversations with the AI tutor. Used to persist chat conversations between the student and the AI tutor.
+- **Course**: Top-level container; holds `llm_prompts` per exercise type and optional `chat_prompt` for study chat.
+- **Module**: Ordered grouping of exercises within a course.
+- **Exercise**: i18n fields (`title_i18n`, `description_i18n`, `question_i18n`), `exercise_type`, ordered within a module; JSON `exercise_data` and `answer_data` validated via Pydantic.
+- **Attempt**: A user’s attempt at an exercise, with `version` and `complete`; related `Trace` rows store interaction history.
+- **Trace**: Polymorphic log of interactions across channels (e.g., `exercise_guidance`, `study_chat`, `authoring`, `learning_pathway`); stores system/user/assistant content and metadata with stable `rank_order`.
+- **TraceEval**: Evaluations on traces (thumbs up/down, teacher/admin feedback).
+- **ExerciseAsset**: Binary asset files attached to a course (e.g., SQL datasets).
+- **Cohort**: Groups students within a course; `CohortMembership` stores role (`student`, `teacher`, `assistant`, `owner`) and status.
+- **CourseMembership**: Course-level roles (`owner` single, `editor`, `viewer`) for authoring access.
+- **UserInvite**: Invitation flow to onboard students; optional cohort auto-assignment.
+- **ChatThread**: Standalone student chat per course; messages persisted as `Trace` rows.
 
 ## Key Project Features
 
-*   **Interactive Exercises:** Supports various exercise formats, including open questions and coding challenges.
-*   **AI-Powered Guidance:** Integrates with the OpenAI API to provide hints, feedback, and answers to user questions.
-*   **Socratic Method:** The AI tutor uses the socratic method to guide the user through the exercise. It never gives the answer directly, but asks questions to help the user find the answer by himself.
-*   **User Progress Tracking:** Records user attempts and conversation history for each exercise.
-*   **Flexible Architecture:** The use of JSON fields for exercise data makes it easy to add new exercise types without significant backend changes.
+- **Interactive Exercises**: Python, SQL, Scala, Turtle, and Open Question types.
+- **AI-Powered Guidance**: OpenAI and Gemini providers; Socratic method; prompts configurable per course and per exercise type.
+- **Study Chat**: Persistent per-course chat threads (`ChatThread`) separate from exercise attempts.
+- **Progress & Analytics**: `Attempt`/`Trace` histories, `TraceEval` feedback, teacher analytics pages.
+- **Assets & Authoring**: Course assets; role-based authoring permissions (owner/editor/viewer); cohort management.
 
 ## Exercise Types
 
-*   **Python:** A Python code to be executed. This is the most mature exercise type. Uses frontend python execution with WASM.
-*   **SQL:** A SQL query to be executed on a database. Uses frontend SQL execution with WASM.
-*   **Turtle:** A Turtle graphics exercise. WIP
-*   **Open Question:** An open question with a text area for the user to answer.
-*   **Scala:** A Scala code to be executed. Uses frontend Scala execution with WASM.
-
-
+- **Python**: Executed in-browser via Pyodide WASM; CodeMirror v6 editor.
+- **SQL**: Executed in-browser via `@electric-sql/pglite` (embedded Postgres-like WASM); CodeMirror v6 SQL mode.
+- **Scala**: Runs against an external interpreter service (configured via `SCALA_INTERPRETER_URL`).
+- **Turtle**: Graphics programming (work in progress).
+- **Open Question**: Free-form text responses.
 
 ## Architecture and Technologies
 
-*   **Backend:**
-    *   Django
-    *   PostgreSQL (database is called `steacher`)
-    *   Django Rest Framework
-    *   OpenAI API
-*   **Frontend:**
-    *   TypeScript
-    *   Vue.js (in a multi-page application setup. NOT a SPA, don't offer to use a SPA)
-    *   Bulma (CSS Framework)
-
-
-
+- **Backend**
+  - Django 5, Django Rest Framework, `django-cors-headers`, `django-jsonform`, Argon2 password hashing.
+  - PostgreSQL (default DB name `steacher`).
+  - LLM providers: OpenAI (`OPENAI_API_KEY`) and Google Gemini (`GEMINI_API_KEY`).
+  - Logging to file `steacher.log` and console; robust security and session settings with HTTPS in non-debug.
+- **Frontend**
+  - Vue 3 in an MPA setup (no SPA): per-page scripts mounted into Django templates.
+  - CodeMirror v6 editor, bundled via Rollup into a single file to simplify import maps and reduce requests.
+  - UI/content tooling: Bulma, PrismJS, Marked + DOMPurify.
+  - In-browser runtimes: Pyodide for Python, PGlite for SQL.
 
 ## Template Structure
 
@@ -81,25 +84,28 @@ Deployment of this application is handled outside of this codebase and is out of
 
 ## Prompt Sources and Composition
 
-The base tutor instructions come from `exercises/general_prompt.md`, optionally augmented by `exercises/study_mode_prompt.md` when Study Mode is active. All remaining context (exercise text, course/class-specific details, prior attempts, and guidance history) is loaded from the database and composed per class/course and exercise at runtime by the server views.
+The base tutor instructions come from `exercises/general_prompt.md` for the guidance during exercises. During cha sessions, the prompt is `exercises/chat_mode_prompt.md`. All remaining context (exercise text, course/class-specific details, prior attempts, and guidance history) is loaded from the database and composed per class/course and exercise at runtime by the server views, specifically in @exercises/logic.py. Course-level customization is available via `Course.chat_prompt` and `Course.llm_prompts` (per exercise type). Conversations persist as `Trace` rows under distinct channels; exercise guidance attaches to `Attempt`, study chat attaches to `ChatThread`.
 
 ## Project Development Context for AI Assistant
+
+### Deployment
+
+Deployment is handled in the parent project using docker compose. You don't need to know or worry about it in this
 
 ### TypeScript Compilation
 
 The TypeScript code in the `frontend/` directory is automatically recompiled whenever a `.ts` file is saved. This is handled by a background process running the `npm run watch` command.
 
-**You do not need to ask to recompile the TypeScript files.** Just assume they are up-to-date after any edit. 
+**You do not need to ask to recompile the TypeScript files.** Just assume they are up-to-date after any edit.
 
 ### Django Development
 
-The user runs by himself the following command to start the development server:
+The user runs by himself the following command to start the development server on his own machine:
 ```bash
 python manage.py runserver
 ```
 
-**You do not need to ask to run the Django development server.** Just assume it is running and you can use the API to get the data.
-
+**You do not need to ask to run the Django development server.** Just assume it is running and the server is available at `http://127.0.0.1:8000/`.
 
 ### Preferred code formatting style
 

@@ -1,8 +1,24 @@
 {% extends "exercises/base.html" %}
+{% load role_tags %}
 
 {% block content %}
 <section class="section">
   <div class="container">
+    
+    {% comment %} --- Back to Teacher dashboard --- {% endcomment %}
+    {% teacher_home_url user as home_url %}
+    {% url 'teachers:dashboard' as teacher_url %}
+    {% if home_url == teacher_url %}
+    <div class="level mb-4">
+      <div class="level-right" style="width: 100%;">
+        <a class="button is-primary" href="{{ teacher_url }}">
+          <span class="icon"><i class="fas fa-user-shield"></i></span>
+          <span>Back to Teacher dashboard</span>
+        </a>
+      </div>
+    </div>
+    {% endif %}
+
     {% comment %} --- Primary Focus Box --- {% endcomment %}
     {% if next_up_exercise or last_active_exercise %}
     <div class="columns mb-5">

@@ -719,7 +719,7 @@ def chat_thread_send(request, thread_id: int):
 
         # Build AI prompt (study mode prompt + course context)
         from .logic import client, MODEL_FAST  # reuse existing configured client
-        prompt_path = os.path.join(settings.BASE_DIR, 'exercises', 'study_mode_prompt.md')
+        prompt_path = os.path.join(settings.BASE_DIR, 'exercises', 'chat_mode_prompt.md')
         with open(prompt_path, 'r') as file:
             base_prompt = file.read()
 

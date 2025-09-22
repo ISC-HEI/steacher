@@ -15,7 +15,12 @@
     <div class="columns">
         <div class="column">
             <div class="box">
-                <h2 class="title is-5">My Courses</h2>
+                <h2 class="title is-5">My Courses
+                    <a class="button is-primary is-small ml-4"href="https://teams.microsoft.com/l/chat/0/0?users=renaud.richardet@hevs.ch&message=Please%20add%20a%20new%20course%20"  target="_blank">
+                        <span class="icon"><i class="fas fa-plus"></i></span>
+                        <span>Add new Course</span>
+                    </a>
+                </h2>
                 {% if courses %}
                 <ul>
                 {% for course in courses %}
@@ -35,7 +40,12 @@
         </div>
         <div class="column">
             <div class="box">
-                <h2 class="title is-5">My Cohorts</h2>
+                <h2 class="title is-5">My Cohorts
+                    <a class="button is-primary is-small ml-4"href="https://teams.microsoft.com/l/chat/0/0?users=renaud.richardet@hevs.ch&message=Please%20add%20a%20new%20cohort%20to%20my%20course%20"  target="_blank">
+                        <span class="icon"><i class="fas fa-plus"></i></span>
+                        <span>Add new Cohort</span>
+                    </a>
+                </h2>
                 {% if cohorts %}
                 <ul>
                 {% for c in cohorts %}
