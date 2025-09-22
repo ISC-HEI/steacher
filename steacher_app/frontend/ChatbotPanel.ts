@@ -25,6 +25,7 @@ interface ChatbotPanelData {
     showCompletionModal: boolean;
     showJumpToLatest: boolean;
     nextMessageId: number;
+    isDarkMode: boolean;
 }
 
 export const ChatbotPanel = defineComponent({
@@ -94,50 +95,59 @@ export const ChatbotPanel = defineComponent({
         </div>
 
         <!-- Pathway Recommendation UI (scrolls with messages) -->
-        <div v-if="pathwayLoading" class="pathway-loading box">
-          <div class="typing-indicator" aria-label="Assistant is thinking">
-            <span class="dot" style="--ti-delay: 0ms;"></span>
-            <span class="dot" style="--ti-delay: 150ms;"></span>
-            <span class="dot" style="--ti-delay: 300ms;"></span>
-            <span class="helper-text has-text-danger">Recommending next exercise... Hold on!</span>
+        <article v-if="pathwayLoading" class="message" :class="isDarkMode ? 'is-dark' : 'is-info is-light'">
+          <div class="message-body">
+            <div class="typing-indicator" aria-label="Assistant is thinking">
+              <span class="dot" style="--ti-delay: 0ms;"></span>
+              <span class="dot" style="--ti-delay: 150ms;"></span>
+              <span class="dot" style="--ti-delay: 300ms;"></span>
+              <span class="helper-text">Recommending next exercise... Hold on!</span>
+            </div>
           </div>
-        </div>
+        </article>
 
-        <div v-if="pathwayData" class="pathway-recommendation box">
+        <section v-if="pathwayData" class="mb-4">
           <!-- Performance Feedback -->
-          <div class="feedback-section content">
+          <article class="message mb-4" :class="isDarkMode ? 'is-dark' : 'is-success is-light'">
+            <div class="message-header">
+              <p>Performance Feedback</p>
+            </div>
+            <div class="message-body">
               <p v-if="pathwayData.performance_feedback.what_went_well">
-                  <strong>What Went Well:</strong> {{ pathwayData.performance_feedback.what_went_well }}
+                <strong>What Went Well:</strong> {{ pathwayData.performance_feedback.what_went_well }}
               </p>
               <p v-if="pathwayData.performance_feedback.key_learnings">
-                  <strong>Key Learnings:</strong> {{ pathwayData.performance_feedback.key_learnings }}
+                <strong>Key Learnings:</strong> {{ pathwayData.performance_feedback.key_learnings }}
               </p>
-          </div>
-          <hr>
+            </div>
+          </article>
+
           <!-- Main Recommendation -->
-          <div class="recommendation-card main-recommendation">
+          <div :class="['card', 'mb-4', isDarkMode ? 'has-background-dark has-text-light' : '']">
+            <div class="card-content">
               <h3 class="title is-5">Recommended Next Step</h3>
               <p><strong><a :href="getExerciseUrl(pathwayData.main_recommendation.exercise_id)">{{ pathwayData.main_recommendation.title }}</a></strong></p>
               <p class="is-size-7"><em>{{ pathwayData.main_recommendation.what_it_is_about }}</em></p>
               <p class="is-size-7 has-text-weight-semibold">{{ pathwayData.main_recommendation.why_you_should_do_it }}</p>
               <a :href="getExerciseUrl(pathwayData.main_recommendation.exercise_id)" class="button is-primary is-fullwidth mt-2">Start This Exercise</a>
+            </div>
           </div>
+
           <!-- Alternatives -->
           <template v-if="pathwayData.alternatives.length > 0">
-            <hr>
-            <div class="alternatives-section">
-                <h3 class="title is-5">Other exercises to explore</h3>
-                <div class="alternative-recommendations mt-3">
-                    <div v-for="alt in pathwayData.alternatives" :key="alt.exercise_id" class="recommendation-card">
-                        <p><strong><a :href="getExerciseUrl(alt.exercise_id)">{{ alt.title }}</a></strong></p>
-                        <p class="is-size-7"><em>{{ alt.what_it_is_about }}</em></p>
-                        <p class="is-size-7 has-text-weight-semibold">{{ alt.why_you_should_do_it }}</p>
-                        <a :href="getExerciseUrl(alt.exercise_id)" class="button is-success is-light is-fullwidth is-small mt-2">Try this one</a>
-                    </div>
+            <h3 class="title is-5">Other exercises to explore</h3>
+            <div class="mt-3">
+              <div v-for="alt in pathwayData.alternatives" :key="alt.exercise_id" :class="['card', 'mb-3', isDarkMode ? 'has-background-dark has-text-light' : '']">
+                <div class="card-content">
+                  <p><strong><a :href="getExerciseUrl(alt.exercise_id)">{{ alt.title }}</a></strong></p>
+                  <p class="is-size-7"><em>{{ alt.what_it_is_about }}</em></p>
+                  <p class="is-size-7 has-text-weight-semibold">{{ alt.why_you_should_do_it }}</p>
+                  <a :href="getExerciseUrl(alt.exercise_id)" class="button is-success is-light is-fullwidth is-small mt-2">Try this one</a>
                 </div>
+              </div>
             </div>
           </template>
-        </div>
+        </section>
 
         <!-- Typing indicator (while waiting for AI) - scrolls with content -->
         <div v-if="loading" style="margin-bottom: 0.75rem;">
@@ -218,6 +228,7 @@ export const ChatbotPanel = defineComponent({
       showCompletionModal: false,
       showJumpToLatest: false,
       nextMessageId: 0,
+      isDarkMode: typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : false,
     };
   },
   computed: {
