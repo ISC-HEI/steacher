@@ -83,7 +83,7 @@
                 :attempt-id="{{ attempt_id }}"
                 next-exercise-url="{% if next_exercise %}{% url 'exercises:exercise_detail' next_exercise.pk %}{% endif %}"
                 @question-asked="handleQuestion"
-                @option-selected="handleOptionSelected">
+                >
             </chatbot-panel>
         </div>
     </div>

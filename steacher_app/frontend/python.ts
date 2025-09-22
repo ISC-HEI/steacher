@@ -21,13 +21,6 @@ interface PythonDataContext {
     start_timestamp: string;
 }
 
-interface OptionButton {
-    id: string;
-    title: string;
-    comment?: string;
-    to?: string;
-}
-
 document.addEventListener('DOMContentLoaded', function() {
     // Get exercise data from JSON script tag
     const exerciseDataScript = document.getElementById('exercise-data');
@@ -164,7 +157,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.loadingState = 'idle';
                 }
             },
-            async getGuidance(action: 'run_submission' | 'ask_hint' | 'ask_question' | 'option_selected', details: { question?: string | null, error?: string | null, output?: string | null, selected_option?: OptionButton } = {}) {
+            async getGuidance(action: 'run_submission' | 'ask_hint' | 'ask_question', details: { question?: string | null, error?: string | null, output?: string | null } = {}) {
                 this.loadingState = 'getting-guidance';
                 try {
                     const csrfToken = getCsrfToken();
@@ -177,7 +170,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         error_message: details.error || null,
                         start_timestamp: this.start_timestamp,
                         submission_timestamp: new Date().toISOString(),
-                        selected_option: details.selected_option || null,
                     };
 
                     const response = await csrfFetch(`/exercises/${this.exercise.id}/attempts/${attemptId}/guidance/`, {
@@ -306,20 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
             handleQuestion(question: string) {
                 this.getGuidance('ask_question', { question, error: this.executionError, output: this.executionOutput });
             },
-
-            handleOptionSelected(option: OptionButton) {
-                if (option.to) {
-                    // Handle redirection if 'to' is present
-                    if (/^\d+$/.test(option.to)) {
-                        window.location.href = `/exercises/${option.to}/`;
-                    } else {
-                        console.warn(`Redirect target '${option.to}' is not a valid exercise ID.`);
-                    }
-                } else {
-                    // Otherwise, send to backend for guidance
-                    this.getGuidance('option_selected', { selected_option: option });
-                }
-            }
+            
         },
         components: {
             'chatbot-panel': ChatbotPanel,

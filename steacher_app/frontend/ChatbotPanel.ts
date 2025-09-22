@@ -4,16 +4,8 @@ import confetti from 'canvas-confetti';
 import { getCsrfToken } from './utils.js';
 import { defineComponent } from "vue";
 
-interface OptionButton {
-    id: string;
-    title: string;
-    comment?: string;
-    to?: string;
-}
-
 interface ProcessedMessage {
     cleanedContent: string;
-    buttons: OptionButton[];
     [key: string]: any;
 }
 
@@ -80,14 +72,6 @@ export const ChatbotPanel = defineComponent({
                             :disabled="loading || pathwayLoading || !!message._rated">
                             <span class="icon is-small"><i :class="message._rating === 'not_ok' ? 'fas fa-thumbs-down' : 'far fa-thumbs-down'"></i></span>
                         </button>
-                    </div>
-                </div>
-                <div v-if="message.buttons.length > 0" class="mb-3" :key="'assistant-buttons-' + index">
-                    <div v-for="button in message.buttons" :key="button.id" class="mb-2">
-                        <button @click="selectOption(button)" class="button is-success is-light">
-                            {{ button.title }}
-                        </button>
-                        <p class="help has-text-centered" v-if="button.comment">{{ button.comment }}</p>
                     </div>
                 </div>
             </template>
@@ -233,14 +217,7 @@ export const ChatbotPanel = defineComponent({
   },
   computed: {
     processedMessages(): ProcessedMessage[] {
-      // Parse the message content for buttons, using a regex.
-      return this.internalMessages.map(message => {
-        if (message.role === 'assistant') {
-          const processed = this.parseMessageContent(message);
-          return processed;
-        }
-        return { ...message, cleanedContent: message.content, buttons: [] };
-      });
+      return this.internalMessages.map(message => ({ ...message, cleanedContent: message.content }));
     }
   },
   mounted(this: any) {
@@ -435,41 +412,7 @@ export const ChatbotPanel = defineComponent({
       // Set the height to the scroll height to fit the content
       textarea.style.height = `${textarea.scrollHeight}px`;
     },
-    parseMessageContent(message: any): ProcessedMessage {
-        // Parse the message content for buttons, using a regex.
-        // The regex is a bit complex, but it's the only way to parse the message content for buttons.
-        // It's a bit of a hack, but it works.
-        const content = message.content || '';
-        const buttonRegex = /<button\s+id="([^"]+)"\s+title="([^"]+)"(?:\s+comment="([^"]*)")?(?:\s+to="([^"]*)")?\s*\/>/g;
-        const buttons: OptionButton[] = [];
-        let match;
-
-        while ((match = buttonRegex.exec(content)) !== null) {
-            // TS compiler correctly identifies that these can be undefined.
-            // Even though our regex makes them mandatory, it's safer to check.
-            const id = match[1];
-            const title = match[2];
-
-            if (id && title) {
-                console.log('[ChatbotPanel] Found button:', id, title, match[3], match[4]);
-                buttons.push({
-                    id,
-                    title,
-                    comment: match[3] || '',
-                    to: match[4] || '',
-                });
-            }
-        }
-
-        const cleanedContent = content.replace(buttonRegex, '').trim();
-
-        return { ...message, cleanedContent, buttons };
-    },
-
-    selectOption(button: OptionButton) {
-        console.log('[ChatbotPanel] Option selected:', button);
-        this.$emit('option-selected', button);
-    },
+    // Deprecated: Option buttons removed; no special parsing needed.
 
     formatUserMessage(message: any) {
         // Display the user messages differently depending on the action. Add icons to the messages.
@@ -512,10 +455,6 @@ export const ChatbotPanel = defineComponent({
   <summary><span class="icon ml-3"><i class="fas fa-comment-dots"></i></span> Answer submitted</summary>
   <div class="mt-2">${renderedDetailsContent}</div>
   </details>`;
-        }
-
-        else if (action === 'option_selected') {
-            return '<span class="icon"><i class="fas fa-check-circle"></i></span> ' + (message.metadata.selected_option.title || 'Option selected');
         }
 
         return message.content; // Fallback

@@ -53,13 +53,6 @@ interface SqlDataContext {
     previewMeta?: { tableName: string; limit: number; maybeMore: boolean } | null;
 }
 
-interface OptionButton {
-    id: string;
-    title: string;
-    comment?: string;
-    to?: string;
-}
-
 document.addEventListener('DOMContentLoaded', function() {
     // Get exercise data from JSON script tag
     const exerciseDataScript = document.getElementById('exercise-data');
@@ -192,7 +185,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.loadingState = 'idle';
                 }
             },
-            async getGuidance(action: 'run_submission' | 'ask_hint' | 'ask_question' | 'option_selected', details: { question?: string | null, error?: string | null, selected_option?: OptionButton } = {}) {
+            async getGuidance(action: 'run_submission' | 'ask_hint' | 'ask_question', details: { question?: string | null, error?: string | null } = {}) {
                 this.loadingState = 'getting-guidance';
                 try {
                     const csrfToken = getCsrfToken();
@@ -206,7 +199,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         error_message: details.error || null,
                         start_timestamp: this.start_timestamp,
                         submission_timestamp: new Date().toISOString(),
-                        selected_option: details.selected_option || null
                     };
 
                     // 3. Make API call
@@ -460,31 +452,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             handleQuestion(question: string) {
                 this.getGuidance('ask_question', { question: question, error: this.queryError });
-            },
-
-            handleOptionSelected(option: OptionButton) {
-                console.log('[SqlExerciseApp] Option selected event received:', option);
-                if (option.to) {
-                    if (/^\d+$/.test(option.to)) {
-                        window.location.href = `/exercises/${option.to}/`;
-                    } else if (option.to === 'next_exercise') {
-                        const nextExerciseUrl = (document.getElementById('sql-exercise-app') as HTMLElement).dataset.nextExerciseUrl;
-                        if (nextExerciseUrl) {
-                            window.location.href = nextExerciseUrl;
-                        } else {
-                            // a fallback to the course page if no next exercise is available
-                            const courseUrl = (document.getElementById('sql-exercise-app') as HTMLElement).dataset.courseUrl;
-                            if (courseUrl) {
-                                window.location.href = courseUrl;
-                            }
-                        }
-                    }
-                    else {
-                        console.warn(`Redirect target '${option.to}' is not a valid exercise ID.`);
-                    }
-                } else {
-                    this.getGuidance('option_selected', { question: null, error: null, selected_option: option });
-                }
             },
 
             getResultColumns(resultArray: Record<string, any>[] | undefined): string[] {
