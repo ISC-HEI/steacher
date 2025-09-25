@@ -1,9 +1,11 @@
 import { defineComponent } from 'vue';
-import { EditorView, basicSetup, EditorState, sql, python, scala, keymap, indentUnit, autocompletion, acceptCompletion, indentMore, indentLess, indentOnInput } from 'codemirror-bundle';
+import { EditorView, basicSetup, EditorState, sql, python, scala, keymap, indentUnit, autocompletion, acceptCompletion, indentMore, indentLess, indentOnInput, oneDark, Compartment } from 'codemirror-bundle';
 import type { ViewUpdate } from '@codemirror/view';
 
 interface CodeMirrorEditorData {
     editor: EditorView | null;
+    themeCompartment: any;
+    darkModeMedia: MediaQueryList | null;
 }
 
 // CodeMirror Editor Component
@@ -36,6 +38,8 @@ export const CodeMirrorEditor = defineComponent({
     data(): CodeMirrorEditorData {
         return {
             editor: null,
+            themeCompartment: null,
+            darkModeMedia: null,
         }
     },
 
@@ -65,6 +69,10 @@ export const CodeMirrorEditor = defineComponent({
             // Get language extension based on prop
             const languageExtension = this.getLanguageExtension();
 
+            // Prepare theme compartment for dynamic dark-mode switching
+            this.themeCompartment = new Compartment();
+            const isDarkMode = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : false;
+
             // Create editor state
             const state = EditorState.create({
                 doc: initialDoc,
@@ -76,6 +84,8 @@ export const CodeMirrorEditor = defineComponent({
                         {key: 'Shift-Tab', run: (indentLess as any) },
                     ]),
                     languageExtension,
+                    // Use a neutral light theme when not in dark mode (avoid passing [])
+                    this.themeCompartment.of(isDarkMode ? oneDark : EditorView.theme({}, { dark: false })),
                     indentOnInput(),
                     // Use 4 spaces indentation for Python
                     ...(this.language === 'python' ? [indentUnit.of('    ')] : []),
@@ -126,7 +136,38 @@ export const CodeMirrorEditor = defineComponent({
                 state,
                 parent: container
             });
+
+            // React to OS dark mode changes
+            if (typeof window !== 'undefined' && window.matchMedia) {
+                this.darkModeMedia = window.matchMedia('(prefers-color-scheme: dark)');
+                const handler = (e: MediaQueryListEvent) => {
+                    if (!this.editor) return;
+                    this.editor.dispatch({
+                        effects: this.themeCompartment.reconfigure(e.matches ? oneDark : EditorView.theme({}, { dark: false }))
+                    });
+                };
+                // Some browsers support addEventListener; others use addListener
+                if (typeof this.darkModeMedia.addEventListener === 'function') {
+                    this.darkModeMedia.addEventListener('change', handler);
+                } else if (typeof (this.darkModeMedia as any).addListener === 'function') {
+                    (this.darkModeMedia as any).addListener(handler);
+                }
+                // Store handler reference for cleanup
+                (this as any)._darkModeHandler = handler;
+            }
         });
+    },
+
+    beforeUnmount() {
+        // Clean up dark mode listener
+        if (this.darkModeMedia && (this as any)._darkModeHandler) {
+            const handler = (this as any)._darkModeHandler;
+            if (typeof this.darkModeMedia.removeEventListener === 'function') {
+                this.darkModeMedia.removeEventListener('change', handler);
+            } else if (typeof (this.darkModeMedia as any).removeListener === 'function') {
+                (this.darkModeMedia as any).removeListener(handler);
+            }
+        }
     },
 
     methods: {

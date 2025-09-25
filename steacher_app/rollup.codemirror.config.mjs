@@ -8,7 +8,17 @@ export default {
     format: 'es'
   },
   plugins: [
-    nodeResolve(),
+    nodeResolve({
+      dedupe: [
+        '@codemirror/state',
+        '@codemirror/view',
+        '@codemirror/language',
+        '@codemirror/commands',
+        '@codemirror/autocomplete',
+        'codemirror',
+        '@codemirror/theme-one-dark'
+      ]
+    }),
     commonjs()
   ]
 }; 

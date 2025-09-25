@@ -119,7 +119,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 try {
                     this.loadingState = 'pyodide-loading';
                     // Create a module worker from the built JS path under static
-                    const workerUrl = `${this.staticPrefix}js/dist/python_worker.js`;
+                    const cacheBust = Date.now();
+                    const workerUrl = `${this.staticPrefix}js/dist/python_worker.js?v=${cacheBust}`;
                     const w = new Worker(workerUrl, { type: 'module' });
                     this.worker = w;
 
@@ -147,10 +148,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     };
 
-                    // Initialize pyodide inside the worker using local static files
-                    const pyodideModuleUrl = `${this.staticPrefix}pyodide/pyodide.mjs`;
-                    // indexURL will be computed by the worker if not provided
-                    w.postMessage({ type: 'init', pyodideModuleUrl });
+                    // Initialize pyodide inside the worker using local static files, with cache-busting
+                    const pyodideModuleUrl = `https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.mjs?v=${cacheBust}`;
+                    const indexURL = `https://cdn.jsdelivr.net/pyodide/v0.28.3/full/`;
+                    w.postMessage({ type: 'init', pyodideModuleUrl, indexURL });
                 } catch (error) {
                     console.error('Failed to start worker:', error);
                     this.executionError = 'Failed to start Python worker: ' + String(error);

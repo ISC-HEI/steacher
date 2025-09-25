@@ -102,7 +102,25 @@ async function ensurePyodideLoaded(pyodideModuleUrl: string, indexURL?: string):
         // Debug logs
         // @ts-ignore
         console.log('[python_worker] Importing Pyodide module from', pyodideModuleUrl);
-        const mod: any = await import(pyodideModuleUrl as any);
+        // Add cache-busting to avoid stale caching issues
+        const cacheBust = Date.now();
+        const urlWithCb = pyodideModuleUrl.includes('?') ? `${pyodideModuleUrl}&v=${cacheBust}` : `${pyodideModuleUrl}?v=${cacheBust}`;
+
+        let mod: any;
+        try {
+            mod = await import(urlWithCb as any);
+        } catch (e) {
+            // @ts-ignore
+            console.warn('[python_worker] Failed to import local Pyodide module, falling back to CDN', e);
+            // Fallback to matching CDN version of Pyodide
+            // Note: keep version in sync with package.json
+            const cdnUrl = `https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.mjs?v=${cacheBust}`;
+            mod = await import(cdnUrl as any);
+            // If we used CDN, indexURL should point to the CDN base
+            if (!indexURL || indexURL.length === 0) {
+                indexURL = 'https://cdn.jsdelivr.net/pyodide/v0.28.3/full/';
+            }
+        }
         const effectiveIndex = indexURL && indexURL.length > 0 ? indexURL : dirFromUrl(pyodideModuleUrl);
         // @ts-ignore
         console.log('[python_worker] Calling loadPyodide with indexURL =', effectiveIndex);

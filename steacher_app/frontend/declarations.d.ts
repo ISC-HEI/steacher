@@ -9,6 +9,7 @@ declare module 'codemirror-bundle' {
     export { indentWithTab, indentMore, indentLess } from '@codemirror/commands';
     export { autocompletion, acceptCompletion, CompletionContext } from '@codemirror/autocomplete';
     export { indentUnit, indentOnInput, StreamLanguage } from '@codemirror/language';
+    export { oneDark } from '@codemirror/theme-one-dark';
     // Custom re-export provided by our bundle for Scala legacy mode
     export function scala(): any;
 }
