@@ -16,6 +16,7 @@ class Course(models.Model):
     name = models.CharField(max_length=200, help_text="The name/title of the course that will be displayed to the user.")
     description = models.TextField(blank=True, help_text="A short description of the course that will be displayed to the user.")
     chat_prompt = models.TextField(blank=True, help_text="Chatbot-specific instructions for this course, when the user starts a chat thread.")
+    system_prompt = models.TextField(blank=True, help_text="Override the default system prompt used by the AI tutor for exercises in this course. Leave empty to use the global default.")
     llm_prompts = models.JSONField(blank=True, default=dict, help_text="LLM prompts per exercise type, e.g. {'turtle': 'Your prompt for turtle exercises...'}")
     visible = models.BooleanField(default=True, help_text="Whether the course is visible to students.")
     created_at = models.DateTimeField(auto_now_add=True)

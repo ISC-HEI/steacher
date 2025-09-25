@@ -109,12 +109,12 @@ def get_pydantic_schema_as_string() -> str:
     
 # Top-level Exercise fields
 - `pk` (integer, read-only): The primary key of the exercise. Do not modify.
-- `title_i18n` (object): The title of the exercise in English, German, and French.
+- `title_i18n` (object): The title of the exercise in English, German, and French. Make sure that the title does not give away any hints about the exercise's solution.
   - `en` (string): English title.
   - `de` (string): German title.
   - `fr` (string): French title.
 - `order` (integer, read-only): The display order of the exercise within its module.
-- `description_i18n` (object): A short description of the exercise in English, German, and French. Description should be concise and to the point. E.g. "Conditional statements and the modulo operator." instead of "An exercise to practice conditional statements and the modulo operator.".
+- `description_i18n` (object): A short description of the exercise in English, German, and French. Description should be concise and to the point. E.g. "Conditional statements and the modulo operator." instead of "An exercise to practice conditional statements and the modulo operator.". Description must not give away any hints about the exercise's solution (a bad example would be "Using the `LIKE` operator to filter by a pattern and `ORDER BY` to sort the results." because this would indicate that the student should use the `LIKE` and `ORDER BY` operators). 
   - `en` (string): English description.
   - `de` (string): German description.
   - `fr` (string): French description.
@@ -122,7 +122,7 @@ def get_pydantic_schema_as_string() -> str:
   - `en` (string): English question.
   - `de` (string): German question.
   - `fr` (string): French question.
-- `exercise_type` (string): The type of the exercise (e.g., "python", "sql", "open_question", "scala", "turtle"). Determines the structure of `exercise_data`. Modify only if it makes sense.
+- `exercise_type` (string): The type of the exercise (one of `python`, `sql`, `open_question`, `scala`). Determines the structure of `exercise_data`. Modify only if it makes sense.
 - `available_sql_assets` (array of strings, read-only): For SQL exercises, a list of available database assets. Can be used to set up the db field in `exercise_data` below.
 - `course_pk` (integer, read-only): The primary key of the course this exercise belongs to. Do not modify.
 - `course_name` (string, read-only): The name of the course this exercise belongs to. Do not modify.

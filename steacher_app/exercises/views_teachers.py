@@ -2,7 +2,7 @@ from django.contrib.auth.decorators import login_required
 from django.conf import settings
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from django.db import transaction, models
 import json
 import logging
@@ -126,6 +126,61 @@ def course_detail(request, pk):
         'course': course,
         'completed_exercise_ids': completed_ids,
     })
+
+
+@login_required
+@course_roles_required(['owner','editor'], course_kw='pk')
+@require_http_methods(["GET", "POST"])
+def course_edit(request, pk):
+    """
+    Edit a course's name, system prompt and LLM prompts (per exercise type).
+    Only accessible to course owners and editors.
+    """
+    course: Course = request.course
+
+    exercise_type_choices: list[str] = [t[0] for t in Exercise.EXERCISE_TYPE_CHOICES]
+
+    if request.method == 'POST':
+        name = (request.POST.get('name') or '').strip()
+        system_prompt = (request.POST.get('system_prompt') or '').strip()
+
+        # Collect per-type prompts from form fields "llm_prompts__<type_key>"
+        llm_prompts_val = {}
+        for key in exercise_type_choices:
+            value = (request.POST.get(f"llm_prompts__{key}") or '').strip()
+            if value:
+                llm_prompts_val[key] = value
+            else:
+                llm_prompts_val[key] = ''
+
+        # Basic validation
+        if not name:
+            messages.error(request, 'Course name is required.')
+        else:
+            course.name = name
+            course.system_prompt = system_prompt
+            course.llm_prompts = llm_prompts_val
+            course.save(update_fields=['name', 'system_prompt', 'llm_prompts', 'updated_at'])
+            messages.success(request, 'Course settings updated.')
+            return redirect('teachers:course_detail', pk=course.pk)
+
+    # GET -> render form with current values
+    llm_type_fields = [
+        {
+            'key': key,
+            'value': (course.llm_prompts or {}).get(key, ''),
+        }
+        for key in exercise_type_choices
+    ]
+    context = {
+        'course': course,
+        'initial': {
+            'name': course.name or '',
+            'system_prompt': course.system_prompt or '',
+        },
+        'llm_type_fields': llm_type_fields,
+    }
+    return render(request, 'exercises/teacher/course_edit.html', context)
 
 
 @login_required

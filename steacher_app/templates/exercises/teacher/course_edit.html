@@ -1,0 +1,55 @@
+{% extends "exercises/base.html" %}
+{% load static %}
+
+{% block title %}Edit Course - {{ course.name }}{% endblock %}
+
+{% block page_title %}
+    <span>Edit Course</span>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h1 class="title is-3 mb-4">Edit Course: {{ course.name }}</h1>
+    <form method="post">
+        {% csrf_token %}
+        <div class="field">
+            <label class="label">Name</label>
+            <div class="control">
+                <input class="input" type="text" name="name" value="{{ initial.name }}" required>
+            </div>
+        </div>
+
+        <div class="field">
+            <label class="label">System Prompt (Overrides default)</label>
+            <div class="control">
+                <textarea class="textarea" name="system_prompt" rows="14">{{ initial.system_prompt }}</textarea>
+            </div>
+            <p class="help">If set, this replaces the default general tutor prompt for this course's exercises.</p>
+        </div>
+
+        <div class="field">
+            <label class="label">LLM Prompts (per exercise type)</label>
+        </div>
+
+        {% for item in llm_type_fields %}
+        <div class="field">
+            <label class="label">{{ item.label }} ({{ item.key }})</label>
+            <div class="control">
+                <textarea class="textarea" name="llm_prompts__{{ item.key }}" rows="10">{{ item.value }}</textarea>
+            </div>
+        </div>
+        {% endfor %}
+
+        <div class="field is-grouped">
+            <div class="control">
+                <button class="button is-primary" type="submit">Save</button>
+            </div>
+            <div class="control">
+                <a class="button" href="{% url 'teachers:course_detail' pk=course.pk %}">Cancel</a>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+

@@ -255,7 +255,17 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
 
     # 3. Add system prompt and course prompt (the specific prompt for this kind of exercise)
     with open('exercises/prompts/general_prompt.md', 'r') as file:
-        prompt = file.read()
+        default_prompt = file.read()
+
+    # Select base prompt: course-level override replaces the default system prompt (except for reveal_solution)
+    course_system_prompt = None
+    try:
+        course_system_prompt = (exercise.module.course.system_prompt or '').strip()
+    except Exception:
+        course_system_prompt = None
+
+    # Initialize prompt with course override if set, else default
+    prompt = (course_system_prompt or default_prompt)
 
     if action == 'ask_hint':
         prompt += """

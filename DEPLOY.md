@@ -3,7 +3,7 @@
 ```bash
 ssh into vm
 
-# backup, at the millisecond
+# backup, at the second près
 TS=$(date +%F_%H-%M-%S)
 docker compose exec -T db pg_dump -U steacher_admin steacher_prod > ~/dev/manual_backup_db/db_$TS.sql
 wormhole send ~/dev/manual_backup_db/db_$TS.sql
@@ -605,4 +605,18 @@ docker compose exec -T proxy nginx -s reload
 
 # Verify returns 200
 curl -I https://steacher.org/ | head -n 1
+```
+
+
+
+# Invite students
+
+
+1) create cohort, copy id
+2) create csv with a column called email
+3)
+```bash
+docker cp ../2025_year2_students.csv steacher_app-web-1:/tmp/invites.csv
+# set right cohort id
+docker exec steacher_app-web-1 python manage.py create_user_invites /tmp/invites.csv 11111
 ```
