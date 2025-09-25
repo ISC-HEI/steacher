@@ -33,7 +33,7 @@
 
         {% for item in llm_type_fields %}
         <div class="field">
-            <label class="label">{{ item.label }} ({{ item.key }})</label>
+            <label class="label">{{ item.key }}</label>
             <div class="control">
                 <textarea class="textarea" name="llm_prompts__{{ item.key }}" rows="10">{{ item.value }}</textarea>
             </div>
