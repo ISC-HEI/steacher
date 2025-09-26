@@ -114,7 +114,7 @@ def get_pydantic_schema_as_string() -> str:
   - `de` (string): German title.
   - `fr` (string): French title.
 - `order` (integer, read-only): The display order of the exercise within its module.
-- `description_i18n` (object): A short description of the exercise in English, German, and French. Description should be concise and to the point. E.g. "Conditional statements and the modulo operator." instead of "An exercise to practice conditional statements and the modulo operator.". Description must not give away any hints about the exercise's solution (a bad example would be "Using the `LIKE` operator to filter by a pattern and `ORDER BY` to sort the results." because this would indicate that the student should use the `LIKE` and `ORDER BY` operators). 
+- `description_i18n` (object, optional): A short description of the exercise in English, German, and French. Leave it empty if it doesn't add value. Description should be concise and to the point. E.g. "Conditional statements and the modulo operator." instead of "An exercise to practice conditional statements and the modulo operator.". Description must not give away any hints about the exercise's solution (a bad example would be "Using the `LIKE` operator to filter by a pattern and `ORDER BY` to sort the results." because this would indicate that the student should use the `LIKE` and `ORDER BY` operators). 
   - `en` (string): English description.
   - `de` (string): German description.
   - `fr` (string): French description.

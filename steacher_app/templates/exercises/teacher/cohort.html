@@ -126,51 +126,76 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    new Tabulator(el, {
-        data: data,
-        layout: 'fitDataStretch',
-        columnDefaults: { resizable: true },
-        pagination: true,
-        paginationSize: 50,
-        columns: [
-            { title: 'Student', field: 'display_name', sorter: 'string', headerFilter: 'input', widthGrow: 3,
-              formatter: function(cell){
-                  var r = cell.getRow().getData();
-                  var name = (r.display_name.substring(0, r.display_name.indexOf('@') || r.display_name.length) || ('Student #' + (r.student_number || '')));
-                  var href = '/teachers/cohorts/' + encodeURIComponent(cohortId) + '/students/' + encodeURIComponent(r.id || '') + '/';
-                  return '<a href="' + href + '">' + name + '</a>';
-              }
-            },
-            { title: 'Progress', field: 'percent', sorter: 'number', width: 120, hozAlign: 'center', headerHozAlign: 'center',
-              formatter: function(cell){
-                  var v = Number(cell.getValue() || 0);
-                  var r = cell.getRow().getData();
-                  var completed = Number(r.completed_count || 0);
-                  var total = Number(r.total_exercises || 0);
-                  var title = completed + '/' + total + ' completed';
-                  return '<div style="position:relative; width:100%;" title="' + title + '">'
-                      + '<progress class="progress is-primary is-small" value="' + v + '" max="100" style="width:100%;"></progress>'
-                      + '</div>';
-              }
-            },
-            { title: 'Last exercise attempted', field: 'last_exercise_title', headerFilter: 'input',
-              formatter: function(cell){
-                  var r = cell.getRow().getData();
-                  if (!r.last_exercise_id) return '—';
-                  var icon = r.last_attempt_complete
-                      ? '<span class="icon has-text-success" title="Completed"><i class="fas fa-check-circle"></i></span>'
-                      : '<span class="icon has-text-grey-light" title="In progress"><i class="far fa-circle"></i></span>';
-                  var href = '/teachers/cohorts/' + encodeURIComponent(cohortId) + '/exercises/' + encodeURIComponent(r.last_exercise_id) + '/';
-                  return icon + ' <a href="' + href + '">' + (r.last_exercise_title.substring(0, 40) + (r.last_exercise_title.length > 40 ? '...' : '')) + '</a>';
-              }
-            },
-            { title: '⌀ Hints', field: 'avg_hints_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 120, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_hints_per_completed', 'is-link', 2) },
-            { title: '⌀ Subm.', field: 'avg_submissions_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 120, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_submissions_per_completed', 'is-info', 2) },
-            { title: '⌀ Questions', field: 'avg_questions_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 120, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_questions_per_completed', 'is-warning', 2) },
-            { title: '⌀ Interact.', field: 'avg_interactions_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 120, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_interactions_per_completed', 'is-success', 2) },
-            { title: '⌀ Solution Reveals', field: 'avg_solution_reveals_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 150, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_solution_reveals_per_completed', 'is-danger', 2) },
-        ]
-    });
+    var studentsTable = null;
+    function initStudentsTableOnce(){
+        if (studentsTable) return studentsTable;
+        studentsTable = new Tabulator(el, {
+            data: data,
+            layout: 'fitDataStretch',
+            columnDefaults: { resizable: true },
+            pagination: true,
+            paginationSize: 50,
+            columns: [
+                { title: 'Student', field: 'display_name', sorter: 'string', headerFilter: 'input', widthGrow: 3,
+                  formatter: function(cell){
+                      var r = cell.getRow().getData();
+                      var name = (r.display_name.substring(0, r.display_name.indexOf('@') || r.display_name.length) || ('Student #' + (r.student_number || '')));
+                      var href = '/teachers/cohorts/' + encodeURIComponent(cohortId) + '/students/' + encodeURIComponent(r.id || '') + '/';
+                      return '<a href="' + href + '">' + name + '</a>';
+                  }
+                },
+                { title: 'Progress', field: 'percent', sorter: 'number', width: 120, hozAlign: 'center', headerHozAlign: 'center',
+                  formatter: function(cell){
+                      var v = Number(cell.getValue() || 0);
+                      var r = cell.getRow().getData();
+                      var completed = Number(r.completed_count || 0);
+                      var total = Number(r.total_exercises || 0);
+                      var title = completed + '/' + total + ' completed';
+                      return '<div style="position:relative; width:100%;" title="' + title + '">'
+                          + '<progress class="progress is-primary is-small" value="' + v + '" max="100" style="width:100%;"></progress>'
+                          + '</div>';
+                  }
+                },
+                { title: 'Last exercise attempted', field: 'last_exercise_title', headerFilter: 'input',
+                  formatter: function(cell){
+                      var r = cell.getRow().getData();
+                      if (!r.last_exercise_id) return '—';
+                      var icon = r.last_attempt_complete
+                          ? '<span class="icon has-text-success" title="Completed"><i class="fas fa-check-circle"></i></span>'
+                          : '<span class="icon has-text-grey-light" title="In progress"><i class="far fa-circle"></i></span>';
+                      var href = '/teachers/cohorts/' + encodeURIComponent(cohortId) + '/exercises/' + encodeURIComponent(r.last_exercise_id) + '/';
+                      return icon + ' <a href="' + href + '">' + (r.last_exercise_title.substring(0, 40) + (r.last_exercise_title.length > 40 ? '...' : '')) + '</a>';
+                  }
+                },
+                { title: '⌀ Hints', field: 'avg_hints_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 120, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_hints_per_completed', 'is-link', 2) },
+                { title: '⌀ Subm.', field: 'avg_submissions_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 120, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_submissions_per_completed', 'is-info', 2) },
+                { title: '⌀ Questions', field: 'avg_questions_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 120, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_questions_per_completed', 'is-warning', 2) },
+                { title: '⌀ Interact.', field: 'avg_interactions_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 120, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_interactions_per_completed', 'is-success', 2) },
+                { title: '⌀ Solution Reveals', field: 'avg_solution_reveals_per_completed', sorter: 'number', headerFilter: 'input', headerFilterParams: { elementAttributes: { style: 'width:60px;' } }, width: 150, hozAlign: 'center', headerHozAlign: 'center', formatter: barFormatterFactory('avg_solution_reveals_per_completed', 'is-danger', 2) },
+            ]
+        });
+        return studentsTable;
+    }
+
+    var container = document.getElementById('students-grid-container');
+    var toggle = document.getElementById('students-progress-toggle');
+
+    // Initialize immediately if already visible
+    if (container && container.style.display !== 'none') {
+        initStudentsTableOnce();
+    }
+
+    // Initialize lazily on first expand; ensure redraw when shown
+    if (toggle && container) {
+        toggle.addEventListener('click', function(){
+            if (container.style.display !== 'none') {
+                var t = initStudentsTableOnce();
+                if (t && typeof t.redraw === 'function') {
+                    try { t.redraw(true); } catch (e) {}
+                }
+            }
+        });
+    }
 });
 </script>
 {% endblock %}

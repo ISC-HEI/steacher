@@ -67,7 +67,11 @@
                                                   <span class="exercise-title">{{ exercise.localized_title|default:exercise.title }}</span>
                                             </div>
                                             <div class="exercise-description">
-                                                {{ exercise.localized_description|default:exercise.description|truncatewords:20 }}
+                                                {% with desc=exercise.localized_description|default:exercise.description %}
+                                                    {% if desc %}
+                                                        {{ desc|truncatewords:20 }}
+                                                    {% else %}&nbsp;{% endif %}
+                                                {% endwith %}
                                             </div>
                                         </div>
                                     </div>

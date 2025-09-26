@@ -13,32 +13,50 @@
     <form method="post">
         {% csrf_token %}
         <div class="field">
-            <label class="label">Name</label>
+            <label class="label mt-6">Name *</label>
+            <p class="help">The name of the course that will be displayed to the user. Not translated.</p>
             <div class="control">
                 <input class="input" type="text" name="name" value="{{ initial.name }}" required>
             </div>
         </div>
 
-        <div class="field">
-            <label class="label">System Prompt (Overrides default)</label>
-            <div class="control">
-                <textarea class="textarea" name="system_prompt" rows="14">{{ initial.system_prompt }}</textarea>
-            </div>
-            <p class="help">If set, this replaces the default general tutor prompt for this course's exercises.</p>
-        </div>
+        <details>
+            <summary class="mt-6 mb-6 title is-6">System Prompt [expert mode]</summary>
+            <div class="box mb-6">
+                <details>
+                    <summary class="mt-5 mb-6 title is-6">View original system prompt (acts as documentation)</summary>
+                    <pre>{{ original_system_prompt|force_escape }}</pre>
+                </details>
 
-        <div class="field">
-            <label class="label">LLM Prompts (per exercise type)</label>
-        </div>
+                <div class="field">
+                    <label class="label">System Prompt (Overrides default)</label>
+                    <p class="help">If set, this replaces the default general tutor prompt for this course's exercises.</p>
+                    <p class="help is-danger">Make sure you use the same syntax as the original system prompt above.</p>
+                    <p class="help is-danger">⚠️ Make sure you test the system prompt with at least one exercise in this course. ⚠️</p>
 
-        {% for item in llm_type_fields %}
-        <div class="field">
-            <label class="label">{{ item.key }}</label>
-            <div class="control">
-                <textarea class="textarea" name="llm_prompts__{{ item.key }}" rows="10">{{ item.value }}</textarea>
+                    <div class="control">
+                        <textarea class="textarea" name="system_prompt" rows="14">{{ initial.system_prompt }}</textarea>
+                    </div>
+                    
+                </div>
+
+                <div class="field">
+                    <label class="label mt-6">LLM Prompts (per exercise type)</label>
+                    <p class="help">You may override the default prompt for each specific exercise type.</p>
+                    <p class="help">Leave empty to use the default prompt for that exercise type.</p>
+                </div>
+
+                {% for item in llm_type_fields %}
+                <div class="field">
+                    <label class="label">{{ item.key }}</label>
+                    <div class="control">
+                        <textarea class="textarea" name="llm_prompts__{{ item.key }}" rows="10">{{ item.value }}</textarea>
+                    </div>
+                </div>
+                {% endfor %}
             </div>
-        </div>
-        {% endfor %}
+        </details>
+
 
         <div class="field is-grouped">
             <div class="control">

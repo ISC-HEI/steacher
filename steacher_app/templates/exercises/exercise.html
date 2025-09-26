@@ -59,6 +59,36 @@
     
 </div>
 
+{% if can_edit %}<!-- AI tutor system prompt -->
+<details style="margin-bottom: 1rem;">
+  <summary style="cursor: pointer; font-weight: 600;">AI tutor system prompt [expert mode]</summary>
+
+  {% if prompt_render_error %}
+  <div class="notification is-danger" style="margin-top: 0.75rem;">
+    {{ prompt_render_error }}
+    <div style="margin-top: 0.5rem;">
+      <a class="button is-small is-warning" href="{% url 'teachers:course_edit' pk=exercise.module.course.pk %}">Edit course prompt [expert mode]</a>
+    </div>
+  </div>
+  {% elif system_prompt_preview %}
+  <div style="margin-top: 0.75rem;">
+    <div class="is-size-7" style="margin-bottom: 0.5rem; display:flex; gap: 0.5rem; align-items:center;">
+      <a class="button is-small is-warning" href="{% url 'teachers:course_edit' pk=exercise.module.course.pk %}">Edit course prompt [expert mode]</a>
+      <button class="button is-small" onclick="(function(){ const el=document.getElementById('sys-prompt-pre'); if(!el) return; navigator.clipboard.writeText(el.textContent || ''); alert('System prompt successfully copied to clipboard'); })()">Copy</button>
+    </div>
+    <pre id="sys-prompt-pre" style="max-height: 40vh; overflow: auto; white-space: pre-wrap;">{{ system_prompt_preview|force_escape }}</pre>
+  </div>
+  {% else %}
+  <div class="notification is-warning" style="margin-top: 0.75rem;">
+    No system prompt available yet.
+    <div style="margin-top: 0.5rem;">
+      <a class="button is-small is-warning" href="{% url 'teachers:course_edit' pk=exercise.module.course.pk %}">Edit course prompt [expert mode]</a>
+    </div>
+  </div>
+  {% endif %}
+</details>
+{% endif %}
+
 {% block exercise_content %}{% endblock %}
 
 <div style="padding-bottom: 80px;"></div> <!-- Add padding to avoid overlap -->

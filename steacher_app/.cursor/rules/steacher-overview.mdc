@@ -110,3 +110,9 @@ python manage.py runserver
 ### Preferred code formatting style
 
 Indent with 4 spaces (no tabs).
+
+
+### Preferred approach in general
+
+* I favor concise and KISS approaches in general. Maintaining many LOC is a burden, so try to keep it minimal.
+* I often dictate my text, so there may be transcription errors. If anything I write is unclear, please ask for clarification—it’s likely due to voice-to-text.

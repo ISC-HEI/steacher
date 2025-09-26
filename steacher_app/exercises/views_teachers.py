@@ -1,41 +1,35 @@
-from django.contrib.auth.decorators import login_required
+import json
+import os
+import logging
+from operator import attrgetter
+from itertools import groupby
+from datetime import timedelta
+from pydantic import ValidationError
 from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import get_user_model
+from django.contrib.auth.decorators import login_required
+from django.contrib.contenttypes.models import ContentType
+from django.db import transaction, models
+from django.db.models import Avg, Count, F, ExpressionWrapper, fields, Subquery, Q
+from django.db.models.functions import Cast, JSONObject
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
+from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
-from django.db import transaction, models
-import json
-import logging
-from .authz import (
-    course_roles_required,
-    assert_can_edit_course,
-    assert_can_view_course,
-    cohort_roles_required,
-)
+import newrelic.agent as nr
+
+from .authz import course_roles_required, assert_can_edit_course, assert_can_view_course, cohort_roles_required
 from .models import Exercise, Course, Module, ExerciseAsset, Cohort, CohortMembership, Attempt, create_trace_for, CourseMembership, Trace
 from .unit_testing import run_unit_tests, run_unit_tests_scala
 from .logic import generate_authoring_update
 from .logic import generate_i18n_translations
 from .schemas import ExerciseData, AnswerData
-from pydantic import ValidationError
-from django.contrib.auth import get_user_model
-from itertools import groupby
-from operator import attrgetter
-import newrelic.agent as nr
-from django.contrib import messages
-from django.utils import timezone
-from django.db.models import Avg, Count, F, ExpressionWrapper, fields, Subquery, OuterRef, Q, Max, Min
-from django.db.models.functions import Cast, JSONObject
-from django.utils import timezone
-from datetime import timedelta
-from django.contrib.contenttypes.models import ContentType
-from django.contrib.contenttypes.fields import GenericForeignKey
-from django.contrib.contenttypes.fields import GenericRelation
 
 
-def get_exercise_analytics(exercises, filter_days_str='all'):
+def _get_exercise_analytics(exercises, filter_days_str='all'):
     """
-    Calculates analytics metrics for a queryset of exercises.
+    Calculates analytics metrics for a queryset of exercises. Used in the course analytics dashboard.
     """
     exercise_metrics = []
     
@@ -165,6 +159,14 @@ def course_edit(request, pk):
             return redirect('teachers:course_detail', pk=course.pk)
 
     # GET -> render form with current values
+    # fetch the original system prompt; used as documentation on how to write the system prompt
+    try:
+        tpl_path = os.path.join(settings.BASE_DIR, 'templates', 'exercises', 'prompts', 'exercise_guidance.md')
+        with open(tpl_path, 'r', encoding='utf-8') as f:
+            original_system_prompt = f.read()
+    except Exception:
+        original_system_prompt = ''
+
     llm_type_fields = [
         {
             'key': key,
@@ -179,6 +181,7 @@ def course_edit(request, pk):
             'system_prompt': course.system_prompt or '',
         },
         'llm_type_fields': llm_type_fields,
+        'original_system_prompt': original_system_prompt,
     }
     return render(request, 'exercises/teacher/course_edit.html', context)
 
@@ -196,7 +199,7 @@ def course_analytics_dashboard(request, course_id):
     
     # Get all exercises for the course and calculate metrics
     exercises = Exercise.objects.filter(module__course=course).select_related('module').order_by('module__order', 'order')
-    exercise_metrics = get_exercise_analytics(exercises, filter_days_str)
+    exercise_metrics = _get_exercise_analytics(exercises, filter_days_str)
 
     context = {
         'course': course,

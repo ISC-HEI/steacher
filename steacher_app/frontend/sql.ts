@@ -437,7 +437,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                 } catch (error) {
-                    console.error('Query error:', error);
+                    console.log('Query error (caused by student\'s own syntax error):', error);
                     const errorMessage = 'SQL Error: ' + String(error);
                     this.queryError = errorMessage;
 

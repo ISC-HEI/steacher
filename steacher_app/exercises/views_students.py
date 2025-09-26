@@ -8,6 +8,7 @@ from django.http import JsonResponse, HttpResponse, Http404
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST, require_GET
 from django.db import models
+from django.template import TemplateSyntaxError
 from django.db.models import Prefetch, Max
 from django.utils import timezone
 from datetime import timedelta, date
@@ -18,6 +19,7 @@ import os
 import newrelic.agent as nr
 
 from .models import Exercise, ExerciseAsset, Course, Attempt, Module, UserInvite, ChatThread, CohortMembership, Trace, TraceEval, create_trace_for, localized_name
+from .prompting import build_system_prompt
 from .authz import assert_can_view_exercise, assert_can_view_course, can_edit_course, can_manage_cohort_students, rate_limit
 
 logger = logging.getLogger(__name__)
@@ -267,6 +269,13 @@ def register(request):
     invite.mark_used(user) # will also invite the user to the cohort, if any
 
     login(request, user, backend=settings.AUTHENTICATION_BACKENDS[0])
+    
+    # If the invite included a cohort, redirect to that cohort's course page; otherwise to dashboard
+    try:
+        if invite and getattr(invite, 'cohort', None) and getattr(invite.cohort, 'course_id', None):
+            return redirect('exercises:course_detail', pk=invite.cohort.course_id)
+    except Exception:
+        pass
     return redirect('exercises:dashboard')
 
 
@@ -445,6 +454,22 @@ def exercise_detail(request, pk):
     except Exception:
         can_edit = False
 
+    # Author-only system prompt preview (last used) or render error
+    system_prompt_preview = None
+    prompt_render_error = None
+    if can_edit:
+        try:
+            first_trace = attempt.traces.filter(channel='exercise_guidance').order_by('rank_order', 'id').first()
+            if first_trace and (first_trace.system_prompt or '').strip():
+                system_prompt_preview = first_trace.system_prompt
+            else:
+                # As a fallback, render current default/override strictly to catch obvious issues
+                system_prompt_preview = build_system_prompt(action='ask_question', exercise=exercise, attempt=attempt)
+        except TemplateSyntaxError as e:
+            prompt_render_error = f"Template error: {e}"
+        except Exception as e:
+            prompt_render_error = f"Error rendering system_prompt: {e}"
+
     return render(request, template_name, {
         'exercise': exercise,  # TODO refactor and possibly remove this
         'exercise_json': exercise_json,
@@ -457,6 +482,8 @@ def exercise_detail(request, pk):
         'instructor_email': instructor_email,
         'can_edit': can_edit,
         'solution_unlocked': solution_unlocked,
+        'system_prompt_preview': system_prompt_preview,
+        'prompt_render_error': prompt_render_error,
     })
 
 

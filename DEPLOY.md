@@ -620,3 +620,31 @@ docker cp ../2025_year2_students.csv steacher_app-web-1:/tmp/invites.csv
 # set right cohort id
 docker exec steacher_app-web-1 python manage.py create_user_invites /tmp/invites.csv 11111
 ```
+
+
+# Find size of db tables
+
+```bash
+docker compose exec -T db psql -U steacher_admin steacher_prod -c "SELECT schemaname || '.' || relname AS table, pg_size_pretty(pg_total_relation_size(relid)) AS total, pg_size_pretty(pg_relation_size(relid)) AS data, pg_size_pretty(pg_total_relation_size(relid) - pg_relation_size(relid)) AS idx_toast FROM pg_catalog.pg_statio_user_tables ORDER BY pg_total_relation_size(relid) DESC LIMIT 20;"
+
+docker compose exec -T db psql -U steacher_admin steacher_prod -c  "
+  SELECT
+    s.attname AS column_name,
+    pg_catalog.format_type(a.atttypid, a.atttypmod) AS data_type,
+    pg_size_pretty(
+      ((1 - COALESCE(s.null_frac, 0)) *
+       COALESCE(s.avg_width, 0) *
+       (SELECT reltuples::bigint FROM pg_class WHERE oid = 'exercises_trace'::regclass)
+      )::bigint
+    ) AS estimated_size
+  FROM pg_attribute a
+  JOIN pg_stats s ON a.attname = s.attname
+    AND s.schemaname = 'public'
+    AND s.tablename = 'exercises_trace'
+  LEFT JOIN pg_class c ON a.attrelid = c.oid
+  WHERE a.attrelid = 'exercises_trace'::regclass
+    AND a.attnum > 0
+    AND NOT a.attisdropped
+  ORDER BY estimated_size DESC;
+  "
+```

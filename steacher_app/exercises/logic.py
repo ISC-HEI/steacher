@@ -253,90 +253,10 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     # Use reverse GenericRelation for clarity and performance
     existing_traces = attempt.traces.all().order_by('rank_order', 'id')
 
-    # 3. Add system prompt and course prompt (the specific prompt for this kind of exercise)
-    with open('exercises/prompts/general_prompt.md', 'r') as file:
-        default_prompt = file.read()
-
-    # Select base prompt: course-level override replaces the default system prompt (except for reveal_solution)
-    course_system_prompt = None
-    try:
-        course_system_prompt = (exercise.module.course.system_prompt or '').strip()
-    except Exception:
-        course_system_prompt = None
-
-    # Initialize prompt with course override if set, else default
-    prompt = (course_system_prompt or default_prompt)
-
-    if action == 'ask_hint':
-        prompt += """
-# Hint Request Exception
-For this specific request, you are allowed to relax your core directive slightly. 
-The student has explicitly asked for a hint, indicating they are stuck. 
-You may provide a more direct hint, such as a small code snippet, a key part of a formula, or a clearer step-by-step instruction to help them overcome their current specific obstacle. 
-Do not provide the entire solution, but give them enough to make meaningful progress. Then, return to your Socratic style in subsequent interactions.
-"""
-    elif action == 'reveal_solution':
-        # Use a dedicated, minimal solution reveal system prompt; do not include the general prompt
-        with open('exercises/prompts/solution_reveal_prompt.md', 'r') as f:
-            prompt = f.read()
-    
-    course_prompt = exercise.module.course.llm_prompts.get(exercise.exercise_type)
-    if course_prompt:
-        prompt += f"\n\n{course_prompt}"
-
-    # Add student's preferred language directive so the tutor answers accordingly
-    try:
-        preferred_language_code = getattr(attempt.user, 'preferred_language', 'en') or 'en'
-    except Exception:
-        preferred_language_code = 'en'
-    language_names = {
-        'en': 'English',
-        'fr': 'French',
-        'de': 'German',
-    }
-    language_name = language_names.get(preferred_language_code, 'English')
-    prompt += (
-        f"\n\n## Language\n"
-        f"Always respond to the student in {language_name}. "
-        f"If you include code snippets, keep the code itself in its original programming language and do not translate identifiers."
-    )
-
-    # 4. Add question, expected result, correct answers, hints, additional context
-    # TODO: refactor this to make it cleaner
-    prompt += f"\n\n# Exercise"
-
-    # The question is now at the top-level of the exercise object.
-    question_text = localized_name(exercise, 'question_i18n', attempt.user, lang=preferred_language_code)
-
-    if question_text:
-        prompt += f"\n\n## Question given to the student\n\n{question_text}"
-    
-    answer_data_obj = exercise.answer_data_obj
-    if answer_data_obj:
-        if answer_data_obj.expected_result:
-            prompt += f"\n\n## Expected result\n\n{answer_data_obj.expected_result}"
-        
-        if answer_data_obj.correct_answers:
-            prompt += "\n\n## Correct answers\n\n"
-            for i, answer_info in enumerate(answer_data_obj.correct_answers):
-                answer = answer_info.answer
-                explanation = answer_info.explanation
-                prompt += f"- Solution {i+1}:\n\n"
-
-                if exercise.exercise_type in ['python', 'sql']:
-                    prompt += f"```{exercise.exercise_type}\n{answer.replace('\\n', '\n')}\n```\n"
-                else:
-                    prompt += f"  {answer.replace('\\n', '\n')}\n"
-                
-                if explanation:
-                    prompt += f"\n  Explanation: {explanation}\n"
-        
-        if answer_data_obj.hints:
-            prompt += f"\n\n## Hints that can be provided to help the student\n\n{answer_data_obj.hints}"
-        
-        if answer_data_obj.additional_context:
-            prompt += f"\n\n## Additional context for this exercise\n\n{answer_data_obj.additional_context}"
-        
+    # 3. Render system prompt via template
+    from .prompting import build_system_prompt
+    prompt = build_system_prompt(action=action, exercise=exercise, attempt=attempt)
+    print(f"type(prompt): {type(prompt)}")
     logger.debug(f"System prompt:\n{prompt}")
 
     # 4. Use structured chat with history via Google genai Chats API
