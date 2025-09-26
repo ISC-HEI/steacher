@@ -115,7 +115,6 @@
                 <div class="exercise-output mt-4">
                     <div v-if="queryError">
                         <div class="notification is-danger">
-                            <button class="delete" @click="queryError = null"></button>
                             <h6 class="title is-6">Error:</h6>
                             <p>[[ queryError ]]</p>
                         </div>
@@ -126,11 +125,8 @@
                     <div v-if="loadingState === 'querying'">
                         <div class="notification is-info"><p><em>Executing query...</em></p></div>
                     </div>
-                    <div v-if="loadingState === 'getting-guidance'">
-                        <div class="notification is-info"><p><em>Analysing your code and creating guidance...</em></p></div>
-                    </div>
                     <div v-if="queryResult && loadingState === 'idle'">
-                        <h6 class="title is-6">Query Result:</h6>
+                        <h6 class="title is-6 mt-6">Query Result:</h6>
                         <div v-if="queryResult.type === 'select'" class="table-container">
                             <div class="notification is-success is-light mb-3">
                                 <p>
