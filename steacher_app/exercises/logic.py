@@ -240,6 +240,31 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
                 except Exception as e:
                     logger.warning(f"Scala unit tests failed to run: {e}")
 
+    # Add database schema information for SQL exercises
+    if exercise.exercise_type == 'sql' and 'database_schema' in data:
+        schema = data.get('database_schema')
+        foreign_keys = data.get('foreign_keys', {})
+        if schema:
+            user_prompt_content += f"\n## Database Schema:\n"
+            # Add table structures
+            for table_name, columns in schema.items():
+                user_prompt_content += f"\n**Table: {table_name}**\n"
+                for column in columns:
+                    column_name = column.get('column_name', '')
+                    data_type = column.get('data_type', '')
+                    user_prompt_content += f"- {column_name} ({data_type})\n"
+                # Add foreign key information for this table
+                if table_name in foreign_keys:
+                    fks = foreign_keys[table_name]
+                    if fks:
+                        user_prompt_content += f"  Foreign Keys:\n"
+                        for fk in fks:
+                            col = fk.get('column_name', '')
+                            ref_table = fk.get('referenced_table', '')
+                            ref_col = fk.get('referenced_column', '')
+                            user_prompt_content += f"  - {col} → {ref_table}.{ref_col}\n"
+            user_prompt_content += "\n"
+
     if 'error_message' in data and data.get('error_message'):
         user_prompt_content += f"Error:\n```\n{data.get('error_message')}\n```"
     if 'output' in data and data.get('output'):

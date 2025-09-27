@@ -171,6 +171,10 @@ input[type="text"].console-input:focus {
 
 
 /* Custom styles for the SQL exercise interface */
+.exercise-controls {
+    flex-wrap: wrap !important; /* Allow buttons to wrap to next line */
+}
+
 .exercise-controls .button:disabled {
     background-color: #cccccc; /* A neutral gray color */
     border-color: #cccccc;

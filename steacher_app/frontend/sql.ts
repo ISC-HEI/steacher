@@ -51,6 +51,7 @@ interface SqlDataContext {
     foreignKeysByTable?: Record<string, ForeignKeyInfo[]>;
     isPreview?: boolean;
     previewMeta?: { tableName: string; limit: number; maybeMore: boolean } | null;
+    solutionUnlocked: boolean;
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -115,7 +116,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 start_timestamp: new Date().toISOString(),
                 foreignKeysByTable: {},
                 isPreview: false,
-                previewMeta: null
+                previewMeta: null,
+                solutionUnlocked: false
             }
         },
         
@@ -199,6 +201,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         error_message: details.error || null,
                         start_timestamp: this.start_timestamp,
                         submission_timestamp: new Date().toISOString(),
+                        database_schema: this.databaseSchema,
+                        foreign_keys: this.foreignKeysByTable,
                     };
 
                     // 3. Make API call

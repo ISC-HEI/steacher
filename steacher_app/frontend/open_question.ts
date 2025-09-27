@@ -55,9 +55,25 @@ document.addEventListener('DOMContentLoaded', function() {
     const OpenQuestionApp = defineComponent({
         delimiters: ['[[', ']]'],
         data(): OpenQuestionDataContext {
+            // Get persistence key for localStorage
+            const persistenceKey = `open_question_${exerciseData.id}`;
+            let initialAnswer = lastAnswer || (exerciseData.exercise_data && exerciseData.exercise_data.answer_template) || '';
+
+            // Try to restore from localStorage if no previous answer exists
+            if (!lastAnswer) {
+                try {
+                    const savedContent = localStorage.getItem(persistenceKey);
+                    if (savedContent && savedContent !== initialAnswer) {
+                        initialAnswer = savedContent;
+                    }
+                } catch (e) {
+                    console.warn('Error restoring answer from localStorage', e);
+                }
+            }
+
             return {
                 exercise: exerciseData,
-                userAnswer: lastAnswer || (exerciseData.exercise_data && exerciseData.exercise_data.answer_template) || '',
+                userAnswer: initialAnswer,
                 queryError: null,
                 loadingState: 'idle',
                 start_timestamp: new Date().toISOString(),
@@ -159,6 +175,16 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         components: {
             'chatbot-panel': ChatbotPanel,
+        },
+        watch: {
+            userAnswer(newValue: string) {
+                const persistenceKey = `open_question_${this.exercise.id}`;
+                try {
+                    localStorage.setItem(persistenceKey, newValue);
+                } catch (e) {
+                    console.warn('Error saving answer to localStorage', e);
+                }
+            }
         }
     });
 
