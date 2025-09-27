@@ -116,7 +116,7 @@ export const CodeMirrorEditor = defineComponent({
                     EditorView.theme({
                         "&": {
                             maxHeight: "600px", // Approx. 30 lines
-                            fontSize: "14px"
+                            fontSize: "16px"
                         },
                         ".cm-scroller": {
                             overflow: "auto"

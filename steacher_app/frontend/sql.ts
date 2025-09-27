@@ -428,8 +428,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Manual run clears preview flag
                     this.isPreview = false;
                     this.previewMeta = null;
-                    // After successfully running the query, get guidance
-                    await this.getGuidance('run_submission');
 
                     // If the query may have changed the schema, refresh the schema explorer
                     if (this.isSchemaChangingQuery(this.userQuery)) {
@@ -440,9 +438,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log('Query error (caused by student\'s own syntax error):', error);
                     const errorMessage = 'SQL Error: ' + String(error);
                     this.queryError = errorMessage;
+                } finally {
+                    this.loadingState = 'idle';
+                }
+            },
 
-                    // When there's an error, also get guidance
-                    await this.getGuidance('run_submission', { error: errorMessage });
+            async submitQuery() {
+                // First run the query to get results
+                await this.runQuery();
+
+                // Get AI guidance whether successful or not
+                if (this.queryError) {
+                    await this.getGuidance('run_submission', { error: this.queryError });
+                } else {
+                    await this.getGuidance('run_submission');
                 }
             },
 

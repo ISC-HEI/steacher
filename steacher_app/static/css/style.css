@@ -48,6 +48,79 @@
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
 }
 
+/* Console styles */
+.console-container {
+    min-height: 200px;
+    max-height: 400px;
+    overflow-y: auto;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Source Code Pro', 'Menlo', 'Consolas', monospace;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+.console-history {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.console-entry {
+    margin-bottom: 0;
+}
+
+.console-input-line {
+    display: flex;
+    align-items: center;
+    margin-top: 4px;
+    width: 100%;
+}
+
+.console-prompt {
+    flex-shrink: 0;
+    margin-right: 8px;
+    color: white;
+}
+
+/* Aggressive console input styling to override Bulma */
+.console-container .console-input,
+.console-container input.console-input,
+.has-background-black .console-input,
+.has-background-black input.console-input,
+input[type="text"].console-input {
+    flex: 1;
+    min-width: 0;
+    width: 100% !important;
+    max-width: none !important;
+    color: white !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    border-color: transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    font-family: inherit;
+    font-size: inherit;
+}
+
+.console-container .console-input:focus,
+.console-container input.console-input:focus,
+.has-background-black .console-input:focus,
+.has-background-black input.console-input:focus,
+input[type="text"].console-input:focus {
+    color: white !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+.console-input:disabled {
+    opacity: 0.5;
+}
+
 
 /* result table styling */
 .exercise .table-container {

@@ -7,11 +7,20 @@ import DOMPurify from 'dompurify';
 import type { Exercise } from './utils.js';
 import { csrfFetch, getCsrfToken } from './utils.js';
 
+interface ConsoleEntry {
+    type: 'command' | 'output' | 'error';
+    content: string;
+}
+
 interface PythonDataContext {
     exercise: Exercise;
     userCode: string;
     executionOutput: string | null;
     executionError: string | null;
+    consoleHistory: ConsoleEntry[];
+    currentCommand: string;
+    commandHistory: string[];
+    commandHistoryIndex: number;
     loadingState: 'idle' | 'pyodide-loading' | 'executing' | 'getting-guidance';
     worker: Worker | null;
     workerReady: boolean;
@@ -74,6 +83,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 userCode: lastUserCode || (exerciseData.exercise_data && exerciseData.exercise_data.answer_template) || '',
                 executionOutput: null,
                 executionError: null,
+                consoleHistory: [],
+                currentCommand: '',
+                commandHistory: [],
+                commandHistoryIndex: -1,
                 loadingState: 'idle',
                 worker: null,
                 workerReady: false,
@@ -225,17 +238,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
 
-            async runCode() {
+            async executeCode(code: string) {
                 if (!this.worker || !this.workerReady) {
                     this.executionError = 'Python worker not ready yet. Please wait...';
                     return;
                 }
-                
-                if (!this.userCode.trim()) {
-                    this.executionError = 'Please enter some code';
-                    return;
-                }
-                
+
                 try {
                     this.loadingState = 'executing';
                     this.executionError = null;
@@ -245,7 +253,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         this.pendingResolvers[runId] = resolve as (value: any) => void;
                     }) as Promise<any>;
 
-                    this.worker.postMessage({ type: 'run', runId, code: this.userCode });
+                    this.worker.postMessage({ type: 'run', runId, code });
 
                     let timedOut = false;
                     const timeoutHandle = setTimeout(() => {
@@ -256,39 +264,51 @@ document.addEventListener('DOMContentLoaded', function() {
                         this.worker = null;
                         this.workerReady = false;
                         this.executionError = `Execution timed out after ${this.executionTimeoutMs / 1000} seconds (possible infinite loop).`;
-                        // Clean pending resolver if any
                         delete this.pendingResolvers[runId];
-                        // Restart worker for future runs
                         this.startWorker();
                     }, this.executionTimeoutMs);
 
                     const msg = await resultPromise.catch((e) => ({ error: String(e), success: false }));
                     clearTimeout(timeoutHandle);
-                    if (timedOut) {
-                        // Timeout path already handled
-                        // Still proceed to guidance with error
-                        await (this as any).$nextTick();
-                        await this.getGuidance('run_submission', { error: this.executionError || 'Timed out' });
-                    } else {
+
+                    if (!timedOut) {
                         if (msg.success) {
                             this.executionOutput = (msg.stdout || '').trim();
-                            await (this as any).$nextTick();
-                            await this.getGuidance('run_submission', { output: this.executionOutput });
+                            if (this.executionOutput) {
+                                this.consoleHistory.push({ type: 'output', content: this.executionOutput });
+                            }
                         } else {
                             const errorMessage = String(msg.error || 'Unknown error');
-                            this.executionError = errorMessage;
-                            await (this as any).$nextTick();
-                            await this.getGuidance('run_submission', { error: errorMessage });
+                            const cleanedError = this.cleanConsoleError(errorMessage);
+                            this.executionError = cleanedError;
+                            this.consoleHistory.push({ type: 'error', content: cleanedError });
                         }
                     }
 
                 } catch (error) {
                     const errorMessage = String(error);
-                    this.executionError = errorMessage;
-                    await (this as any).$nextTick();
-                    await this.getGuidance('run_submission', { error: errorMessage });
+                    const cleanedError = this.cleanConsoleError(errorMessage);
+                    this.executionError = cleanedError;
+                    this.consoleHistory.push({ type: 'error', content: cleanedError });
                 } finally {
                     this.loadingState = 'idle';
+                }
+            },
+
+            async runCode() {
+                if (!this.userCode.trim()) {
+                    this.executionError = 'Please enter some code';
+                    return;
+                }
+
+                await this.executeCode(this.userCode);
+
+                // Submit results to guidance
+                await (this as any).$nextTick();
+                if (this.executionError) {
+                    await this.getGuidance('run_submission', { error: this.executionError });
+                } else {
+                    await this.getGuidance('run_submission', { output: this.executionOutput });
                 }
             },
             
@@ -299,7 +319,106 @@ document.addEventListener('DOMContentLoaded', function() {
             handleQuestion(question: string) {
                 this.getGuidance('ask_question', { question, error: this.executionError, output: this.executionOutput });
             },
-            
+
+            async executeConsoleCommand() {
+                if (!this.currentCommand.trim()) {
+                    return;
+                }
+
+                const command = this.currentCommand.trim();
+
+                // Add command to history
+                this.consoleHistory.push({ type: 'command', content: command });
+                this.commandHistory.push(command);
+                this.commandHistoryIndex = -1;
+
+                // Clear current command
+                this.currentCommand = '';
+
+                // Execute the command in context of main code
+                // For simple expressions, wrap with print() to show the result
+                let processedCommand = command;
+                if (this.isSimpleExpression(command)) {
+                    processedCommand = `print(${command})`;
+                }
+                const combinedCode = this.userCode + '\n\n# Console command:\n' + processedCommand;
+                await this.executeCode(combinedCode);
+
+                // Scroll to bottom and focus input
+                await (this as any).$nextTick();
+                this.scrollConsoleToBottom();
+                this.focusConsoleInput();
+            },
+
+            previousCommand() {
+                if (this.commandHistory.length === 0) return;
+
+                if (this.commandHistoryIndex === -1) {
+                    this.commandHistoryIndex = this.commandHistory.length - 1;
+                } else if (this.commandHistoryIndex > 0) {
+                    this.commandHistoryIndex--;
+                }
+
+                this.currentCommand = this.commandHistory[this.commandHistoryIndex] || '';
+            },
+
+            nextCommand() {
+                if (this.commandHistory.length === 0) return;
+
+                if (this.commandHistoryIndex < this.commandHistory.length - 1) {
+                    this.commandHistoryIndex++;
+                    this.currentCommand = this.commandHistory[this.commandHistoryIndex] || '';
+                } else {
+                    this.commandHistoryIndex = -1;
+                    this.currentCommand = '';
+                }
+            },
+
+            scrollConsoleToBottom() {
+                const container = document.querySelector('.console-container');
+                if (container) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            },
+
+            focusConsoleInput() {
+                const input = this.$refs.consoleInput as HTMLInputElement;
+                if (input) {
+                    input.focus();
+                }
+            },
+
+            isSimpleExpression(command: string): boolean {
+                // Check if it's a simple expression that should be auto-printed
+                const trimmed = command.trim();
+
+                // Skip if it's already a statement (contains keywords, assignments, etc.)
+                if (trimmed.includes('print(') ||
+                    trimmed.includes('=') ||
+                    trimmed.startsWith('if ') ||
+                    trimmed.startsWith('for ') ||
+                    trimmed.startsWith('while ') ||
+                    trimmed.startsWith('def ') ||
+                    trimmed.startsWith('class ') ||
+                    trimmed.startsWith('import ') ||
+                    trimmed.startsWith('from ')) {
+                    return false;
+                }
+
+                // Auto-print simple expressions like variable names, function calls, math expressions
+                return true;
+            },
+
+            cleanConsoleError(errorMessage: string): string {
+                // Filter out confusing File "<exec>" lines but keep the actual error
+                const lines = errorMessage.split('\n');
+                const filteredLines = lines.filter(line =>
+                    !line.trim().startsWith('File "<exec>"') &&
+                    line.trim() !== ''
+                );
+                return filteredLines.join('\n').trim() || errorMessage;
+            },
+
         },
         components: {
             'chatbot-panel': ChatbotPanel,

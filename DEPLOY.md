@@ -13,8 +13,7 @@ git pull
 
 # 2) toggle maintenance mode (from project root)
 touch nginx/maintenance/maintenance_on
-# zero-downtime reload so Nginx picks up the flag
-docker compose exec -T proxy nginx -s reload
+docker compose exec -T proxy nginx -s reload # zero-downtime reload so Nginx picks up the flag
 
 
 # 3) Build the web image (so collectstatic runs against the new code)

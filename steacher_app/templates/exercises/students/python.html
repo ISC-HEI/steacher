@@ -63,9 +63,31 @@
                         <span class="tag is-light is-info is-medium">Loading Python interpreter...</span>
                     </div>
                 </div>
-                <div class="exercise-output mt-4">
-                    <h6 class="title is-6 mt-6 mb-2">Console Output:</h6>
-                    <pre :class="['has-background-black', 'p-5', 'is-size-6', 'console-output', executionError ? 'has-text-danger' : 'has-text-white']">[[ executionError || executionOutput ]]</pre>
+                <div class="exercise-output mt-2">
+                    <h6 class="title is-6 mt-6 mb-2">Console:</h6>
+                    <div class="has-background-black p-4 is-size-6 console-container">
+                        <div class="console-history">
+                            <div v-for="(entry, index) in consoleHistory" :key="index" class="console-entry">
+                                <div v-if="entry.type === 'output'" class="has-text-white">[[ entry.content ]]</div>
+                                <div v-if="entry.type === 'error'" class="has-text-danger">[[ entry.content ]]</div>
+                                <div v-if="entry.type === 'command'" class="has-text-white">>>> [[ entry.content ]]</div>
+                            </div>
+                        </div>
+                        <div class="console-input-line has-text-white">
+                            <span class="console-prompt">>>> </span>
+                            <input
+                                ref="consoleInput"
+                                v-model="currentCommand"
+                                @keyup.enter="executeConsoleCommand"
+                                @keyup.up="previousCommand"
+                                @keyup.down="nextCommand"
+                                :disabled="loadingState !== 'idle' || !workerReady || loadingState === 'pyodide-loading'"
+                                class="console-input"
+                                type="text"
+                                autocomplete="off"
+                                spellcheck="false">
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

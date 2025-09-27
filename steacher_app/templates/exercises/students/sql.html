@@ -85,7 +85,7 @@
                         <button
                             @click="runQuery"
                             class="button is-primary"
-                            :class="{ 'is-loading': loadingState === 'querying' || loadingState === 'getting-guidance' }"
+                            :class="{ 'is-loading': loadingState === 'querying' }"
                             :disabled="!userQuery.trim() || loadingState !== 'idle'">
                             <span class="icon"><i class="fas fa-play"></i></span>
                             <span>Run Query</span>
@@ -93,9 +93,19 @@
                     </div>
                     <div class="control">
                         <button
+                            @click="submitQuery"
+                            class="button is-success"
+                            :class="{ 'is-loading': loadingState === 'getting-guidance' }"
+                            :disabled="!userQuery.trim() || loadingState !== 'idle'">
+                            <span class="icon"><i class="fas fa-paper-plane"></i></span>
+                            <span>Submit & Get Feedback</span>
+                        </button>
+                    </div>
+                    <div class="control">
+                        <button
                             @click="giveHint"
                             class="button is-info"
-                            :class="{ 'is-loading': loadingState === 'querying' || loadingState === 'getting-guidance' }"
+                            :class="{ 'is-loading': loadingState === 'getting-guidance' }"
                             :disabled="loadingState !== 'idle'">
                             <span class="icon"><i class="fas fa-lightbulb"></i></span>
                             <span>Gimme a Hint</span>

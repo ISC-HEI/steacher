@@ -7,12 +7,20 @@ import DOMPurify from 'dompurify';
 import type { Exercise } from './utils.js';
 import { csrfFetch, getCsrfToken } from './utils.js';
 
+interface ConsoleEntry {
+    type: 'command' | 'output' | 'error';
+    content: string;
+}
+
 interface ScalaDataContext {
     exercise: Exercise;
     userCode: string;
-    testSnippet: string;
     executionOutput: string | null;
     executionError: string | null;
+    consoleHistory: ConsoleEntry[];
+    currentCommand: string;
+    commandHistory: string[];
+    commandHistoryIndex: number;
     loadingState: 'idle' | 'executing' | 'getting-guidance';
     start_timestamp: string;
 }
@@ -57,9 +65,12 @@ document.addEventListener('DOMContentLoaded', function() {
             return {
                 exercise: exerciseData,
                 userCode: lastUserCode || (exerciseData.exercise_data && exerciseData.exercise_data.answer_template) || '',
-                testSnippet: '',
                 executionOutput: null,
                 executionError: null,
+                consoleHistory: [],
+                currentCommand: '',
+                commandHistory: [],
+                commandHistoryIndex: -1,
                 loadingState: 'idle',
                 start_timestamp: new Date().toISOString(),
             };
@@ -156,76 +167,130 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.start_timestamp = new Date().toISOString();
                 }
             },
+            async executeCode(code: string) {
+                try {
+                    this.loadingState = 'executing';
+                    this.executionError = null;
+                    this.executionOutput = null;
+
+                    const response = await csrfFetch('/exercises/api/scala/execute/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ code }),
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        this.executionOutput = this.cleanScalaOutput(result.output || '');
+                        this.executionError = null;
+                        if (this.executionOutput) {
+                            this.consoleHistory.push({ type: 'output', content: this.executionOutput });
+                        }
+                    } else {
+                        const outputText = this.cleanScalaOutput(result.output || result.error || 'Unknown error');
+                        const cleanedError = this.cleanConsoleError(outputText);
+                        this.executionOutput = cleanedError;
+                        this.executionError = cleanedError;
+                        this.consoleHistory.push({ type: 'error', content: cleanedError });
+                    }
+                } catch (error) {
+                    const errorMessage = this.cleanScalaOutput(String(error));
+                    const cleanedError = this.cleanConsoleError(errorMessage);
+                    this.executionOutput = cleanedError;
+                    this.executionError = cleanedError;
+                    this.consoleHistory.push({ type: 'error', content: cleanedError });
+                } finally {
+                    this.loadingState = 'idle';
+                }
+            },
+
             async runCode() {
                 if (!this.userCode.trim()) {
                     this.executionError = 'Please enter some code';
                     return;
                 }
-                try {
-                    this.loadingState = 'executing';
-                    this.executionError = null;
-                    this.executionOutput = null;
 
-                    const response = await csrfFetch('/exercises/api/scala/execute/', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ code: this.userCode }),
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        this.executionOutput = this.cleanScalaOutput(result.output || '');
-                        this.executionError = null;
-                        await (this as any).$nextTick();
-                        await this.getGuidance('run_submission', { output: this.executionOutput });
-                    } else {
-                        const outputText = this.cleanScalaOutput(result.output || result.error || 'Unknown error');
-                        this.executionOutput = outputText;
-                        this.executionError = outputText;
-                        await (this as any).$nextTick();
-                        await this.getGuidance('run_submission', { error: outputText });
-                    }
-                } catch (error) {
-                    const errorMessage = this.cleanScalaOutput(String(error));
-                    this.executionOutput = errorMessage;
-                    this.executionError = errorMessage;
-                    await (this as any).$nextTick();
-                    await this.getGuidance('run_submission', { error: errorMessage });
-                } finally {
-                    this.loadingState = 'idle';
+                await this.executeCode(this.userCode);
+
+                // Submit results to guidance
+                await (this as any).$nextTick();
+                if (this.executionError) {
+                    await this.getGuidance('run_submission', { error: this.executionError });
+                } else {
+                    await this.getGuidance('run_submission', { output: this.executionOutput });
                 }
             },
-            async runTestSnippet() {
-                if (!this.testSnippet || !this.testSnippet.trim()) {
-                    this.executionError = 'Please enter a test snippet';
+
+            async executeConsoleCommand() {
+                if (!this.currentCommand.trim()) {
                     return;
                 }
-                const combinedCode = `${this.userCode}\n${this.testSnippet}`;
-                try {
-                    this.loadingState = 'executing';
-                    this.executionError = null;
-                    this.executionOutput = null;
 
-                    const response = await csrfFetch('/exercises/api/scala/execute/', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ code: combinedCode }),
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        this.executionOutput = this.cleanScalaOutput(result.output || '');
-                        this.executionError = null;
-                    } else {
-                        const outputText = this.cleanScalaOutput(result.output || result.error || 'Unknown error');
-                        this.executionOutput = outputText;
-                        this.executionError = outputText;
-                    }
-                } catch (error) {
-                    const errorMessage = this.cleanScalaOutput(String(error));
-                    this.executionOutput = errorMessage;
-                    this.executionError = errorMessage;
-                } finally {
-                    this.loadingState = 'idle';
+                const command = this.currentCommand.trim();
+
+                // Add command to history
+                this.consoleHistory.push({ type: 'command', content: command });
+                this.commandHistory.push(command);
+                this.commandHistoryIndex = -1;
+
+                // Clear current command
+                this.currentCommand = '';
+
+                // Execute the command in context of main code
+                const combinedCode = this.userCode + '\n\n// Console command:\n' + command;
+                await this.executeCode(combinedCode);
+
+                // Scroll to bottom and focus input
+                await (this as any).$nextTick();
+                this.scrollConsoleToBottom();
+                this.focusConsoleInput();
+            },
+
+            previousCommand() {
+                if (this.commandHistory.length === 0) return;
+
+                if (this.commandHistoryIndex === -1) {
+                    this.commandHistoryIndex = this.commandHistory.length - 1;
+                } else if (this.commandHistoryIndex > 0) {
+                    this.commandHistoryIndex--;
                 }
+
+                this.currentCommand = this.commandHistory[this.commandHistoryIndex] || '';
+            },
+
+            nextCommand() {
+                if (this.commandHistory.length === 0) return;
+
+                if (this.commandHistoryIndex < this.commandHistory.length - 1) {
+                    this.commandHistoryIndex++;
+                    this.currentCommand = this.commandHistory[this.commandHistoryIndex] || '';
+                } else {
+                    this.commandHistoryIndex = -1;
+                    this.currentCommand = '';
+                }
+            },
+
+            scrollConsoleToBottom() {
+                const container = document.querySelector('.console-container');
+                if (container) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            },
+
+            focusConsoleInput() {
+                const input = this.$refs.consoleInput as HTMLInputElement;
+                if (input) {
+                    input.focus();
+                }
+            },
+
+            cleanConsoleError(errorMessage: string): string {
+                // Filter out confusing File "<exec>" lines but keep the actual error
+                const lines = errorMessage.split('\n');
+                const filteredLines = lines.filter(line =>
+                    !line.trim().startsWith('File "<exec>"') &&
+                    line.trim() !== ''
+                );
+                return filteredLines.join('\n').trim() || errorMessage;
             },
             giveHint() { this.getGuidance('ask_hint', { error: this.executionError, output: this.executionOutput }); },
             handleQuestion(question: string) { this.getGuidance('ask_question', { question, error: this.executionError, output: this.executionOutput }); },

@@ -59,29 +59,31 @@
                         </div>
                     </div>
                 </div>
-                <div class="field has-addons mt-6 mb-0">
-                    <div class="control is-expanded">
-                        <input class="input"
-                               type="text"
-                               placeholder="// Quick test snippet"
-                               v-model="testSnippet"
-                               @keyup.enter="runTestSnippet"
-                               :disabled="loadingState !== 'idle'">
-                    </div>
-                    <div class="control">
-                        <button
-                            @click="runTestSnippet"
-                            class="button is-success"
-                            :class="{ 'is-loading': loadingState !== 'idle' }"
-                            :disabled="!testSnippet.trim() || loadingState !== 'idle'">
-                            <span class="icon"><i class="fas fa-vial"></i></span>
-                            <span>Test</span>
-                        </button>
-                    </div>
-                </div>
                 <div class="exercise-output mt-2">
-                    <pre class="has-background-black p-5 is-size-6 console-output"
-                         :class="{ 'has-text-danger': !!executionError, 'has-text-white': !executionError }">[[ executionOutput ]]</pre>
+                    <h6 class="title is-6 mt-6 mb-2">Console:</h6>
+                    <div class="has-background-black p-4 is-size-6 console-container">
+                        <div class="console-history">
+                            <div v-for="(entry, index) in consoleHistory" :key="index" class="console-entry">
+                                <div v-if="entry.type === 'output'" class="has-text-white">[[ entry.content ]]</div>
+                                <div v-if="entry.type === 'error'" class="has-text-danger">[[ entry.content ]]</div>
+                                <div v-if="entry.type === 'command'" class="has-text-white">scala> [[ entry.content ]]</div>
+                            </div>
+                        </div>
+                        <div class="console-input-line has-text-white">
+                            <span class="console-prompt">scala> </span>
+                            <input
+                                ref="consoleInput"
+                                v-model="currentCommand"
+                                @keyup.enter="executeConsoleCommand"
+                                @keyup.up="previousCommand"
+                                @keyup.down="nextCommand"
+                                :disabled="loadingState !== 'idle'"
+                                class="console-input"
+                                type="text"
+                                autocomplete="off"
+                                spellcheck="false">
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
