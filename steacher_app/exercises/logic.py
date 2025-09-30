@@ -405,7 +405,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     return response_data
 
 
-def generate_authoring_update(*, exercise_payload: dict, messages: list, course: Course) -> dict:
+def generate_authoring_update(*, exercise_payload: dict, messages: list, course: Course, mode: str = 'edit') -> dict:
     """
     Stateless helper for the teacher-facing authoring assistant.
 
@@ -421,8 +421,24 @@ def generate_authoring_update(*, exercise_payload: dict, messages: list, course:
     - 'assistant_metadata': dict (metadata about the assistant's response, like the LLM response time, model, etc.)
     """
 
-    # 1) Build system prompt specialized for authoring
-    system_prompt = (f"""You are an AI exercise authoring assistant. You are given a json that contains the current exercise.
+    # 1) Build system prompt specialized for authoring or feedback
+    mode = (mode or 'edit').lower()
+    if mode not in ('edit', 'feedback'):
+        mode = 'edit'
+
+    if mode == 'feedback':  # Feedback mode: provide text feedback
+        system_prompt = (f"""You are an AI assistant reviewing an exercise JSON for clarity and quality.
+Your task is to provide concise, actionable feedback as bullet points. Do NOT propose or output any JSON updates.
+Focus on: clarity of question, ambiguity, prerequisite fit, alignment between question, hints, and unit tests, and pedagogy.
+
+For reference, here is the exercise schema:
+{get_pydantic_schema_as_string()}
+
+# Output format
+Your response is a plain text string with the feedback. You may use markdown code fences."""
+        )
+    else:  # Edit mode: provide JSON updates
+        system_prompt = (f"""You are an AI exercise authoring assistant. You are given a json that contains the current exercise.
 Your job is to help the teacher improve the exercise. Your goal is to help a teacher create or improve an exercise. The current state of the exercise is provided to you as a JSON object under the 'Current Exercise Context' heading.
 If you are not sure about the exercise or how to improve it, ask the teacher for clarification (this is a conversation, so ask for clarification if needed). 
 Else try to improve the exercise and return the updated exercise. For example, you may write better hints, improve the exercise data, add more test cases, etc.
@@ -435,7 +451,7 @@ Your response MUST be a single JSON object with two keys:
 'assistant_message' (a friendly and concise string explaining your changes or asking for clarification) and
 'updated_exercise' (the complete, modified exercise JSON object).
 Do not use markdown or code fences. The exercise object MUST be the value of the 'updated_exercise' key."""
-    )
+        )
 
     # 2) Build a single, consolidated system prompt
     system_prompt_parts = [system_prompt]
@@ -478,7 +494,7 @@ Do not use markdown or code fences. The exercise object MUST be the value of the
             model=MODEL_PRO,
             messages=messages_for_llm,
             temperature=0.2,
-            response_format={"type": "json_object"},
+            response_format= {"type": "json_object"} if mode == 'edit' else {"type": "text"},
         )
     except Exception as e:
         logger.error(f"Failed to create completion for authoring assistant: {e}, messages: {messages_for_llm}")
@@ -548,6 +564,10 @@ Do not use markdown or code fences. The exercise object MUST be the value of the
         elif isinstance(hints, list):
             updated_exercise['answer_data']['hints'] = "\n".join(hints)
 
+    # Enforce no-op updates in feedback mode
+    if mode == 'feedback':
+        updated_exercise = exercise_payload
+
     return {
         'assistant_message': assistant_message,
         'updated_exercise': updated_exercise,
@@ -560,6 +580,7 @@ Do not use markdown or code fences. The exercise object MUST be the value of the
                 'total_tokens': completion.usage.total_tokens,
             },
             'finish_reason': completion.choices[0].finish_reason,
+            'mode': mode,
         },
     }
 

@@ -54,6 +54,11 @@ docker compose logs -n 100 web | cat
 docker compose logs -n 100 proxy | cat
 ```
 
+Start local django
+
+```bash
+DJANGO_SETTINGS_MODULE=exam_project.settings uvicorn exam_project.asgi:application --host 127.0.0.1 --port 8000 --reload
+```
 
 ------
 
@@ -423,6 +428,57 @@ Do you want me to write you a **ready-to-use cron backup plan** (with all comman
 https://mailtrap.io/blog/django-send-email/
 
 
+
+# Redis for Django Channels
+
+Redis is used as the channel layer backend for Django Channels to enable WebSocket support and async communication.
+
+Configuration:
+- **Connection URL**: `redis://redis:6379/0` (hardcoded in Django settings)
+- **Memory limit**: 512MB with LRU eviction policy
+- **Persistence**: AOF (append-only file) enabled for data durability
+- **Data volume**: `redis_data` for persistent storage
+
+Health checks and monitoring:
+```bash
+# Check Redis health
+docker compose exec redis redis-cli ping
+
+# Monitor Redis info
+docker compose exec redis redis-cli info
+
+# Check memory usage
+docker compose exec redis redis-cli info memory
+```
+
+Redis runs on the default port 6379 and is isolated on the backend network alongside the database and web services. No additional environment configuration needed.
+
+Starting Redis (if needed separately):
+```bash
+docker compose up -d redis
+```
+Note: Redis starts automatically when starting the web service due to the `depends_on` configuration.
+
+**Local Development Redis**:
+
+For local Django development (when not running Django in Docker), start a separate Redis container:
+
+```bash
+# Start Redis for local development
+docker run -d --name redis-dev -p 127.0.0.1:6379:6379 redis:7-alpine
+
+# Stop and remove when done
+docker stop redis-dev && docker rm redis-dev
+
+# Or use with auto-removal
+docker run --rm -d --name redis-dev -p 127.0.0.1:6379:6379 redis:7-alpine
+```
+
+**Configuration**:
+- **Production Redis**: Isolated on backend network, no external access, full security hardening
+- **Local development**: Separate Redis container with host port access
+- **Django in Docker**: Connects via `redis://redis:6379/0`
+- **Django locally**: Connects via `redis://127.0.0.1:6379/0`
 
 # Gunicorn WSGI + gthread (production)
 

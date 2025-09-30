@@ -19,6 +19,7 @@ services:
       - 8000
     depends_on:
       - db
+      - redis
       - scala_interpreter
     networks:
       - frontend
@@ -40,6 +41,31 @@ services:
     # Consider isolation on a backend network with only the web service
     networks:
       - backend
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
+      - CHOWN
+    read_only: true
+    tmpfs:
+      - /tmp
 
   proxy:
     image: nginx:1.29-alpine
@@ -150,6 +176,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
   static_data:
   media_data:
   newrelic_infra_db:

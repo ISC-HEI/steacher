@@ -38,5 +38,5 @@ COPY --from=builder /app/static/js/dist/ /app/static/js/dist/
 COPY --from=builder /app/node_modules/ /app/node_modules/
 
 
-# Entrypoint (New Relic + Gunicorn gthread)
-ENTRYPOINT ["sh","-c","NEW_RELIC_CONFIG_FILE=${NEW_RELIC_CONFIG_FILE:-/app/newrelic.ini} newrelic-admin run-program gunicorn exam_project.wsgi:application --worker-class gthread --workers ${WEB_CONCURRENCY:-5} --threads ${WEB_THREADS:-20} --timeout ${WEB_TIMEOUT:-180} --keep-alive 5 --graceful-timeout 30 --max-requests 1000 --max-requests-jitter 100 --bind 0.0.0.0:8000 --log-level info"]
+# Entrypoint (New Relic + Uvicorn with workers)
+ENTRYPOINT ["sh","-c","NEW_RELIC_CONFIG_FILE=${NEW_RELIC_CONFIG_FILE:-/app/newrelic.ini} newrelic-admin run-program uvicorn exam_project.asgi:application --host 0.0.0.0 --port 8000 --workers ${WEB_CONCURRENCY:-5} --log-level info"]

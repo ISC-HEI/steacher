@@ -44,17 +44,67 @@
     <p class="has-text-grey">No data yet.</p>
     {% endif %}
 
+    {% regroup selected_cohort.course.modules.all by is_quiz as modules_by_quiz %}
+    {% for group in modules_by_quiz %}
+    {% if group.grouper %}
+    <!-- Quiz Control Section -->
     <div class="box">
-        <div id="students-progress-toggle" class="is-flex is-align-items-center is-clickable" style="cursor: pointer; user-select: none;">
-            <span class="icon mr-2" id="students-progress-arrow"><i class="fas fa-chevron-right"></i></span>
-            <span class="is-size-5 has-text-weight-semibold">Student Progress</span>
+        <div class="is-flex is-align-items-center is-clickable" style="cursor: pointer; user-select: none;" onclick="toggleContent('quiz-control-content')">
+            <span class="title is-5"><span class="icon mr-2" id="quiz-control-arrow"><i class="fas fa-chevron-right"></i></span> Quiz Control</span>
         </div>
-        <div id="students-grid-container" style="display: none;">
+        <div id="quiz-control-content" class="is-hidden mt-5">
+            <div id="quiz-control-app">
+                <div class="field is-grouped">
+                    <div class="control">
+                        <label class="label">Select Quiz Module</label>
+                        <div class="select">
+                            <select v-model="selectedModule">
+                                <option value="">Choose a quiz module...</option>
+                                <option v-for="module in quizModules" :key="module.id" :value="module.id">
+                                    [[ module.name ]]
+                                </option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="control" style="align-self: flex-end;">
+                        <a v-if="selectedModule && hasVisibleExercises" :href="quizUrl" class="button is-warning">
+                            <span class="icon"><i class="fas fa-arrow-right"></i></span>
+                            <span>Go to quiz page</span>
+                        </a>
+                        <button v-if="selectedModule && !hasVisibleExercises" class="button is-warning" disabled>
+                            <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                            <span>No visible exercises in this module</span>
+                        </button>
+                    </div>
+                    <div class="control" style="align-self: flex-end;">
+                        <button v-if="selectedModule" @click="resetQuiz" class="button is-light">
+                            <span class="icon"><i class="fas fa-redo"></i></span>
+                            <span>Reset Quiz</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+
+    <div class="box">
+        <div class="is-flex is-align-items-center is-clickable" style="cursor: pointer; user-select: none;" onclick="toggleContent('students-grid-container')">
+            <span class="is-size-5 has-text-weight-semibold"><span class="icon mr-2" id="students-progress-arrow"><i class="fas fa-chevron-right"></i></span> Student Progress</span>
+        </div>
+        <div id="students-grid-container" class="is-hidden">
             <div id="students-grid" data-cohort-id="{{ selected_cohort.id }}"></div>
         </div>
     </div>
     {{ students_json|json_script:"students-grid-data" }}
     <script>
+    function toggleContent(id) {
+        const content = document.getElementById(id);
+        content.classList.toggle('is-hidden');
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('[data-height-px]').forEach(function (el) {
             var h = parseInt(el.getAttribute('data-height-px') || '0', 10);
@@ -62,17 +112,71 @@
                 el.style.height = h + 'px';
             }
         });
-        // Collapsible Student Progress
-        var toggle = document.getElementById('students-progress-toggle');
-        var arrow = document.getElementById('students-progress-arrow');
-        var container = document.getElementById('students-grid-container');
-        if (toggle && arrow && container) {
-            toggle.addEventListener('click', function(){
-                var isHidden = container.style.display === 'none';
-                container.style.display = isHidden ? '' : 'none';
-                arrow.innerHTML = isHidden ? '<i class="fas fa-chevron-down"></i>' : '<i class="fas fa-chevron-right"></i>';
+
+        // Quiz Control Vue App
+        if (typeof Vue !== 'undefined') {
+            const { createApp } = Vue;
+            const app = createApp({
+                delimiters: ['[[', ']]'],
+                data() {
+                    return {
+                        selectedModule: '',
+                        cohortId: {{ selected_cohort.id }},
+                        quizModules: [
+                            {% for module in selected_cohort.course.modules.all %}
+                            {% if module.is_quiz %}
+                            {
+                                id: {{ module.id }},
+                                name: '{{ module.name|escapejs }}',
+                                exerciseCount: {{ module.visible_exercises.count }}
+                            },
+                            {% endif %}
+                            {% endfor %}
+                        ]
+                    }
+                },
+                computed: {
+                    quizUrl() {
+                        return `/teachers/cohorts/${this.cohortId}/quiz/${this.selectedModule}/`;
+                    },
+                    hasVisibleExercises() {
+                        const module = this.quizModules.find(m => m.id == this.selectedModule);
+                        return module ? module.exerciseCount > 0 : false;
+                    }
+                },
+                methods: {
+                    resetQuiz() {
+                        if (!confirm('Are you sure you want to reset this quiz? This will clear all quiz state and logs, allowing the quiz to be restarted fresh.')) {
+                            return;
+                        }
+                        
+                        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+                        fetch(`/teachers/api/quiz/${this.cohortId}/${this.selectedModule}/reset/`, {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRFToken': csrfToken,
+                                'Content-Type': 'application/json'
+                            },
+                            credentials: 'same-origin'
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                alert('Quiz reset successfully!');
+                            } else {
+                                alert('Error: ' + (data.message || 'Unknown error'));
+                            }
+                        })
+                        .catch(err => {
+                            alert('Network error: ' + err);
+                        });
+                    }
+                }
             });
+            const mountEl = document.getElementById('quiz-control-app');
+            if (mountEl) { app.mount('#quiz-control-app'); }
         }
+
     });
     </script>
 </div>
@@ -82,6 +186,7 @@
 
 {% block scripts %}
 {{ block.super }}
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 <link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator_bulma.min.css" rel="stylesheet">
 <script type="text/javascript" src="https://unpkg.com/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
 
@@ -178,23 +283,23 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     var container = document.getElementById('students-grid-container');
-    var toggle = document.getElementById('students-progress-toggle');
 
-    // Initialize immediately if already visible
-    if (container && container.style.display !== 'none') {
-        initStudentsTableOnce();
-    }
-
-    // Initialize lazily on first expand; ensure redraw when shown
-    if (toggle && container) {
-        toggle.addEventListener('click', function(){
-            if (container.style.display !== 'none') {
-                var t = initStudentsTableOnce();
-                if (t && typeof t.redraw === 'function') {
-                    try { t.redraw(true); } catch (e) {}
+    // Initialize table when container becomes visible
+    var observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                if (!container.classList.contains('is-hidden')) {
+                    var t = initStudentsTableOnce();
+                    if (t && typeof t.redraw === 'function') {
+                        try { t.redraw(true); } catch (e) {}
+                    }
                 }
             }
         });
+    });
+
+    if (container) {
+        observer.observe(container, { attributes: true, attributeFilter: ['class'] });
     }
 });
 </script>

@@ -93,7 +93,7 @@
                     </div>
                     <div class="control">
                         <button
-                            @click="submitQuery"
+                            @click="submitAnswer"
                             class="button is-success"
                             :class="{ 'is-loading': loadingState === 'getting-guidance' }"
                             :disabled="!userQuery.trim() || loadingState !== 'idle'">

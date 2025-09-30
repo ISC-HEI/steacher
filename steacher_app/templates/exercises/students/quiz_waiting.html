@@ -1,0 +1,154 @@
+{% extends 'exercises/base.html' %}
+{% load static %}
+
+{% block title %}Quiz - Waiting{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="hero is-warning">
+        <div class="hero-body has-text-centered">
+            <h1 class="title">
+                <span class="icon is-large mr-3">
+                    <i class="fas fa-trophy fa-2x"></i>
+                </span>
+                Quiz
+                {% if cohort %}
+                <span class="is-size-5">({{ cohort.name }})</span>
+                {% endif %}
+            </h1>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="columns is-centered">
+            <div class="column is-half">
+                <div id="quiz-waiting-app">
+                    <div class="notification" :class="statusClass">
+                        <div class="content has-text-centered">
+                            <p class="is-size-4">
+                                <span class="icon mr-2">
+                                    <i :class="statusIcon"></i>
+                                </span>
+                                [[ statusMessage ]]
+                            </p>
+
+                            <!-- if quiz ended, show button to go back to dashboard -->
+                            <div class="mt-4" v-show="status === 'completed'">
+                                <a href="{% url 'exercises:dashboard' %}" class="button is-primary">Go to Dashboard</a>
+                            </div>
+
+                            <div class="mt-4" v-show="connecting">
+                                <span class="tag is-light">Connecting...</span>
+                            </div>
+                            
+                            <div class="mt-4">
+                                <p class="is-size-6"><span class="tag is-link">[[ connectedCount ]]</span> students connected</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+import { createApp } from 'https://cdn.jsdelivr.net/npm/vue@3.5.22/dist/vue.esm-browser.prod.js';
+
+const cohortId = {{ cohort.id }};
+
+createApp({
+    delimiters: ['[[', ']]'],
+    data() {
+        return {
+            status: 'gathering',
+            connectedCount: 0,
+            connecting: true,
+            moduleId: null,
+        };
+    },
+    computed: {
+        statusClass() {
+            if (this.status === 'display_question') return 'is-info';
+            if (this.status === 'results_for_current_question') return 'is-primary';
+            if (this.status === 'completed') return 'is-danger';
+            return 'is-warning';
+        },
+        statusIcon() {
+            if (this.status === 'display_question') return 'fas fa-hourglass-half';
+            if (this.status === 'results_for_current_question') return 'fas fa-chart-bar';
+            if (this.status === 'completed') return 'fas fa-flag-checkered';
+            return 'fas fa-users';
+        },
+        statusMessage() {
+            if (this.status === 'display_question') return 'Question in progress';
+            if (this.status === 'results_for_current_question') return 'Showing results';
+            if (this.status === 'completed') return 'Quiz completed';
+            return 'Gathering students…';
+        },
+    },
+    methods: {
+        openWebSocket() {
+            const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + `/ws/quiz/${cohortId}/${this.moduleId}/`;
+            console.log('[quiz_waiting] wsUrl', wsUrl);
+            const ws = new WebSocket(wsUrl);
+            ws.addEventListener('open', () => {
+                console.log('[quiz_waiting] ws open');
+                this.connecting = false;
+            });
+            ws.addEventListener('message', (e) => {
+                try {
+                    const data = JSON.parse(e.data);
+                    console.log('[quiz_waiting] ws message', data);
+                    if (data.type === 'quiz_state_update') {
+                        const st = data.state || {};
+                        this.status = st.state || 'gathering';
+                        this.connectedCount = (data.presence && data.presence.count) || 0;
+                        if (this.status === 'display_question' || this.status === 'results_for_current_question') {
+                            const exId = parseInt(st.current_exercise_id || '0');
+                            if (exId) {
+                                console.log('[quiz_waiting] redirect to exercise', exId);
+                                window.location.href = `/exercises/${exId}/`;
+                            }
+                        }
+                        if (this.status === 'completed') {
+                            console.log('[quiz_waiting] redirect to teacher cohort page');
+                            window.location.href = `/teachers/cohorts/${cohortId}/`;
+                        }
+                    }
+                    if (data.type === 'countdown_start') {
+                        // no-op in waiting room
+                    }
+                } catch {}
+            });
+            // Heartbeat
+            setInterval(() => {
+                var ci = document.querySelector('input[name="csrfmiddlewaretoken"]');
+                var csrf = ci ? (ci.getAttribute('value') || '') : '';
+                console.log('[quiz_waiting] presence heartbeat POST');
+                fetch(`/exercises/api/quiz/${cohortId}/presence_heartbeat/`, { method: 'POST', headers: { 'X-CSRFToken': csrf } })
+                    .then(r => r.json()).then(j => { if (j && typeof j.presence === 'number') this.connectedCount = j.presence; });
+            }, 20000);
+        },
+        bootstrap() {
+            console.log('[quiz_waiting] bootstrap fetch overview');
+            fetch(`/exercises/api/quiz/${cohortId}/overview/`).then(r => r.json()).then(j => {
+                console.log('[quiz_waiting] overview', j);
+                if (j && j.module_id) {
+                    this.moduleId = j.module_id;
+                    this.connectedCount = j.presence || 0;
+                    const st = j.state || {};
+                    this.status = st.state || 'gathering';
+                    this.openWebSocket();
+                } else {
+                    console.warn('[quiz_waiting] no active module');
+                    this.connecting = false;
+                }
+            }).catch((err) => { console.error('[quiz_waiting] overview error', err); this.connecting = false; });
+        }
+    },
+    mounted() { this.bootstrap(); }
+}).mount('#quiz-waiting-app');
+
+</script>
+{% endblock %}

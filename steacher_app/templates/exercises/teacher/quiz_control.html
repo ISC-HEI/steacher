@@ -1,0 +1,132 @@
+{% extends "exercises/base.html" %}
+{% load static %}
+
+{% block title %}Quiz Control — {{ module.name }}{% endblock %}
+
+{% block content %}
+<div id="quiz-control-app" class="container mt-4">
+    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+
+    <!-- Sticky top bar (gold background) -->
+    <div class="box" style="position: sticky; top: 0; z-index: 5; background: #ffdd57;">
+        <div class="level">
+            <div class="level-left">
+                <div class="level-item">
+                    <span class="icon"><i class="fas fa-trophy"></i></span>
+                    <span class="has-text-grey">Quiz: </span>
+                    <strong class="ml-2 has-text-black">{{ module.name }}</strong>
+                </div>
+            </div>
+            <div class="level-right">
+                <div class="level-item mr-4">
+                    <span class="has-text-grey">Cohort:</span>
+                    <strong class="ml-2">
+                        <a class="has-text-black" href="{% url 'teachers:cohort_detail' cohort.id %}">{{ cohort.name }}</a>
+                    </strong>
+                </div>
+                <div class="level-item mr-4">
+                    <span class="has-text-grey">Students connected: </span>
+                    <span class="tag is-link ml-2">[[ presence ]]</span>
+                </div>
+                <div class="level-item">
+                    <button class="button is-danger is-light" @click="send('end_quiz')">
+                        <span class="icon"><i class="fas fa-stop"></i></span>
+                        <span>End quiz</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Countdown banner (prominent, yellow background) -->
+    <div v-if="countdownRemaining !== null" class="notification is-warning">
+        <strong>Countdown: [[ countdownRemaining ]] seconds</strong>
+    </div>
+    <div class="p-4" style="min-height: 400px;">
+        <h2 class="title is-4">[[ currentExercise ? currentExercise.title : '' ]]</h2>
+        
+        <!-- Question content (visible during display_question state) -->
+        <div v-if="state.state === 'display_question'" class="content is-size-5" v-html="currentQuestionHtml"></div>
+        
+        <!-- Results panel (visible during results_for_current_question state) -->
+        <div v-if="state.state === 'results_for_current_question'" class="box">
+            <p class="subtitle">Grading: [[ resultsData.submissions_count ]] completed</p>
+            <!-- bulma progress bar -->
+            <progress id="results-bar" class="progress is-info" style="height: 40px;" :value="resultsData.correct_count" :max="resultsData.submissions_count">[[ correctPercent ]]% correct</progress>
+
+            <p class="subtitle">[[ resultsData.correct_count ]] correct, [[ resultsData.incorrect_count ]] incorrect</p>
+        </div>
+    </div>
+
+
+    <div class="level mt-4">
+        <div class="level-left">
+            <div class="field has-addons">
+                <p class="control">
+                    <span class="select">
+                        <select v-model="selectedExerciseId">
+                            <option value="gathering">⟲ Gathering</option>
+                            {% for ex in exercises_payload %}
+                            <option value="{{ ex.id }}">Q{{ forloop.counter }} — {{ ex.title }}</option>
+                            {% endfor %}
+                        </select>
+                    </span>
+                </p>
+                <p class="control">
+                    <button class="button is-light" @click="jumpTo">Jump</button>
+                </p>
+            </div>
+            <div class="field ml-3 mb-2">
+                <span class="tag">[[ state.state || 'not_started' ]]</span>
+            </div>
+        </div>
+        <div class="level-right">
+            <div class="field mr-3" v-show="showStartGathering">
+                <button class="button is-primary" @click="startGathering">
+                    <span class="icon"><i class="fas fa-users"></i></span>
+                    <span>Start Gathering</span>
+                </button>
+            </div>
+            <div class="field mr-3" v-show="showStartQuiz">
+                <button class="button is-primary is-light" @click="startQuiz">
+                    <span class="icon"><i class="fas fa-play"></i></span>
+                    <span>Start Quiz</span>
+                </button>
+            </div>
+            <div class="field has-addons" v-show="state.state === 'display_question'">
+                <p class="control">
+                    <input v-model.number="countdownDuration" class="input" type="number" min="5" style="width: 6rem;" />
+                </p>
+                <p class="control">
+                    <button class="button is-primary" @click="startCountdown">Start Countdown</button>
+                </p>
+            </div>
+            <div class="field" v-show="state.state === 'results_for_current_question'">
+                <button class="button is-primary" @click="nextQuestion">Next Question</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Config payload for TS -->
+<script id="quiz-config" type="application/json">
+{
+  "cohort_id": {{ cohort.id }},
+  "module_id": {{ module.id }},
+  "exercises": [
+    {% for ex in exercises_payload %}
+    {"id": {{ ex.id }}, "title": {{ ex.title|safe|json_script:"x"|cut:"<script id=\"x\" type=\"application/json\">"|cut:"</script>" }}, "question": {{ ex.question|safe|json_script:"y"|cut:"<script id=\"y\" type=\"application/json\">"|cut:"</script>" }}}{% if not forloop.last %},{% endif %}
+    {% endfor %}
+  ]
+}
+</script>
+
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script type="module" src="{% static 'js/dist/quiz_control.js' %}"></script>
+{% endblock %}
+
+

@@ -96,6 +96,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (chatbotPanel) {
                 initialMessages.forEach(msg => chatbotPanel.displayMessage(msg));
             }
+            
+            // Expose for quiz mode auto-submit
+            (window as any).submitAnswer = () => this.submitAnswer();
         },
         methods: {
             stripAnsi(this: any, text: string | null | undefined) {
@@ -203,7 +206,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
 
-            async runCode() {
+            async submitAnswer() {
+                // Mark that student has submitted for quiz mode
+                (window as any).hasAlreadySubmittedThisQuestion = true;
+                
                 if (!this.userCode.trim()) {
                     this.executionError = 'Please enter some code';
                     return;

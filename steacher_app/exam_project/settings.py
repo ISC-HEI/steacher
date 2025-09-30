@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_jsonform',
     'django.contrib.humanize',
+    'channels',
 
     # our apps
     'accounts',  # only used for custom user model (prefered language)
@@ -82,6 +83,20 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'exam_project.wsgi.application'
+ASGI_APPLICATION = 'exam_project.asgi.application'
+
+# Redis configuration (used by both Channels for quiz state storage)
+REDIS_URL = os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/0')
+
+# Channel layers for WebSocket support
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [REDIS_URL],
+        },
+    },
+}
 
 
 # Database

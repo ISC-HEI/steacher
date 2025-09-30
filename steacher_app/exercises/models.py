@@ -60,6 +60,7 @@ class Module(models.Model):
     description = models.TextField(blank=True, help_text="A short description of the module that will be displayed to the user.")
     order = models.PositiveIntegerField(default=0, help_text="The order of the module within the course.")
     visible = models.BooleanField(default=True, help_text="Whether the module is visible to students.")
+    is_quiz = models.BooleanField(default=False, help_text="Whether this module is a quiz module.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -619,6 +620,27 @@ class ChatThread(models.Model):
 
     def __str__(self):
         return f"ChatThread {self.id} by {self.owner} - {self.title}"
+
+
+class QuizLog(models.Model):
+    """
+    Log of completed quiz sessions for analytics and tracking.
+    """
+    cohort = models.ForeignKey('Cohort', on_delete=models.CASCADE, related_name='quiz_logs')
+    module = models.ForeignKey('Module', on_delete=models.CASCADE, related_name='quiz_logs')
+    completed_at = models.DateTimeField(auto_now_add=True)
+    teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    student_count = models.IntegerField(help_text="Number of students who participated")
+
+    class Meta:
+        ordering = ['-completed_at']
+        indexes = [
+            models.Index(fields=['cohort', 'module'], name='quiz_log_cohort_module_idx'),
+            models.Index(fields=['completed_at'], name='quiz_log_completed_idx'),
+        ]
+
+    def __str__(self):
+        return f"Quiz {self.module.name} for {self.cohort.name} completed at {self.completed_at}"
 
 
 def localized_name(obj, field_name: str, user, lang: str=None) -> str:

@@ -24,7 +24,7 @@
                                 language="python"
                                 v-model="userCode"
                                 :placeholder="'# Write your Python code here'"
-                                @run-query="runCode">
+                                @run-query="submitAnswer">
                             </code-mirror-editor>
                         </div>
                     </div>
@@ -32,7 +32,7 @@
                 <div class="field is-grouped exercise-controls">
                     <div class="control">
                         <button
-                            @click="runCode"
+                            @click="submitAnswer"
                             class="button is-primary"
                             :class="{ 'is-loading': loadingState !== 'idle' }"
                             :disabled="!userCode.trim() || loadingState !== 'idle'">

@@ -44,11 +44,19 @@
 
     <div id="modules-list" class="sortable-list teacher-view" data-course-id="{{ course.pk }}">
         {% for module in course.modules.all %}
-        <div class="card mb-3 sortable-item" data-id="{{ module.pk }}">
+        <div class="card mb-3 sortable-item" data-id="{{ module.pk }}" {% if module.is_quiz %}style="border-left: 4px solid #ff7b00;"{% endif %}>
             <header class="card-header">
                 <p class="card-header-title">
                     <span class="handle mr-2"><i class="fas fa-grip-vertical"></i></span>
+                    {% if module.is_quiz %}
+                    <span class="icon has-text-warning mr-2" title="Quiz Module">
+                        <i class="fas fa-trophy"></i>
+                    </span>
+                    {% endif %}
                     {{ module.name }}
+                    {% if module.is_quiz %}
+                    <span class="tag is-warning is-light ml-2">Quiz</span>
+                    {% endif %}
                 </p>
                 <span class="card-header-icon is-clickable"
                       title="Module visibility"

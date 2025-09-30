@@ -120,6 +120,96 @@ def course_roles_required(roles=None, *, course_kw='course_pk'):
     return decorator
 
 
+# ---------------------------------
+# Quiz helpers (read-only discovery) TODO refactor and compact these functions
+# ---------------------------------
+
+def _quiz_state_for(cohort_id: int, module_id: int) -> dict:
+    """Get quiz state from Redis (safe import to avoid cycles)."""
+    try:
+        from asgiref.sync import async_to_sync
+        from .consumers import get_state
+        return async_to_sync(get_state)(cohort_id, module_id) or {}
+    except Exception:
+        return {}
+
+
+def find_active_quiz_for_user(user: User) -> dict | None:
+    """
+    Return a lightweight descriptor for the first active quiz (gathering/display_question)
+    among the user's ACTIVE cohort memberships. Shape: { 'cohort_id', 'course_name' }.
+    Returns None if none is active.
+    """
+    if not user or not getattr(user, 'is_authenticated', False):
+        return None
+    try:
+        memberships = (
+            CohortMembership.objects
+            .filter(user=user, status='active')
+            .select_related('cohort__course')
+        )
+        for m in memberships:
+            course = m.cohort.course
+            quiz_modules = course.modules.filter(is_quiz=True, visible=True)
+            for mod in quiz_modules:
+                state = _quiz_state_for(m.cohort_id, mod.id)
+                if (state.get('state') or '') in ('gathering', 'display_question'):
+                    return {'cohort_id': m.cohort_id, 'course_name': course.name}
+    except Exception:
+        return None
+    return None
+
+
+def find_active_quiz_in_course(user: User, course: Course) -> tuple[bool, int | None]:
+    """
+    Check if the given course has an active quiz for this user (gathering/display_question).
+    Returns (has_active_quiz, cohort_id_if_any).
+    """
+    if not user or not getattr(user, 'is_authenticated', False) or not course:
+        return (False, None)
+    try:
+        memberships = (
+            CohortMembership.objects
+            .filter(user=user, status='active', cohort__course=course)
+            .select_related('cohort')
+        )
+        quiz_modules = course.modules.filter(is_quiz=True, visible=True)
+        for m in memberships:
+            for mod in quiz_modules:
+                state = _quiz_state_for(m.cohort_id, mod.id)
+                if (state.get('state') or '') in ('gathering', 'display_question'):
+                    return (True, m.cohort_id)
+    except Exception:
+        return (False, None)
+    return (False, None)
+
+
+def get_quiz_context_for_course(user: User, course: Course) -> tuple[bool, Cohort | None, int | None]:
+    """
+    Determine quiz overlay context for an exercise within a course.
+    Returns (quiz_mode, cohort_obj, quiz_module_id). quiz_mode is True only when
+    state is display_question or results_for_current_question.
+    """
+    if not user or not getattr(user, 'is_authenticated', False) or not course:
+        return (False, None, None)
+    try:
+        memberships = (
+            CohortMembership.objects
+            .filter(user=user, status='active', cohort__course=course)
+            .select_related('cohort')
+        )
+        quiz_modules = course.modules.filter(is_quiz=True, visible=True)
+        for m in memberships:
+            for mod in quiz_modules:
+                state = _quiz_state_for(m.cohort_id, mod.id)
+                s = (state.get('state') or '')
+                if s in ('display_question', 'results_for_current_question'):
+                    return (True, m.cohort, mod.id)
+        return (False, None, None)
+    except Exception:
+        return (False, None, None)
+
+
 def cohort_roles_required(roles=None, *, cohort_kw='cohort_pk'):
     """
     Decorator to check if the user has the required role in the cohort.

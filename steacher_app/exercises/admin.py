@@ -6,7 +6,7 @@ from django.urls import reverse
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html, mark_safe
 from django.db.models import Count
-from .models import Exercise, Course, Module, ExerciseAsset, Attempt, UserInvite, ChatThread, Cohort, CohortMembership, Trace, TraceEval, CourseMembership
+from .models import Exercise, Course, Module, ExerciseAsset, Attempt, UserInvite, ChatThread, Cohort, CohortMembership, Trace, TraceEval, CourseMembership, QuizLog
 from django_jsonform.widgets import JSONFormWidget
 
 # Customize Django admin titles
@@ -236,7 +236,7 @@ class ExerciseAdmin(admin.ModelAdmin):
     form = ExerciseAdminForm
     list_display = ('id', 'module', 'order', 'title', 'exercise_type', 'last_edited_by', 'updated_at')
     list_filter = (('module', admin.RelatedOnlyFieldListFilter), 'module__course', 'exercise_type')
-    search_fields = ('title', 'description')
+    search_fields = ('title_i18n', 'description_i18n', 'question_i18n')
     ordering = ('module', 'order')
 
     fieldsets = (
@@ -360,7 +360,7 @@ class HasEvaluationFilter(admin.SimpleListFilter):
 class AttemptAdmin(admin.ModelAdmin):
     list_display = ('id', 'version', 'exercise', 'user', 'complete')
     list_filter = (('exercise', admin.RelatedOnlyFieldListFilter), ('user', admin.RelatedOnlyFieldListFilter), 'complete', 'version')
-    search_fields = ('exercise__title', 'user__username')
+    search_fields = ('exercise__title_i18n', 'user__username')
     inlines = []
     readonly_fields = ('id', 'version')
     ordering = ['id']
@@ -577,3 +577,22 @@ class CohortAdmin(admin.ModelAdmin):
                 obj.added_by = request.user
             obj.save()
         formset.save_m2m()
+
+
+@admin.register(QuizLog)
+class QuizLogAdmin(admin.ModelAdmin):
+    list_display = ('id', 'module', 'cohort', 'teacher', 'student_count', 'completed_at')
+    list_filter = ('cohort__course', 'cohort', 'module', 'teacher')
+    search_fields = ('module__name', 'cohort__name', 'teacher__username')
+    readonly_fields = ('completed_at',)
+    ordering = ('-completed_at',)
+    
+    fieldsets = (
+        (None, {
+            'fields': ('cohort', 'module', 'teacher', 'student_count')
+        }),
+        ('Timestamps', {
+            'fields': ('completed_at',),
+            'classes': ('collapse',)
+        }),
+    )

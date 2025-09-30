@@ -13,17 +13,23 @@
         <div class="level-left">
             <div>
                 <h1 class="mb-3 title is-2">{{ course.name }}</h1>
-                
+
             </div>
         </div>
-        {% if can_teacher_view %}
         <div class="level-right">
+            {% if has_active_quiz and cohort_id %}
+            <a class="button is-warning mr-2" href="{% url 'exercises:quiz_waiting' cohort_id=cohort_id %}">
+                <span class="icon"><i class="fas fa-trophy"></i></span>
+                <span>Join Quiz</span>
+            </a>
+            {% endif %}
+            {% if can_teacher_view %}
             <a class="button is-light" href="{% url 'teachers:course_detail' pk=course.pk %}">
                 <span class="icon"><i class="fas fa-user-shield"></i></span>
                 <span>Teacher view</span>
             </a>
+            {% endif %}
         </div>
-        {% endif %}
         
     </div>
     <div class="content">
@@ -35,80 +41,48 @@
     <div id="modules-list" class="mt-5 student-view">
         {% if modules %}
         {% for module in modules %}
-        <div class="card mb-3">
-            <header class="card-header">
+        <div class="card mb-3" data-module-id="{{ module.id }}">
+            <header class="card-header module-header" style="cursor: pointer;">
                 <p class="card-header-title">
+                    {% if module.is_quiz_module %}
+                    <span class="icon has-text-warning mr-2" title="Quiz module">
+                        <i class="fas fa-trophy"></i>
+                    </span>
+                    {% endif %}
                     {{ module.name }}
                 </p>
-            </header>
-            <div class="card-content">
-                <div class="content">
-                    <div class="exercise-list">
-                        {% for exercise in module.localized_visible_exercises|default:module.visible_exercises %}
-                        {% with exercise.pk|default:exercise.id as eid %}
-                        <a class="exercise-link list-group-item mb-3" style="min-height: 2em;" href="{% url 'exercises:exercise_detail' pk=eid %}">
-                            <div class="level">
-                                <div class="level-left">
-                                    <div class="exercise-info columns is-mobile is-gapless">
-                                        <div class="column is-narrow" style="width: 70px;">
-                                            <span class="order-number mr-1">{{ forloop.counter }}</span>
-                                            {% if completed_exercise_ids and eid in completed_exercise_ids %}
-                                                <span class="icon has-text-success" title="Completed">
-                                                    <i class="fas fa-check-circle"></i>
-                                                </span>
-                                            {% else %}
-                                                <span class="icon has-text-grey-light" title="Not completed">
-                                                    <i class="far fa-circle"></i>
-                                                </span>
-                                            {% endif %}
-                                        </div>
-                                        <div class="column ml-2">
-                                            <div class="exercise-title-line">
-                                                  <span class="exercise-title">{{ exercise.localized_title|default:exercise.title }}</span>
-                                            </div>
-                                            <div class="exercise-description">
-                                                {% with desc=exercise.localized_description|default:exercise.description %}
-                                                    {% if desc %}
-                                                        {{ desc|truncatewords:20 }}
-                                                    {% else %}&nbsp;{% endif %}
-                                                {% endwith %}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </a>
-                        {% endwith %}
-                        {% empty %}
-                        <p>This module does not have any exercises yet.</p>
-                        {% endfor %}
-                    </div>
+                {% if module.total_count > 0 %}
+                <div style="display: flex; align-items: center; margin-right: 0.5rem;" title="{{ module.completed_count }} / {{ module.total_count }} completed">
+                    <progress 
+                        class="progress is-small is-success" 
+                        value="{{ module.completed_count }}" 
+                        max="{{ module.total_count }}" 
+                        style="width: 45px;">{{ module.completed_count }}/{{ module.total_count }}                        
+                    </progress>
                 </div>
-            </div>
-        </div>
-        {% empty %}
-            <p>This course does not have any modules yet.</p>
-        {% endfor %}
-        {% else %}
-            {% for module in course.modules.all %}
-            {% if module.visible %}
-            <div class="card mb-3">
-                <header class="card-header">
-                    <p class="card-header-title">
-                        {{ module.name }}
-                    </p>
-                </header>
-                <div class="card-content">
-                    <div class="content">
+                {% endif %}
+                <button class="card-header-icon" aria-label="toggle">
+                    <span class="icon">
+                        <i class="fas fa-angle-down"></i>
+                    </span>
+                </button>
+            </header>
+            <div class="card-content module-content">
+                <div class="content">
+                    {% if module.is_quiz_module and not module.quiz_completed %}
+                        <div class="has-text-centered">
+                            <p class="mt-3">The quiz questions will become available after the quiz completion</p>
+                        </div>
+                    {% else %}
                         <div class="exercise-list">
                             {% for exercise in module.localized_visible_exercises|default:module.visible_exercises %}
                             {% with exercise.pk|default:exercise.id as eid %}
-                            <a class="exercise-link list-group-item mb-3" style="min-height: 5em;" href="{% url 'exercises:exercise_detail' pk=eid %}">
+                            <a class="exercise-link list-group-item mb-3" style="min-height: 2em;" href="{% url 'exercises:exercise_detail' pk=eid %}">
                                 <div class="level">
                                     <div class="level-left">
                                         <div class="exercise-info columns is-mobile is-gapless">
                                             <div class="column is-narrow" style="width: 70px;">
-                                                <span class="order-number mr-2">{{ forloop.counter }}</span>
+                                                <span class="order-number mr-1">{{ forloop.counter }}</span>
                                                 {% if completed_exercise_ids and eid in completed_exercise_ids %}
                                                     <span class="icon has-text-success" title="Completed">
                                                         <i class="fas fa-check-circle"></i>
@@ -119,12 +93,16 @@
                                                     </span>
                                                 {% endif %}
                                             </div>
-                                            <div class="column">
+                                            <div class="column ml-2">
                                                 <div class="exercise-title-line">
                                                       <span class="exercise-title">{{ exercise.localized_title|default:exercise.title }}</span>
                                                 </div>
                                                 <div class="exercise-description">
-                                                    {{ exercise.localized_description|default:exercise.description|truncatewords:20 }}
+                                                    {% with desc=exercise.localized_description|default:exercise.description %}
+                                                        {% if desc %}
+                                                            {{ desc|truncatewords:20 }}
+                                                        {% else %}&nbsp;{% endif %}
+                                                    {% endwith %}
                                                 </div>
                                             </div>
                                         </div>
@@ -136,14 +114,74 @@
                             <p>This module does not have any exercises yet.</p>
                             {% endfor %}
                         </div>
-                    </div>
+                    {% endif %}
                 </div>
             </div>
-            {% endif %}
-            {% empty %}
-                <p>This course does not have any modules yet.</p>
-            {% endfor %}
+        </div>
+        {% empty %}
+            <p>This course does not have any modules yet.</p>
+        {% endfor %}
+        {% else %}
+            <p>No modules available.</p>
         {% endif %}
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const courseId = {{ course.id }};
+    
+    // Function to get collapse state from localStorage
+    function getCollapseState(moduleId) {
+        const key = `course_${courseId}_module_${moduleId}`;
+        return localStorage.getItem(key) === 'collapsed';
+    }
+    
+    // Function to set collapse state in localStorage
+    function setCollapseState(moduleId, collapsed) {
+        const key = `course_${courseId}_module_${moduleId}`;
+        localStorage.setItem(key, collapsed ? 'collapsed' : 'expanded');
+    }
+    
+    // Function to toggle module
+    function toggleModule(card, animate = true) {
+        const moduleId = card.dataset.moduleId;
+        const content = card.querySelector('.module-content');
+        const icon = card.querySelector('.card-header-icon i');
+        const isCollapsed = content.style.display === 'none';
+        
+        if (isCollapsed) {
+            content.style.display = 'block';
+            icon.classList.remove('fa-angle-down');
+            icon.classList.add('fa-angle-up');
+            setCollapseState(moduleId, false);
+        } else {
+            content.style.display = 'none';
+            icon.classList.remove('fa-angle-up');
+            icon.classList.add('fa-angle-down');
+            setCollapseState(moduleId, true);
+        }
+    }
+    
+    // Initialize all modules based on localStorage
+    document.querySelectorAll('.card[data-module-id]').forEach(card => {
+        const moduleId = card.dataset.moduleId;
+        const header = card.querySelector('.module-header');
+        const content = card.querySelector('.module-content');
+        const icon = card.querySelector('.card-header-icon i');
+        
+        // Restore state from localStorage
+        if (getCollapseState(moduleId)) {
+            content.style.display = 'none';
+            icon.classList.remove('fa-angle-up');
+            icon.classList.add('fa-angle-down');
+        } else {
+            icon.classList.add('fa-angle-up');
+        }
+        
+        // Add click handler
+        header.addEventListener('click', () => toggleModule(card));
+    });
+});
+</script>
 {% endblock %}

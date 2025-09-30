@@ -121,6 +121,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             await this.startWorker();
+            
+            // Expose for quiz mode auto-submit
+            (window as any).submitAnswer = () => this.submitAnswer();
         },
         
         methods: {
@@ -295,7 +298,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
 
-            async runCode() {
+            async submitAnswer() {
+                // Mark that student has submitted for quiz mode
+                (window as any).hasAlreadySubmittedThisQuestion = true;
+                
                 if (!this.userCode.trim()) {
                     this.executionError = 'Please enter some code';
                     return;

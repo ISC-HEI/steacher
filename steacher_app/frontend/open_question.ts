@@ -101,6 +101,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (chatbotPanel) {
                 initialMessages.forEach(msg => chatbotPanel.displayMessage(msg));
             }
+            
+            // Expose for quiz mode auto-submit
+            (window as any).submitAnswer = () => this.submitAnswer();
         },
         methods: {
             renderMarkdown(this: any, content: string) {
@@ -158,6 +161,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
             submitAnswer() {
+                // Mark that student has submitted for quiz mode
+                (window as any).hasAlreadySubmittedThisQuestion = true;
+                
                 if (!this.userAnswer.trim()) {
                     this.queryError = 'Please enter your answer before submitting.';
                     return;

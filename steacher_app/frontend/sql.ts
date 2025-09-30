@@ -146,6 +146,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Initialize database
             await this.loadDatabase();
+            
+            // Expose for quiz mode auto-submit
+            (window as any).submitAnswer = () => this.submitAnswer();
         },
         
         methods: {
@@ -447,7 +450,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
 
-            async submitQuery() {
+            async submitAnswer() {
+                // Mark that student has submitted for quiz mode
+                (window as any).hasAlreadySubmittedThisQuestion = true;
+                
                 // First run the query to get results
                 await this.runQuery();
 

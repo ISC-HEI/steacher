@@ -20,26 +20,47 @@
     {% endif %}
 
     {% comment %} --- Primary Focus Box --- {% endcomment %}
-    {% if next_up_exercise or last_active_exercise %}
+    {% if active_quiz or next_up_exercise or last_active_exercise %}
     <div class="columns mb-5">
       <div class="column">
+        {% if active_quiz %}
+        <div class="notification" style="height: 100%;">
+            <h2 class="title is-4">🏆 Active Quiz!</h2>
+
+            <div class="content">
+                <p class="mb-3">
+                    <strong>Course:</strong> {{ active_quiz.course_name }}
+                </p>
+                <p class="mb-3">
+                    There's an active quiz happening now. Join to participate with your classmates!
+                </p>
+            </div>
+
+            <div class="buttons mt-4">
+                        <a href="{% url 'exercises:quiz_waiting' cohort_id=active_quiz.cohort_id %}" class="button is-warning is-medium">
+                            <span class="icon"><i class="fas fa-trophy"></i></span>
+                            <span>Join Quiz Now</span>
+                        </a>
+            </div>
+        </div>
+        {% elif next_up_exercise or last_active_exercise %}
         <div class="box has-background-light" style="height: 100%;">
             {% with exercise=next_up_exercise|default:last_active_exercise %}
-            <h2 class="title is-4">🚀 
+            <h2 class="title is-4">🚀
                 {% if next_up_exercise %}Continue where you left off{% else %}Resume your last exercise{% endif %}
             </h2>
-            
+
             <div class="content">
                 <p class="mb-1">
-                    <strong>Course:</strong> 
+                    <strong>Course:</strong>
                     <a href="{% url 'exercises:course_detail' exercise.module.course.id %}">{{ exercise.module.course.name }}</a>
                 </p>
                 <p class="mb-1">
-                    <strong>Module:</strong> 
+                    <strong>Module:</strong>
                     <a href="{% url 'exercises:course_detail' exercise.module.course.id %}">{{ exercise.module.name }}</a>
                 </p>
                 <p>
-                    <strong>Exercise:</strong> 
+                    <strong>Exercise:</strong>
                     <a href="{% url 'exercises:exercise_detail' exercise.id %}">{{ exercise.sequence_label }} — {{ exercise.localized_title|default:exercise.title }}</a>
                 </p>
             </div>
@@ -51,6 +72,7 @@
             </div>
             {% endwith %}
         </div>
+        {% endif %}
       </div>
       <div class="column">
         <div class="box" style="height: 100%;">
@@ -180,6 +202,14 @@
             <div class="level-item">
               <span class="mr-3">{{ item.percent }}%</span>
             </div>
+            {% if item.has_active_quiz %}
+            <div class="level-item">
+              <a class="button is-warning" href="{% url 'exercises:quiz_waiting' cohort_id=item.cohort_id %}">
+                <span class="icon"><i class="fas fa-trophy"></i></span>
+                <span>Join Quiz</span>
+              </a>
+            </div>
+            {% endif %}
             <div class="level-item">
               <a class="button is-link is-light" href="{% url 'exercises:course_detail' item.course %}">View course</a>
             </div>

@@ -18,9 +18,20 @@ import json
 import os
 import newrelic.agent as nr
 
-from .models import Exercise, ExerciseAsset, Course, Attempt, Module, UserInvite, ChatThread, CohortMembership, Trace, TraceEval, create_trace_for, localized_name
+from .models import Exercise, ExerciseAsset, Course, Attempt, UserInvite, ChatThread, CohortMembership, Trace, TraceEval, create_trace_for, localized_name, Cohort
 from .prompting import build_system_prompt
-from .authz import assert_can_view_exercise, assert_can_view_course, can_edit_course, can_manage_cohort_students, rate_limit
+from .consumers import get_state, presence_heartbeat, presence_count
+from asgiref.sync import async_to_sync
+from .authz import (
+    assert_can_view_exercise,
+    assert_can_view_course,
+    can_edit_course,
+    can_manage_cohort_students,
+    rate_limit,
+    assert_can_view_cohort,
+    find_active_quiz_for_user,
+    find_active_quiz_in_course,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +202,9 @@ def dashboard(request):
         course=last_active_exercise.module.course if last_active_exercise else None,
     )
 
+    # Detect any active quiz across user's active cohorts (gathering or display_question)
+    active_quiz = find_active_quiz_for_user(request.user)
+
     return render(request, 'exercises/students/dashboard.html', {
         'course_progress': course_progress,
         'last_active_exercise': last_active_exercise,
@@ -203,6 +217,7 @@ def dashboard(request):
             'module': module_stats,
         },
         'instructor_email': instructor_email,
+        'active_quiz': active_quiz,
     })
 
 
@@ -297,6 +312,15 @@ def course_detail(request, pk):
         .prefetch_related(Prefetch('exercises', queryset=Exercise.objects.filter(visible=True).order_by('order')))
     )
 
+    # Get user's cohort IDs for quiz completion check
+    user_cohort_ids = list(
+        CohortMembership.objects.filter(
+            user=request.user, 
+            status='active', 
+            cohort__course=course
+        ).values_list('cohort_id', flat=True)
+    )
+
     # Build per-module view-model with localized titles/descriptions for listing
     try:
         for module in visible_modules:
@@ -314,6 +338,22 @@ def course_detail(request, pk):
                 })
             # Attach for template iteration
             module.localized_visible_exercises = localized_list
+            
+            # Calculate completion progress for this module
+            module_exercise_ids = [ex['id'] for ex in localized_list]
+            module.completed_count = sum(1 for ex_id in module_exercise_ids if ex_id in completed_ids)
+            module.total_count = len(module_exercise_ids)
+            
+            # Check if this is a quiz module and if it's completed
+            module.is_quiz_module = module.is_quiz
+            if module.is_quiz and user_cohort_ids:
+                from .models import QuizLog
+                module.quiz_completed = QuizLog.objects.filter(
+                    cohort_id__in=user_cohort_ids,
+                    module_id=module.id
+                ).exists()
+            else:
+                module.quiz_completed = False
     except Exception:
         # Non-fatal: if localization fails, templates will fall back to legacy fields
         pass
@@ -333,13 +373,69 @@ def course_detail(request, pk):
     except Exception:
         can_teacher_view = False
 
+    # Detect active quiz for this course and current user
+    has_active_quiz, active_cohort_id = find_active_quiz_in_course(request.user, course)
+
     return render(request, 'exercises/students/students_course_details.html', {
         'course': course,
         'modules': visible_modules,
         'completed_exercise_ids': completed_ids,
         'instructor_email': _resolve_instructor_email(request.user, course=course),
         'can_teacher_view': can_teacher_view,
+        'has_active_quiz': has_active_quiz,
+        'cohort_id': active_cohort_id,
     })
+
+
+@login_required
+@require_GET
+def quiz_waiting(request, cohort_id: int):
+    """
+    Student waiting room. Template contains the websocket client that listens
+    for state changes and redirects to the current exercise when the quiz
+    becomes active.
+    """
+    cohort : Cohort = get_object_or_404(Cohort.objects.select_related('course'), pk=cohort_id)
+    assert_can_view_cohort(request.user, cohort)
+
+    return render(request, 'exercises/students/quiz_waiting.html', {
+        'cohort': cohort,
+    })
+
+
+@login_required
+@require_GET
+def quiz_overview(request, cohort_id: int):
+    """Lightweight state endpoint for waiting room (HTTP-based)."""
+    cohort: Cohort = get_object_or_404(Cohort.objects.select_related('course'), pk=cohort_id)
+    assert_can_view_cohort(request.user, cohort)
+
+    # Find first quiz module in this course for now (simple discovery)
+    module = cohort.course.modules.filter(is_quiz=True).order_by('order', 'id').first()
+    if not module:
+        return JsonResponse({'status': 'success', 'state': None, 'presence': 0})
+
+    try:
+        state = async_to_sync(get_state)(cohort.id, module.id)
+        present = async_to_sync(presence_count)(cohort.id)
+    except Exception:
+        state = {}
+        present = 0
+
+    return JsonResponse({'status': 'success', 'state': state, 'module_id': module.id, 'presence': present})
+
+
+@login_required
+@require_POST
+def quiz_presence_heartbeat(request, cohort_id: int):
+    cohort: Cohort = get_object_or_404(Cohort.objects.select_related('course'), pk=cohort_id)
+    assert_can_view_cohort(request.user, cohort)
+    try:
+        async_to_sync(presence_heartbeat)(cohort.id, request.user.id)
+        present = async_to_sync(presence_count)(cohort.id)
+        return JsonResponse({'status': 'success', 'presence': present})
+    except Exception:
+        return JsonResponse({'status': 'error'}, status=500)
 
 
 @login_required
@@ -454,7 +550,7 @@ def exercise_detail(request, pk):
     except Exception:
         can_edit = False
 
-    # Author-only system prompt preview (last used) or render error
+    # Teacher-only system prompt preview (last used) or render error
     system_prompt_preview = None
     prompt_render_error = None
     if can_edit:
@@ -470,6 +566,10 @@ def exercise_detail(request, pk):
         except Exception as e:
             prompt_render_error = f"Error rendering system_prompt: {e}"
 
+    # Determine quiz overlay config using centralized helper
+    from .authz import get_quiz_context_for_course
+    quiz_mode, quiz_cohort, quiz_module_id = get_quiz_context_for_course(request.user, exercise.module.course)
+
     return render(request, template_name, {
         'exercise': exercise,  # TODO refactor and possibly remove this
         'exercise_json': exercise_json,
@@ -484,6 +584,9 @@ def exercise_detail(request, pk):
         'solution_unlocked': solution_unlocked,
         'system_prompt_preview': system_prompt_preview,
         'prompt_render_error': prompt_render_error,
+        'quiz_mode': bool(quiz_mode),
+        'cohort': quiz_cohort,
+        'quiz_module_id': quiz_module_id,
     })
 
 

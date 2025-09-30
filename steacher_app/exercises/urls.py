@@ -24,6 +24,11 @@ students_urlpatterns = [
     path('api/trace-eval/', views_students.trace_eval_create, name='trace_eval_create'),
     # Generic pattern last
     path('<int:pk>/', views_students.exercise_detail, name='exercise_detail'),
+    # Quiz waiting room (students)
+    path('cohorts/<int:cohort_id>/quiz/waiting/', views_students.quiz_waiting, name='quiz_waiting'),
+    # Quiz APIs for waiting room
+    path('api/quiz/<int:cohort_id>/overview/', views_students.quiz_overview, name='quiz_overview'),
+    path('api/quiz/<int:cohort_id>/presence_heartbeat/', views_students.quiz_presence_heartbeat, name='quiz_presence_heartbeat'),
 ]
 
 # Teachers' URL patterns (namespaced at project level under 'teachers')
@@ -50,6 +55,13 @@ teachers_urlpatterns = [
 
     path('ai/authoring_assistant/', views_teachers.exercise_authoring_assistant, name='authoring_assistant'),
     path('ai/translate_i18n/', views_teachers.translate_i18n, name='translate_i18n'),
+
+    # Quiz control UI (teacher)
+    path('cohorts/<int:cohort_id>/quiz/<int:module_id>/', views_teachers.quiz_control, name='quiz_control'),
+    # Quiz results API (teacher)
+    path('api/quiz/<int:cohort_id>/<int:module_id>/exercises/<int:exercise_id>/results/', views_teachers.quiz_results_api, name='quiz_results_api'),
+    # Quiz reset API (teacher)
+    path('api/quiz/<int:cohort_id>/<int:module_id>/reset/', views_teachers.reset_quiz, name='quiz_reset'),
 ]
 
 # Default export keeps backward compatibility (student-facing by default)

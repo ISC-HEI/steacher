@@ -1,0 +1,138 @@
+{% comment %}
+Quiz header template - included in exercise.html when in quiz mode
+Handles WebSocket communication for real-time quiz updates
+{% endcomment %}
+
+{% if quiz_mode %}
+<div id="quiz-header" class="notification is-warning">
+    <div class="level">
+        <div class="level-left">
+            <div class="level-item">
+                <span class="icon">
+                    <i class="fas fa-trophy"></i>
+                </span>
+                <strong>Quiz Mode</strong>
+                {% if cohort %}
+                    - {{ cohort.name }}
+                {% endif %}
+            </div>
+            <!-- Countdown display -->
+            <div id="quiz-countdown" class="level-item has-text-danger ml-4" style="display: none;">
+                <span class="icon">
+                    <i class="fas fa-clock"></i>
+                </span>
+                <strong>Time remaining: <span id="countdown-timer">10</span> seconds</strong>
+            </div>
+        </div>
+        <div class="level-right">
+            <div class="level-item">
+                <span id="quiz-status" class="tag is-success">Active</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Quiz header WS client: countdown + navigation
+// Important: window.hasAlreadySubmittedThisQuestion is set by exercise code when student submits manually
+// This flag is NEVER reset - it persists for the lifetime of the page to prevent duplicate submissions
+(function(){
+  try {
+    var cohortId = {{ cohort.id|default:0 }};
+    var moduleId = {{ quiz_module_id|default:0 }};
+    if (!cohortId || !moduleId) return;
+    var wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/quiz/' + cohortId + '/' + moduleId + '/';
+    console.log('[quiz_header] wsUrl', wsUrl);
+    var ws = new WebSocket(wsUrl);
+    var countdownEl = document.getElementById('quiz-countdown');
+    var timerEl = document.getElementById('countdown-timer');
+    var statusEl = document.getElementById('quiz-status');
+    var countdownTimerId = null;
+    var alreadySubmitted = false;
+    var currentExerciseId = {{ exercise.id|default:0 }};
+
+    function setStatus(text, cls){ if(statusEl){ statusEl.textContent = text; statusEl.className = 'tag ' + cls; } }
+    function showCountdown(show){ if(countdownEl){ countdownEl.style.display = show ? '' : 'none'; } }
+    function setTimer(n){ if(timerEl){ timerEl.textContent = String(n); } }
+
+    function startLocalCountdown(untilTs){
+      if (countdownTimerId) { clearInterval(countdownTimerId); countdownTimerId = null; }
+      function tick(){
+        var now = Math.floor(Date.now()/1000);
+        var remain = Math.max(0, Math.floor(untilTs - now));
+        setTimer(remain);
+        // Just display the countdown - don't trigger submit here
+        // Server will transition to results_for_current_question when countdown expires
+        if (remain <= 0){
+          clearInterval(countdownTimerId); countdownTimerId = null;
+        }
+      }
+      tick();
+      countdownTimerId = setInterval(tick, 250);
+    }
+
+    ws.addEventListener('message', function(e){
+      try {
+        var data = JSON.parse(e.data || '{}');
+        console.log('[quiz_header] ws message', data);
+        if (data.type === 'quiz_state_update'){
+          var st = data.state || {};
+          var s = st.state || '';
+          
+          // Check if current_exercise_id changed (teacher moved to next question)
+          var newExId = parseInt(st.current_exercise_id || '0');
+          if (newExId && newExId !== currentExerciseId && (s === 'display_question' || s === 'results_for_current_question')){
+            console.log('[quiz_header] exercise changed from', currentExerciseId, 'to', newExId, '- navigating');
+            window.location.href = '/exercises/' + newExId + '/';
+            return;
+          }
+          
+          if (s === 'display_question'){
+            setStatus('Active','is-success');
+            showCountdown(false);
+          } else if (s === 'results_for_current_question'){
+            setStatus('Results','is-info');
+            showCountdown(false);
+            // Server has declared countdown is over - trigger auto-submit if needed
+            // This is the ONLY place where auto-submit happens (server is source of truth)
+            if (!window.hasAlreadySubmittedThisQuestion && !alreadySubmitted){
+              alreadySubmitted = true;
+              try {
+                console.log('[quiz_header] countdown expired (server), auto-submit triggered');
+                window.submitAnswer();
+              } catch(e) { 
+                console.error('[quiz_header] auto-submit error', e); 
+              }
+            } else {
+              console.log('[quiz_header] countdown expired (server), but student already submitted manually');
+            }
+          } else if (s === 'gathering'){
+            setStatus('Gathering','is-warning');
+            showCountdown(false);
+          } else if (s === 'completed'){
+            // Redirect to cohort page when quiz is completed
+            console.log('[quiz_header] quiz completed, redirecting to cohort page');
+            window.location.href = '/teachers/cohorts/' + cohortId + '/';
+          }
+        }
+        if (data.type === 'countdown_start'){
+          var endTs = Number(data.countdown_end_time || 0);
+          if (endTs > 0){ console.log('[quiz_header] countdown_start until', endTs); showCountdown(true); startLocalCountdown(endTs); }
+        }
+        if (data.type === 'navigate_to'){
+          var exId = Number((data && data.exercise_id) || 0);
+          if (exId){ console.log('[quiz_header] navigate_to exercise', exId); window.location.href = '/exercises/' + exId + '/'; }
+        }
+      } catch(err) {}
+    });
+
+    // Disable prev/next in quiz mode
+    try {
+      var pn = document.querySelector('.sticky-footer-nav');
+      if (pn) pn.style.display = 'none';
+    } catch(e) {}
+
+  } catch (e){ }
+})();
+</script>
+{% endif %}

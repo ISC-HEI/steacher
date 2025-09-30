@@ -1,6 +1,7 @@
 import json
 import os
 import logging
+import markdown2
 from operator import attrgetter
 from itertools import groupby
 from datetime import timedelta
@@ -12,18 +13,17 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction, models
 from django.db.models import Avg, Count, F, ExpressionWrapper, fields, Subquery, Q
-from django.db.models.functions import Cast, JSONObject
+from django.db.models.functions import Cast
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
 import newrelic.agent as nr
 
-from .authz import course_roles_required, assert_can_edit_course, assert_can_view_course, cohort_roles_required
-from .models import Exercise, Course, Module, ExerciseAsset, Cohort, CohortMembership, Attempt, create_trace_for, CourseMembership, Trace
+from .authz import course_roles_required, assert_can_edit_course, assert_can_view_course, cohort_roles_required, get_user_cohort_role, assert_can_manage_cohort
+from .models import Exercise, Course, Module, ExerciseAsset, Cohort, CohortMembership, Attempt, create_trace_for, CourseMembership, Trace, localized_name, QuizLog
 from .unit_testing import run_unit_tests, run_unit_tests_scala
-from .logic import generate_authoring_update
-from .logic import generate_i18n_translations
+from .logic import generate_authoring_update, generate_i18n_translations
 from .schemas import ExerciseData, AnswerData
 
 
@@ -313,6 +313,30 @@ def dashboard(request):
         'courses': courses,
         'cohorts': cohorts,
         'editable_course_ids': editable_course_ids,
+    })
+
+
+@login_required
+def quiz_control(request, cohort_id: int, module_id: int):
+    cohort = get_object_or_404(Cohort.objects.select_related('course'), pk=cohort_id)
+    module = get_object_or_404(Module.objects.select_related('course'), pk=module_id)
+    assert_can_manage_cohort(request.user, cohort)
+
+    # Provide ordered visible exercises for jump-dropdown and initial render
+    exercises = list(Exercise.objects.filter(module=module, visible=True).order_by('order', 'id'))
+    # Build a lightweight payload with localized fields for the frontend Vue app
+    exercises_payload = [
+        {
+            'id': ex.id,
+            'title': localized_name(ex, 'title_i18n', request.user),
+            'question': markdown2.markdown(localized_name(ex, 'question_i18n', request.user), extras=["fenced-code-blocks", "tables"]),
+        }
+        for ex in exercises
+    ]
+    return render(request, 'exercises/teacher/quiz_control.html', {
+        'cohort': cohort,
+        'module': module,
+        'exercises_payload': exercises_payload,
     })
 
 
@@ -1077,7 +1101,10 @@ def exercise_authoring_assistant(request):
     logger.info("exercise_authoring_assistant called for course_id=%s", getattr(course, 'id', None))
 
     try:
-        result = generate_authoring_update(exercise_payload=exercise_payload, messages=messages, course=course)
+        mode = str((context.get('mode') or 'edit')).lower()
+        if mode not in ('edit', 'feedback'):
+            mode = 'edit'
+        result = generate_authoring_update(exercise_payload=exercise_payload, messages=messages, course=course, mode=mode)
 
         # Persist authoring interaction as a Trace
         exercise_pk = (exercise_payload or {}).get('pk') or (exercise_payload or {}).get('id')
@@ -1163,6 +1190,84 @@ def translate_i18n(request):
         return JsonResponse({'status': 'success', 'translations': result})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
+@require_POST
+def reset_quiz(request, cohort_id: int, module_id: int):
+    """
+    Reset quiz state (Redis + QuizLog) for a cohort/module.
+    Teacher-only action to allow quiz to be restarted fresh.
+    """
+    from asgiref.sync import async_to_sync
+    from .consumers import delete_quiz_state
+    
+    cohort = get_object_or_404(Cohort, pk=cohort_id)
+    assert_can_manage_cohort(request.user, cohort)
+    
+    # Delete Redis state
+    try:
+        async_to_sync(delete_quiz_state)(cohort_id, module_id)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': f'Failed to clear Redis state: {e}'}, status=500)
+    
+    # Delete QuizLog
+    deleted_count, _ = QuizLog.objects.filter(cohort_id=cohort_id, module_id=module_id).delete()
+    
+    return JsonResponse({
+        'status': 'success', 
+        'message': 'Quiz reset successfully',
+        'deleted_logs': deleted_count
+    })
+
+
+@login_required
+def quiz_results_api(request, cohort_id: int, module_id: int, exercise_id: int):
+    """
+    Teacher-only JSON API for quiz results of a specific exercise.
+    Returns:
+        - submissions_count: unique students
+        - correct_count: same as submissions_count and presence of <exercise_completed> in assistant_content
+        - incorrect_count: submissions_count - correct_count
+    """
+    from django.contrib.contenttypes.models import ContentType
+    
+    cohort = get_object_or_404(Cohort, pk=cohort_id)
+    assert_can_manage_cohort(request.user, cohort)
+    
+    # Get ids of cohort member that are students
+    cohort_student_ids = cohort.members.filter(cohort_memberships__role='student').values_list('id', flat=True)
+    
+    # Single optimized query: fetch all assistant traces for this exercise/cohort
+    attempt_ct = ContentType.objects.get_for_model(Attempt)
+    traces = Trace.objects.filter(
+        content_type=attempt_ct,
+        object_id__in=Attempt.objects.filter(
+            exercise_id=exercise_id,
+            user_id__in=cohort_student_ids
+        ).values('id'),
+        assistant_content__isnull=False
+    ).exclude(
+        assistant_content=''
+    ).order_by('user_id', 'created_at').values('user_id', 'assistant_content')
+    
+    # Group by user_id, keep first trace per user
+    user_first_traces = {}
+    for trace in traces:
+        user_id = trace['user_id']
+        if user_id not in user_first_traces:
+            user_first_traces[user_id] = trace['assistant_content']
+    
+    # Count results
+    submissions_count = len(user_first_traces)
+    correct_count = sum(1 for content in user_first_traces.values() if '<exercise_completed>' in content)
+    incorrect_count = submissions_count - correct_count
+    
+    return JsonResponse({
+        'submissions_count': submissions_count,
+        'correct_count': correct_count,
+        'incorrect_count': incorrect_count,
+    })
 
 
 
