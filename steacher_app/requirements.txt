@@ -11,6 +11,7 @@ pytest-django
 playwright
 pytest-playwright
 gunicorn
+uvicorn[standard]
 python-dotenv
 requests
 pydantic

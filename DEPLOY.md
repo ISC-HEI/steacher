@@ -8,6 +8,9 @@ TS=$(date +%F_%H-%M-%S)
 docker compose exec -T db pg_dump -U steacher_admin steacher_prod > ~/dev/manual_backup_db/db_$TS.sql
 wormhole send ~/dev/manual_backup_db/db_$TS.sql
 
+zip -r        ~/dev/manual_backup_db/app_$TS.zip .
+wormhole send ~/dev/manual_backup_db/app_$TS.zip
+
 # 1) Get latest code
 git pull
 
@@ -57,7 +60,9 @@ docker compose logs -n 100 proxy | cat
 Start local django
 
 ```bash
-DJANGO_SETTINGS_MODULE=exam_project.settings uvicorn exam_project.asgi:application --host 127.0.0.1 --port 8000 --reload
+DJANGO_DEBUG=True uvicorn exam_project.asgi:application --host 127.0.0.1 --port 8000 --reload
+
+DJANGO_DEBUG=True uvicorn exam_project.asgi:application --host 127.0.0.1 --port 8000 --reload --reload-dir exercises --reload-dir templates --reload-dir frontend
 ```
 
 ------
