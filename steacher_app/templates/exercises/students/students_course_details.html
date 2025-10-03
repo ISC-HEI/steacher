@@ -23,6 +23,10 @@
                 <span>Join Quiz</span>
             </a>
             {% endif %}
+            <a class="button is-info mr-2" href="{% url 'exercises:export_course_data' pk=course.pk %}" title="Export your learning data as Markdown">
+                <span class="icon"><i class="fas fa-download"></i></span>
+                <span>Export My Data</span>
+            </a>
             {% if can_teacher_view %}
             <a class="button is-light" href="{% url 'teachers:course_detail' pk=course.pk %}">
                 <span class="icon"><i class="fas fa-user-shield"></i></span>

@@ -68,6 +68,7 @@ export const ChatbotPanel = defineComponent({
                             <span class="icon is-small"><i class="fas fa-brain"></i></span>
                             AI Reasoning Process ({{ message.thoughts.length }} thought{{ message.thoughts.length !== 1 ? 's' : '' }})
                         </summary>
+                        <p class="is-size-6 mt-2">(only shown to teachers)</p>
                         <div class="box mt-2 has-background-light" style="font-size: 0.85rem;">
                             <div v-for="(thought, tIndex) in message.thoughts" :key="tIndex" class="mb-2">
                                 <p class="has-text-grey-dark" style="white-space: pre-wrap;">{{ thought }}</p>

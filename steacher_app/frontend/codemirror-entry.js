@@ -14,6 +14,36 @@ import { indentWithTab as indentWithTabCmd, indentMore as indentMoreCmd, indentL
 import { autocompletion, acceptCompletion, CompletionContext } from '@codemirror/autocomplete';
 import { oneDark } from '@codemirror/theme-one-dark';
 
+// SQL keywords for autocomplete
+const SQL_KEYWORDS = [
+    'SELECT', 'FROM', 'WHERE', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 
+    'ALTER', 'TABLE', 'INDEX', 'VIEW', 'DATABASE', 'JOIN', 'INNER', 
+    'LEFT', 'RIGHT', 'OUTER', 'ON', 'AS', 'AND', 'OR', 'NOT', 'NULL', 'IS', 
+    'IN', 'BETWEEN', 'LIKE', 'GROUP', 'BY', 'HAVING', 'ORDER', 'ASC', 'DESC', 
+    'LIMIT', 'OFFSET', 'UNION', 'ALL', 'DISTINCT', 'CASE', 'THEN', 
+    'ELSE', 'END', 'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'CAST', 'INTO', 'VALUES',
+    'SET', 'PRIMARY', 'KEY', 'REFERENCES', 'DEFAULT', 'UNIQUE',
+    'CHECK', 'CONSTRAINT', 'EXISTS', 'WITH', 'RECURSIVE'
+];
+
+// Custom SQL keyword-only autocomplete
+export function sqlKeywordCompletion(context) {
+    const word = context.matchBefore(/\w*/);
+    if (!word || (word.from === word.to && !context.explicit)) return null;
+    
+    const options = SQL_KEYWORDS.map(keyword => ({
+        label: keyword,
+        type: 'keyword',
+        apply: keyword
+    }));
+    
+    return {
+        from: word.from,
+        options: options,
+        filter: true
+    };
+}
+
 // Re-export under the canonical names expected by the rest of the codebase.
 export const python = pythonLang;
 export const scala = () => StreamLanguage.define(legacyScala);

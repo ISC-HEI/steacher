@@ -11,7 +11,16 @@
 {% block content %}
 <div class="container">
     <section class="section">
-        <h1 class="title is-2">Exercise Analytics for <a href="{% url 'exercises:exercise_detail' exercise.id %}">{{ exercise.title }}</a></h1>        
+        <h1 class="title is-2">
+            <div class="level">
+                <div class="level-left">    
+                    Analytics for Exercise <a href="{% url 'exercises:exercise_detail' exercise.id %}">{{ exercise.title }}</a>
+                </div>
+                <div class="level-right">
+                    <a class="button is-primary is-small mt-2" href="{% url 'teachers:course_analytics_dashboard' exercise.module.course.id %}">Course Analytics</a>
+                </div>
+            </div>
+        </h1>        
         <div class="content card">
             <div class="card-content">
                 <details>

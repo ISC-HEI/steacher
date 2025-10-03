@@ -1,5 +1,5 @@
 import { defineComponent } from 'vue';
-import { EditorView, basicSetup, EditorState, sql, python, scala, keymap, indentUnit, autocompletion, acceptCompletion, indentMore, indentLess, indentOnInput, oneDark, Compartment } from 'codemirror-bundle';
+import { EditorView, basicSetup, EditorState, sql, python, scala, keymap, indentUnit, autocompletion, acceptCompletion, indentMore, indentLess, indentOnInput, oneDark, Compartment, sqlKeywordCompletion } from 'codemirror-bundle';
 import type { ViewUpdate } from '@codemirror/view';
 
 interface CodeMirrorEditorData {
@@ -79,8 +79,18 @@ export const CodeMirrorEditor = defineComponent({
                 extensions: [
                     basicSetup,
                     keymap.of([
-                        // always indent on Tab
-                        {key: 'Tab', run: (indentMore as any) }, 
+                        // Tab: accept completion if available, otherwise indent
+                        {
+                            key: 'Tab',
+                            run: (view: EditorView) => {
+                                // Try to accept completion first
+                                if (acceptCompletion(view)) {
+                                    return true;
+                                }
+                                // If no completion, indent
+                                return indentMore(view);
+                            }
+                        },
                         {key: 'Shift-Tab', run: (indentLess as any) },
                     ]),
                     languageExtension,
@@ -89,6 +99,8 @@ export const CodeMirrorEditor = defineComponent({
                     indentOnInput(),
                     // Use 4 spaces indentation for Python
                     ...(this.language === 'python' ? [indentUnit.of('    ')] : []),
+                    // Use custom SQL keyword-only autocomplete for SQL
+                    ...(this.language === 'sql' ? [autocompletion({ override: [sqlKeywordCompletion] })] : []),
                     // Save content to localStorage on every keystroke
                     EditorView.updateListener.of((update: ViewUpdate) => {
                         if (update.docChanged) {

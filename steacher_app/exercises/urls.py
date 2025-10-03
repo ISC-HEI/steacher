@@ -13,8 +13,8 @@ students_urlpatterns = [
     path('chat/threads/<int:thread_id>/', views_students.chat_thread_detail, name='chat_thread_detail'),
     path('chat/threads/<int:thread_id>/send/', views_students.chat_thread_send, name='chat_thread_send'),
     path('chat/threads/<int:thread_id>/delete/', views_students.chat_thread_delete, name='chat_thread_delete'),
-    path('courses/', views_students.course_list, name='course_list'),
     path('courses/<int:pk>/', views_students.course_detail, name='course_detail'),
+    path('courses/<int:pk>/export/', views_students.export_course_data, name='export_course_data'),
     # More specific patterns first to avoid conflicts
     path('<int:exercise_id>/attempts/<int:attempt_id>/guidance/', views_students.get_guidance, name='get_guidance'),
     path('api/attempts/<int:attempt_id>/recommend_pathway/', views_students.recommend_learning_pathway, name='recommend_learning_pathway'),

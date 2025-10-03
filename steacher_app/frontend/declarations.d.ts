@@ -12,6 +12,8 @@ declare module 'codemirror-bundle' {
     export { oneDark } from '@codemirror/theme-one-dark';
     // Custom re-export provided by our bundle for Scala legacy mode
     export function scala(): any;
+    // Custom SQL keyword-only autocomplete
+    export function sqlKeywordCompletion(context: any): any;
 }
 
 declare module 'canvas-confetti';

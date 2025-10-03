@@ -221,19 +221,6 @@ def dashboard(request):
     })
 
 
-@login_required
-@require_GET
-def course_list(request):
-    """Display list of all courses for students (only visible ones)."""
-    courses = CohortMembership.objects.filter(user=request.user, status='active').values_list('cohort__course', flat=True)
-    # Resolve instructor email from latest active cohort membership (any course)
-    instructor_email = _resolve_instructor_email(request.user)
-    return render(request, 'exercises/students/students_course_list.html', {
-        'courses': courses,
-        'instructor_email': instructor_email,
-    })
-
-
 @csrf_protect
 def register(request):
     """
@@ -1021,3 +1008,113 @@ def trace_eval_create(request):
     is_ok = True if result == 'ok' else False
     te = TraceEval.objects.create(trace=trace, is_ok=is_ok, feedback='')
     return JsonResponse({'status': 'success', 'id': te.id, 'trace_id': trace.id, 'is_ok': te.is_ok}, status=201)
+
+
+@login_required
+@require_GET
+def export_course_data(request, pk):
+    """Export student's course data as Markdown file."""
+    course = get_object_or_404(Course, pk=pk)
+    assert_can_view_course(request.user, course)
+    
+    # Get user's preferred language
+    preferred_language = getattr(request.user, 'preferred_language', 'en') or 'en'
+    
+    # Get all exercises in this course where the user has at least one attempt
+    attempts = (
+        Attempt.objects
+        .filter(user=request.user, exercise__module__course=course)
+        .select_related('exercise__module')
+        .prefetch_related('exercise__module__course')
+        .order_by('exercise__module__order', 'exercise__order')
+    )
+    
+    if not attempts.exists():
+        return HttpResponse("No data to export. You haven't started any exercises yet.", content_type='text/plain')
+    
+    # Organize data by module and exercise
+    from itertools import groupby
+    from operator import attrgetter
+    
+    modules_data = []
+    for module, module_attempts_iter in groupby(attempts, key=lambda a: a.exercise.module):
+        module_attempts = list(module_attempts_iter)
+        exercises_data = []
+        
+        for attempt in module_attempts:
+            exercise = attempt.exercise
+            
+            # Get localized title and description
+            title = localized_name(exercise, 'title_i18n', request.user, lang=preferred_language)
+            description = localized_name(exercise, 'description_i18n', request.user, lang=preferred_language)
+            question = localized_name(exercise, 'question_i18n', request.user, lang=preferred_language)
+            
+            # Get the last actual code/answer submission from traces (not hints or questions)
+            last_trace = (
+                attempt.traces
+                .filter(
+                    channel='exercise_guidance',
+                    user_metadata__action__in=['run_submission', 'submit_answer']
+                )
+                .exclude(user_content='')
+                .order_by('-rank_order')
+                .first()
+            )
+            
+            last_submission = None
+            submission_timestamp = None
+            if last_trace and last_trace.user_metadata:
+                # Extract actual code from user_metadata
+                code = last_trace.user_metadata.get('code') or last_trace.user_metadata.get('answer', '')
+                if code:
+                    last_submission = code
+                    submission_timestamp = last_trace.created_at
+            
+            # Get correct answer if exercise is complete
+            correct_answer = None
+            if attempt.complete:
+                answer_data = exercise.answer_data_obj
+                if answer_data.correct_answers:
+                    # Get first correct answer only, without explanation
+                    correct_answer = answer_data.correct_answers[0].answer
+            
+            exercises_data.append({
+                'title': title,
+                'description': description,
+                'question': question,
+                'exercise_type': exercise.get_exercise_type_display(),
+                'last_submission': last_submission,
+                'submission_timestamp': submission_timestamp,
+                'correct_answer': correct_answer,
+                'complete': attempt.complete,
+            })
+        
+        modules_data.append({
+            'name': module.name,
+            'is_quiz': module.is_quiz,
+            'exercises': exercises_data,
+        })
+    
+    # Calculate overall stats
+    total_exercises = attempts.count()
+    completed_exercises = attempts.filter(complete=True).count()
+    completion_rate = (completed_exercises / total_exercises * 100) if total_exercises > 0 else 0
+    
+    # Render markdown template
+    from django.template.loader import render_to_string
+    markdown_content = render_to_string('exercises/students/export_course_data.md', {
+        'course': course,
+        'modules_data': modules_data,
+        'total_exercises': total_exercises,
+        'completed_exercises': completed_exercises,
+        'completion_rate': completion_rate,
+        'export_date': timezone.now(),
+        'user': request.user,
+    })
+    
+    # Return as downloadable file
+    response = HttpResponse(markdown_content, content_type='text/markdown; charset=utf-8')
+    safe_course_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in course.name)
+    filename = f"{safe_course_name}_export_{timezone.now().strftime('%Y%m%d')}.md"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
