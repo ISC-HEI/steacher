@@ -41,7 +41,14 @@ rm nginx/maintenance/maintenance_on
 docker compose exec -T proxy nginx -s reload
 
 
-You
+
+# If Website down (Nginx 502), there might be a docker-compose cache issue. In that case, try:
+docker compose down
+docker compose up -d
+
+
+
+
 # Only restart other services when they change:
 
 # Nginx config or certs changed:

@@ -127,7 +127,7 @@ services:
 
 
   newrelic_infra:
-    image: newrelic/infrastructure:latest
+    image: newrelic/infrastructure-bundle:latest
     # privileged: true # Avoid if possible, use cap_add instead
     pid: host # Allows agent to see all host processes
     restart: unless-stopped
