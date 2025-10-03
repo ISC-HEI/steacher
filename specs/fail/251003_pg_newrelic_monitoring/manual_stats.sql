@@ -1,25 +1,28 @@
--- run with docker exec -i steacher_app-db-1 psql -U steacher_admin -d steacher_prod < check_postgres_health.sql
+-- PostgreSQL Health Check Script for Steacher
+-- Run this monthly or when investigating performance issues
+-- Usage: docker exec -i steacher_app-db-1 psql -U steacher_admin -d steacher_prod < specs/fail/251003_pg_newrelic_monitoring/manual_stats.sql
 
--- Database size and growth
+\echo '=== DATABASE SIZE ==='
 SELECT 
     pg_database.datname AS database_name,
     pg_size_pretty(pg_database_size(pg_database.datname)) AS size
 FROM pg_database
 WHERE datname = 'steacher_prod';
 
--- Top 10 largest tables
+\echo ''
+\echo '=== TOP 10 LARGEST TABLES ==='
 SELECT 
     schemaname,
-    tablename,
-    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size,
-    pg_size_pretty(pg_relation_size(schemaname||'.'||tablename)) AS table_size,
-    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename) - pg_relation_size(schemaname||'.'||tablename)) AS indexes_size
-FROM pg_tables
-WHERE schemaname = 'public'
-ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC
+    relname AS tablename,
+    pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname)) AS size,
+    pg_size_pretty(pg_relation_size(schemaname||'.'||relname)) AS table_size,
+    pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname) - pg_relation_size(schemaname||'.'||relname)) AS indexes_size
+FROM pg_stat_user_tables
+ORDER BY pg_total_relation_size(schemaname||'.'||relname) DESC
 LIMIT 10;
 
--- Dead tuples (bloat indicator) - run VACUUM if this is high
+\echo ''
+\echo '=== DEAD TUPLES (Run VACUUM if >20%) ==='
 SELECT 
     schemaname,
     relname AS table_name,
@@ -31,22 +34,31 @@ WHERE n_dead_tup > 1000
 ORDER BY n_dead_tup DESC
 LIMIT 10;
 
--- Unused indexes (consider dropping if never used)
+\echo ''
+\echo '=== UNUSED INDEXES (Consider dropping) ==='
 SELECT 
     schemaname,
-    tablename,
-    indexname,
+    relname AS tablename,
+    indexrelname AS indexname,
     idx_scan AS index_scans,
     pg_size_pretty(pg_relation_size(indexrelid)) AS index_size
 FROM pg_stat_user_indexes
 WHERE idx_scan = 0
-    AND indexrelname NOT LIKE '%pkey'
+    AND indexrelname NOT LIKE '%pkey%'
 ORDER BY pg_relation_size(indexrelid) DESC;
 
--- Connection count
+\echo ''
+\echo '=== CONNECTION COUNT ==='
 SELECT 
     COUNT(*) as total_connections,
     COUNT(*) FILTER (WHERE state = 'active') as active,
     COUNT(*) FILTER (WHERE state = 'idle') as idle
 FROM pg_stat_activity
+WHERE datname = 'steacher_prod';
+
+\echo ''
+\echo '=== CACHE HIT RATIO (Should be >90%) ==='
+SELECT 
+    ROUND(100.0 * sum(blks_hit) / NULLIF(sum(blks_hit) + sum(blks_read), 0), 2) AS cache_hit_ratio_percent
+FROM pg_stat_database
 WHERE datname = 'steacher_prod';

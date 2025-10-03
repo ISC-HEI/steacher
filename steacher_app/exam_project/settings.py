@@ -198,7 +198,7 @@ LOGGING = {
         'file': {
             'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': BASE_DIR / 'steacher.log',
+            'filename': BASE_DIR / 'logs' / 'steacher.log',
             'formatter': 'verbose',
         },
         'console': {

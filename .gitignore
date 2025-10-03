@@ -1,5 +1,6 @@
 steacher_app/node_modules
 steacher_app/steacher.log
+logs/
 
 
 # Compiled JS files
@@ -25,3 +26,4 @@ PRIVATE.md
 scala_interpreter/project/project/target
 scala_interpreter/project/target
 scala_interpreter/target
+research

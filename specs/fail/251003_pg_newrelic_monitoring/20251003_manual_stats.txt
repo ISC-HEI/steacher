@@ -1,0 +1,93 @@
+ubuntu@steacher1:~/dev/steacher_app$ docker exec -i steacher_app-db-1 psql -U steacher_admin -d steacher_prod < specs/fail/251003_pg_newrelic_monitoring/manual_stats.sql
+
+=== DATABASE SIZE ===
+ database_name | size
+---------------+-------
+ steacher_prod | 32 MB
+(1 row)
+
+
+=== TOP 10 LARGEST TABLES ===
+ schemaname |         tablename          |  size  | table_size | indexes_size
+------------+----------------------------+--------+------------+--------------
+ public     | exercises_trace            | 20 MB  | 7720 kB    | 13 MB
+ public     | exercises_attempt          | 728 kB | 168 kB     | 560 kB
+ public     | exercises_exercise         | 720 kB | 368 kB     | 352 kB
+ public     | exercises_cohortmembership | 200 kB | 16 kB      | 184 kB
+ public     | exercises_exerciseasset    | 176 kB | 8192 bytes | 168 kB
+ public     | exercises_course           | 160 kB | 24 kB      | 136 kB
+ public     | exercises_coursemembership | 136 kB | 8192 bytes | 128 kB
+ public     | django_session             | 128 kB | 40 kB      | 88 kB
+ public     | accounts_user              | 120 kB | 24 kB      | 96 kB
+ public     | exercises_userinvite       | 120 kB | 8192 bytes | 112 kB
+(10 rows)
+
+
+=== DEAD TUPLES (Run VACUUM if >20%) ===
+ schemaname | table_name | dead_tuples | live_tuples | dead_tuple_percent
+------------+------------+-------------+-------------+--------------------
+(0 rows)
+
+
+=== UNUSED INDEXES (Consider dropping) ===
+ schemaname |           tablename            |                          indexname                           | index_scans | index_size
+------------+--------------------------------+--------------------------------------------------------------+-------------+------------
+ public     | exercises_quizlog              | quiz_log_completed_idx                                       |           0 | 16 kB
+ public     | exercises_userinvite           | exercises_userinvite_email_d59e95fa_like                     |           0 | 16 kB
+ public     | exercises_module               | module_course_visible_idx                                    |           0 | 16 kB
+ public     | exercises_cohortmembership     | unique_cohort_owner                                          |           0 | 16 kB
+ public     | exercises_coursemembership     | unique_course_owner                                          |           0 | 16 kB
+ public     | accounts_user                  | unique_single_superuser                                      |           0 | 16 kB
+ public     | exercises_quizlog              | exercises_quizlog_cohort_id_742807f7                         |           0 | 16 kB
+ public     | exercises_quizlog              | exercises_quizlog_module_id_5fe6ec8b                         |           0 | 16 kB
+ public     | exercises_quizlog              | exercises_quizlog_teacher_id_0cfd1db5                        |           0 | 16 kB
+ public     | auth_permission                | auth_permission_content_type_id_codename_01ab375a_uniq       |           0 | 16 kB
+ public     | exercises_userinvite           | exercises_userinvite_email_key                               |           0 | 16 kB
+ public     | exercises_cohort               | unique_cohort_code_per_course                                |           0 | 16 kB
+ public     | exercises_cohort               | unique_cohort_name_per_course                                |           0 | 16 kB
+ public     | exercises_coursemembership     | unique_course_membership_per_user                            |           0 | 16 kB
+ public     | exercises_cohortmembership     | unique_membership_per_cohort_user                            |           0 | 16 kB
+ public     | exercises_exerciseasset        | unique_name_per_course                                       |           0 | 16 kB
+ public     | accounts_user                  | accounts_user_username_6088629e_like                         |           0 | 16 kB
+ public     | exercises_exerciseasset        | asset_course_name_idx                                        |           0 | 16 kB
+ public     | exercises_cohortmembership     | cm_cohort_status_idx                                         |           0 | 16 kB
+ public     | exercises_cohortmembership     | cm_user_role_idx                                             |           0 | 16 kB
+ public     | exercises_cohortmembership     | cm_user_status_joined_idx                                    |           0 | 16 kB
+ public     | exercises_cohortmembership     | cohort_role_idx                                              |           0 | 16 kB
+ public     | exercises_coursemembership     | course_role_idx                                              |           0 | 16 kB
+ public     | exercises_coursemembership     | course_user_role_idx                                         |           0 | 16 kB
+ public     | django_admin_log               | django_admin_log_content_type_id_c4bce8eb                    |           0 | 16 kB
+ public     | django_admin_log               | django_admin_log_user_id_c564eba6                            |           0 | 16 kB
+ public     | exercises_cohort               | exercises_cohort_course_id_9de090a2                          |           0 | 16 kB
+ public     | exercises_cohortmembership     | exercises_cohortmembership_added_by_id_4875eeee              |           0 | 16 kB
+ public     | exercises_cohortmembership     | exercises_cohortmembership_cohort_id_82744c15                |           0 | 16 kB
+ public     | exercises_coursemembership     | exercises_coursemembership_added_by_id_873c11dd              |           0 | 16 kB
+ public     | exercises_coursemembership     | exercises_coursemembership_course_id_953ae05f                |           0 | 16 kB
+ public     | exercises_coursemembership     | exercises_coursemembership_user_id_98d3cd38                  |           0 | 16 kB
+ public     | exercises_exerciseasset        | exercises_exerciceasset_course_id_f38b7c5a                   |           0 | 16 kB
+ public     | exercises_module               | exercises_module_course_id_44363fe8                          |           0 | 16 kB
+ public     | exercises_userinvite           | exercises_userinvite_cohort_id_fc9b7699                      |           0 | 16 kB
+ public     | accounts_user_user_permissions | accounts_user_user_permi_user_id_permission_id_2ab516c2_uniq |           0 | 8192 bytes
+ public     | auth_group_permissions         | auth_group_permissions_group_id_permission_id_0cd325b0_uniq  |           0 | 8192 bytes
+ public     | auth_group_permissions         | auth_group_permissions_group_id_b120cbf9                     |           0 | 8192 bytes
+ public     | accounts_user_groups           | accounts_user_groups_group_id_bd11a704                       |           0 | 8192 bytes
+ public     | accounts_user_user_permissions | accounts_user_user_permissions_permission_id_113bb443        |           0 | 8192 bytes
+ public     | auth_group_permissions         | auth_group_permissions_permission_id_84c5c92e                |           0 | 8192 bytes
+ public     | accounts_user_groups           | accounts_user_groups_user_id_group_id_59c0b32f_uniq          |           0 | 8192 bytes
+ public     | auth_group                     | auth_group_name_a6ea08ec_like                                |           0 | 8192 bytes
+(43 rows)
+
+
+=== CONNECTION COUNT ===
+ total_connections | active | idle
+-------------------+--------+------
+                 1 |      1 |    0
+(1 row)
+
+
+=== CACHE HIT RATIO (Should be >90%) ===
+ cache_hit_ratio_percent
+-------------------------
+                   99.97
+(1 row)
+

@@ -15,6 +15,7 @@ services:
     volumes:
       - static_data:/app/staticfiles
       - media_data:/app/media
+      - ./logs:/app/logs
     expose:
       - 8000
     depends_on:

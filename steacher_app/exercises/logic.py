@@ -189,7 +189,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     - 'user_submission': the user's submission, as a dict in the form of an LLM message.
     """
 
-    logger.info(f"fetch_ai_guidance: exercise {exercise.id}, attempt {attempt.id}, data {data}")
+    #logger.info(f"fetch_ai_guidance: exercise {exercise.id}, attempt {attempt.id}, data {data}")
     overall_start_time = time.time()
 
     # 1. Construct the user's message for the LLM from the incoming data
@@ -239,7 +239,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
                 # Store test results in data for later saving to AttemptInteraction
                 data['test_results'] = test_results
             else:
-                logger.warning(f"No unit tests defined for Python exercise {exercise.id}")
+                logger.info(f"No unit tests defined for Python exercise {exercise.id}")
         elif exercise.exercise_type == 'scala':
             unit_tests = exercise.answer_data_obj.unit_tests
             if unit_tests and unit_tests.test_cases:
@@ -253,7 +253,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
                     user_prompt_content += format_test_results_for_ai_with_lang(test_results, 'scala')
                     data['test_results'] = test_results
                 except Exception as e:
-                    logger.warning(f"Scala unit tests failed to run: {e}")
+                    logger.info(f"Scala unit tests failed to run: {e}")
 
     # Add database schema information for SQL exercises
     if exercise.exercise_type == 'sql' and 'database_schema' in data:
