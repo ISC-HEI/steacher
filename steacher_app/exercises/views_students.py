@@ -468,6 +468,13 @@ def exercise_detail(request, pk):
         # Non-fatal: if we cannot resolve cohort, we still proceed
         pass
     attempt_id = attempt.id
+    
+    # Determine if the current user can edit this exercise (course owner/editor or site admin)
+    try:
+        can_edit = can_edit_course(request.user, exercise.module.course)
+    except Exception:
+        can_edit = False
+    
     # Map traces to shape expected by frontend
     traces = attempt.traces.filter(channel='exercise_guidance').order_by('rank_order', 'id')
     interactions = []
@@ -478,8 +485,8 @@ def exercise_detail(request, pk):
             'trace_id': tr.id,
             'metadata': tr.assistant_metadata or {},
         }
-        # Extract thoughts from assistant_metadata if present
-        if tr.assistant_metadata and 'thoughts' in tr.assistant_metadata:
+        # Extract thoughts from assistant_metadata if present (only for teachers)
+        if can_edit and tr.assistant_metadata and 'thoughts' in tr.assistant_metadata:
             llm_response['thoughts'] = tr.assistant_metadata['thoughts']
         
         interactions.append({
@@ -535,12 +542,6 @@ def exercise_detail(request, pk):
 
     # Determine cohort instructor email for this course, if any
     instructor_email = _resolve_instructor_email(request.user, course=exercise.module.course)
-
-    # Determine if the current user can edit this exercise (course owner/editor or site admin)
-    try:
-        can_edit = can_edit_course(request.user, exercise.module.course)
-    except Exception:
-        can_edit = False
 
     # Teacher-only system prompt preview (last used) or render error
     system_prompt_preview = None
@@ -626,6 +627,16 @@ def get_guidance(request, exercise_id, attempt_id):
                 return JsonResponse({'status': 'success', 'guidance': 'Spoiler locked: make 5 submissions to unlock.'})
 
         response_data = fetch_ai_guidance(data, exercise, attempt)
+        
+        # Filter reasoning (thoughts) from students - only teachers should see it
+        try:
+            user_can_edit = can_edit_course(request.user, exercise.module.course)
+            if not user_can_edit and 'thoughts' in response_data:
+                response_data.pop('thoughts')
+        except Exception:
+            # If permission check fails, err on the side of hiding reasoning
+            response_data.pop('thoughts', None)
+        
         return JsonResponse({'status': 'success', **response_data})
 
     except ValidationError as e:
