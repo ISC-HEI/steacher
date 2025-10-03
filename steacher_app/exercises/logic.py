@@ -168,6 +168,32 @@ def _strip_markdown_fences(content: str) -> str:
     return content
 
 
+def _extract_thoughts_from_response(gen_response) -> list[str]:
+    """
+    Extract thought summaries from Gemini response.
+    See docs in https://ai.google.dev/gemini-api/docs/thinking#summaries
+    
+    Thoughts appear as parts with thought=True when include_thoughts=True
+    is set in ThinkingConfig. Returns a list of thought text strings.
+    """
+    if not gen_response:
+        return []
+    
+    thoughts = []
+    try:
+        for candidate in gen_response.candidates:
+            if not hasattr(candidate, 'content') or not hasattr(candidate.content, 'parts'):
+                continue
+            for part in candidate.content.parts:
+                # Check if this part is a thought (has the thought attribute set to True)
+                if hasattr(part, 'thought') and part.thought and hasattr(part, 'text') and part.text:
+                    thoughts.append(part.text)
+    except Exception as e:
+        logger.warning(f"Failed to extract thoughts from response: {e}")
+    
+    return thoughts
+
+
 def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     """
     Fetches AI guidance for a given exercise and attempt.
@@ -317,6 +343,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
             temperature=_temp,
             response_logprobs=True,
             logprobs=5,
+            thinking_config=genai.types.ThinkingConfig(include_thoughts=True), # capture thoughts for the assistant_metadata
         )
         chat_session = gemini_client.chats.create(
             model=MODEL_FAST,
@@ -331,14 +358,16 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     llm_duration = time.time() - llm_start_time
     logger.info(f"LLM call for exercise {exercise.id} took {llm_duration:.2f} seconds.")
 
-    # 6. Extract answer
+    # 6. Extract answer and thoughts
     if gen_response is None:
         answer = "I'm sorry, I couldn't process your request right now. Please try again."
+        thoughts = []
     else:
         try:
             answer = (gen_response.text or '').strip()
         except Exception:
             answer = ''
+        thoughts = _extract_thoughts_from_response(gen_response)
 
     # 7.a. Detect completion/reveal tags and mark attempt accordingly
     try:
@@ -403,6 +432,8 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     }
     if uncertainty_metrics:
         fields['assistant_metadata']['uncertainty'] = uncertainty_metrics
+    if thoughts:
+        fields['assistant_metadata']['thoughts'] = thoughts
 
     # Always store the system prompt on the first trace
     first_trace = (existing_traces.first() if hasattr(existing_traces, 'first') else None)
@@ -415,7 +446,8 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     response_data = {
         'guidance': answer,
         'user_submission': interaction_log['user_submission'],
-        'assistant_trace_id': created_trace.id
+        'assistant_trace_id': created_trace.id,
+        'thoughts': thoughts if thoughts else None,  # Will be filtered by view for non-teachers
     }    
     return response_data
 

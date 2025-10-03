@@ -57,6 +57,21 @@
                                 <div class="content is-small">
                                     {{ item.trace.assistant_content|markdown }}
                                 </div>
+                                
+                                {% if item.trace.assistant_metadata.thoughts %}
+                                    <details class="mt-3">
+                                        <summary class="has-text-weight-semibold is-size-7" style="cursor: pointer;">
+                                            <span class="icon is-small"><i class="fas fa-brain"></i></span>
+                                            AI Reasoning ({{ item.trace.assistant_metadata.thoughts|length }} thought{{ item.trace.assistant_metadata.thoughts|length|pluralize }})
+                                        </summary>
+                                        <div class="box mt-2 has-background-light is-size-7">
+                                            {% for thought in item.trace.assistant_metadata.thoughts %}
+                                                <p class="has-text-grey-dark" style="white-space: pre-wrap;">{{ thought }}</p>
+                                                {% if not forloop.last %}<hr class="my-2">{% endif %}
+                                            {% endfor %}
+                                        </div>
+                                    </details>
+                                {% endif %}
                             </div>
                         </div>
                     </div>

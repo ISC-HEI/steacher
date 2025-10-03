@@ -6,6 +6,7 @@ import { defineComponent } from "vue";
 
 interface ProcessedMessage {
     cleanedContent: string;
+    thoughts?: string[];
     [key: string]: any;
 }
 
@@ -60,7 +61,23 @@ export const ChatbotPanel = defineComponent({
                      class="box content mb-3 assistant-message"
                      :key="'assistant-content-' + index"
                      style="position: relative;">
+                    
+                    <!-- AI Reasoning Process (thoughts) - only shown to teachers -->
+                    <details v-if="message.thoughts && message.thoughts.length > 0" class="mb-3" style="border-bottom: 1px solid #e0e0e0; padding-bottom: 0.75rem;">
+                        <summary style="cursor: pointer; font-weight: 600; color: #7a7a7a; font-size: 0.85rem;">
+                            <span class="icon is-small"><i class="fas fa-brain"></i></span>
+                            AI Reasoning Process ({{ message.thoughts.length }} thought{{ message.thoughts.length !== 1 ? 's' : '' }})
+                        </summary>
+                        <div class="box mt-2 has-background-light" style="font-size: 0.85rem;">
+                            <div v-for="(thought, tIndex) in message.thoughts" :key="tIndex" class="mb-2">
+                                <p class="has-text-grey-dark" style="white-space: pre-wrap;">{{ thought }}</p>
+                                <hr v-if="tIndex < message.thoughts.length - 1" class="my-2">
+                            </div>
+                        </div>
+                    </details>
+                    
                     <div v-html="renderMarkdown(message.cleanedContent)"></div>
+                    
                     <div class="thumbs-container" v-if="message.trace_id">
                         <button
                             class="button is-small is-white"
@@ -165,7 +182,7 @@ export const ChatbotPanel = defineComponent({
           <textarea
               class="textarea"
               v-model="question"
-              placeholder="Enter your message (Shift+Enter for newline)"
+              placeholder="(Shift+Enter for newline)"
               rows="1"
               :disabled="loading || pathwayLoading || pathwayData"
               @keydown="handleKeydown"

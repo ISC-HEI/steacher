@@ -485,18 +485,23 @@ def exercise_detail(request, pk):
     traces = attempt.traces.filter(channel='exercise_guidance').order_by('rank_order', 'id')
     interactions = []
     for tr in traces:
+        llm_response = {
+            'role': 'assistant',
+            'content': tr.assistant_content or '',
+            'trace_id': tr.id,
+            'metadata': tr.assistant_metadata or {},
+        }
+        # Extract thoughts from assistant_metadata if present
+        if tr.assistant_metadata and 'thoughts' in tr.assistant_metadata:
+            llm_response['thoughts'] = tr.assistant_metadata['thoughts']
+        
         interactions.append({
             'user_submission': {
                 'role': 'user',
                 'content': tr.user_content or '',
                 'metadata': tr.user_metadata or {},
             },
-            'llm_response': {
-                'role': 'assistant',
-                'content': tr.assistant_content or '',
-                'trace_id': tr.id,
-                'metadata': tr.assistant_metadata or {},
-            },
+            'llm_response': llm_response,
         })
 
     # Try to find an existing learning pathway recommendation. Last one wins.

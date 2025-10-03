@@ -242,6 +242,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                         const assistantMessage: any = { role: 'assistant', content: guidanceText };
                         if (result.assistant_trace_id) assistantMessage.trace_id = result.assistant_trace_id;
+                        if (result.thoughts) assistantMessage.thoughts = result.thoughts;
                         chatbotPanel.displayMessage(assistantMessage);
                     }
 

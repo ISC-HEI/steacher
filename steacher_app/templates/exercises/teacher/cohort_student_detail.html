@@ -93,6 +93,22 @@
                                                 </div>
                                                 <div class="message-body">
                                                     {{ trace.assistant_content|safe }}
+                                                    
+                                                    {% if trace.assistant_metadata.thoughts %}
+                                                        <details class="mt-3">
+                                                            <summary class="is-size-7 has-text-weight-semibold" style="cursor: pointer;">
+                                                                <span class="icon is-small"><i class="fas fa-brain"></i></span>
+                                                                AI Reasoning ({{ trace.assistant_metadata.thoughts|length }})
+                                                            </summary>
+                                                            <div class="box mt-2 has-background-light is-size-7">
+                                                                {% for thought in trace.assistant_metadata.thoughts %}
+                                                                    <p class="has-text-grey-dark" style="white-space: pre-wrap;">{{ thought }}</p>
+                                                                    {% if not forloop.last %}<hr class="my-1">{% endif %}
+                                                                {% endfor %}
+                                                            </div>
+                                                        </details>
+                                                    {% endif %}
+                                                    
                                                     {% if forloop.last and data.attempt.complete %}
                                                         <hr>
                                                         <p class="has-text-success">
@@ -111,6 +127,22 @@
                                                     <p><strong>Student:</strong> {{ trace.user_metadata.question }}</p>
                                                     <hr>
                                                     <p><strong>Tutor:</strong> {{ trace.assistant_content|safe }}</p>
+                                                    
+                                                    {% if trace.assistant_metadata.thoughts %}
+                                                        <details class="mt-3">
+                                                            <summary class="is-size-7 has-text-weight-semibold" style="cursor: pointer;">
+                                                                <span class="icon is-small"><i class="fas fa-brain"></i></span>
+                                                                AI Reasoning ({{ trace.assistant_metadata.thoughts|length }})
+                                                            </summary>
+                                                            <div class="box mt-2 has-background-light is-size-7">
+                                                                {% for thought in trace.assistant_metadata.thoughts %}
+                                                                    <p class="has-text-grey-dark" style="white-space: pre-wrap;">{{ thought }}</p>
+                                                                    {% if not forloop.last %}<hr class="my-1">{% endif %}
+                                                                {% endfor %}
+                                                            </div>
+                                                        </details>
+                                                    {% endif %}
+                                                    
                                                     {% if forloop.last and data.attempt.complete %}
                                                         <hr>
                                                         <p class="has-text-success">
@@ -127,6 +159,22 @@
                                                 </div>
                                                 <div class="message-body">
                                                     {{ trace.assistant_content|safe }}
+                                                    
+                                                    {% if trace.assistant_metadata.thoughts %}
+                                                        <details class="mt-3">
+                                                            <summary class="is-size-7 has-text-weight-semibold" style="cursor: pointer;">
+                                                                <span class="icon is-small"><i class="fas fa-brain"></i></span>
+                                                                AI Reasoning ({{ trace.assistant_metadata.thoughts|length }})
+                                                            </summary>
+                                                            <div class="box mt-2 has-background-light is-size-7">
+                                                                {% for thought in trace.assistant_metadata.thoughts %}
+                                                                    <p class="has-text-grey-dark" style="white-space: pre-wrap;">{{ thought }}</p>
+                                                                    {% if not forloop.last %}<hr class="my-1">{% endif %}
+                                                                {% endfor %}
+                                                            </div>
+                                                        </details>
+                                                    {% endif %}
+                                                    
                                                     {% if forloop.last and data.attempt.complete %}
                                                         <hr>
                                                         <p class="has-text-success">

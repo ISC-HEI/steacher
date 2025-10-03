@@ -6,6 +6,8 @@
 {% block page_title %}
     <a href="{% url 'teachers:course_detail' pk=course.pk %}">{{ course.name }}</a>
     <span style="margin: 0 0.5rem;">/</span>
+    <span>{{ exercise.module.name }}</span>
+    <span style="margin: 0 0.5rem;">/</span>
     <span>{% if exercise.pk %}Edit Exercise{% else %}Create Exercise{% endif %}</span>
 {% endblock %}
 
