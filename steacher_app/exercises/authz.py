@@ -5,6 +5,7 @@ from django.http import JsonResponse
 from functools import wraps
 import logging
 import time
+import newrelic.agent as nr
 
 from .models import CourseMembership, CohortMembership, Course, Cohort, Exercise
 from django.contrib.auth import get_user_model
@@ -300,6 +301,21 @@ def rate_limit(*, user_limit: int | None = None, user_burst: int = 0, ip_limit: 
                             except Exception:
                                 retry_after = int(WINDOW_SECONDS)
                             logger.info("Rate limit hit (user) for %s uid=%s ip=%s", name or view_func.__name__, uid, _client_ip(request))
+                            
+                            # Record NewRelic custom event for alerting
+                            try:
+                                nr.record_custom_event('RateLimitExceeded', {
+                                    'limit_type': 'user',
+                                    'endpoint': name or view_func.__name__,
+                                    'user_id': uid,
+                                    'ip_address': _client_ip(request),
+                                    'limit': user_limit,
+                                    'burst': user_burst,
+                                    'window_seconds': WINDOW_SECONDS,
+                                })
+                            except Exception:
+                                pass  # Don't fail request if NewRelic recording fails
+                            
                             resp = JsonResponse({'status': 'error', 'message': 'Rate limit exceeded'}, status=429)
                             resp['Retry-After'] = str(retry_after)
                             return resp
@@ -325,6 +341,20 @@ def rate_limit(*, user_limit: int | None = None, user_burst: int = 0, ip_limit: 
                         except Exception:
                             retry_after2 = int(WINDOW_SECONDS)
                         logger.info("Rate limit hit (ip) for %s ip=%s", name or view_func.__name__, ip)
+                        
+                        # Record NewRelic custom event for alerting
+                        try:
+                            nr.record_custom_event('RateLimitExceeded', {
+                                'limit_type': 'ip',
+                                'endpoint': name or view_func.__name__,
+                                'ip_address': ip,
+                                'limit': ip_limit,
+                                'burst': ip_burst,
+                                'window_seconds': WINDOW_SECONDS,
+                            })
+                        except Exception:
+                            pass  # Don't fail request if NewRelic recording fails
+                        
                         resp2 = JsonResponse({'status': 'error', 'message': 'Rate limit exceeded'}, status=429)
                         resp2['Retry-After'] = str(retry_after2)
                         return resp2

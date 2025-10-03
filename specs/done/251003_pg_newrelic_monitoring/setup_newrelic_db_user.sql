@@ -6,7 +6,7 @@
 CREATE USER newrelic WITH PASSWORD 'CHANGE_THIS_PASSWORD';
 
 -- Grant connection to the database
-GRANT CONNECT ON DATABASE steacher TO newrelic;
+GRANT CONNECT ON DATABASE steacher_prod TO newrelic;
 
 -- Grant usage on public schema
 GRANT USAGE ON SCHEMA public TO newrelic;
@@ -24,5 +24,5 @@ GRANT SELECT ON pg_catalog.pg_namespace TO newrelic;
 GRANT SELECT ON pg_catalog.pg_database TO newrelic;
 
 -- Verify the grants
-\du newrelic
+\du+ newrelic
 

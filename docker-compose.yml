@@ -140,7 +140,6 @@ services:
       - NRIA_DISPLAY_NAME=steacher1
       - NRIA_OVERRIDE_HOSTNAME=steacher1
       - NRIA_CUSTOM_ATTRIBUTES={"env":"prod","service":"steacher"}
-      - NRIA_POSTGRESQL_PASSWORD=${NRIA_POSTGRESQL_PASSWORD}
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -160,7 +159,8 @@ services:
       - newrelic_infra_db:/var/db/newrelic-infra
       - ./newrelic-infra/integrations.d:/etc/newrelic-infra/integrations.d:ro
     networks:
-      - backend  # important for postgresql monitoring integration
+      - backend  # access to postgresql for monitoring
+      - monitoring  # outbound internet access to New Relic cloud
 
 
   certbot:
@@ -193,6 +193,9 @@ networks:
     internal: true  # no outbound egress  
   compute:
     driver: bridge
-    internal: true  # no outbound egress  
+    internal: true  # no outbound egress
+  monitoring:
+    driver: bridge
+    # external internet access for monitoring/observability tools
   maintenance:
     driver: bridge

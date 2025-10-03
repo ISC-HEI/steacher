@@ -8,6 +8,7 @@ TS=$(date +%F_%H-%M-%S)
 docker compose exec -T db pg_dump -U steacher_admin steacher_prod > ~/dev/manual_backup_db/db_$TS.sql
 wormhole send ~/dev/manual_backup_db/db_$TS.sql
 
+# backup app, OPTIONAL
 zip -r        ~/dev/manual_backup_db/app_$TS.zip .
 wormhole send ~/dev/manual_backup_db/app_$TS.zip
 
