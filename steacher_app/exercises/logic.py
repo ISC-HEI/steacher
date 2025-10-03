@@ -30,6 +30,21 @@ def _compute_uncertainty_from_logprobs(resp, first_k: int = 10, threshold_nll_na
     to be robust to minor variations in the response structure but expects the core
     `chosen_candidates` and `top_candidates` fields to be present.
 
+    The metrics are computed as follows:
+    - num_tokens_scored: the number of tokens scored
+    - avg_nll: the average negative log-likelihood
+    - perplexity: the perplexity
+    - std_nll: the standard deviation of the negative log-likelihood
+    - p95_nll: the 95th percentile of the negative log-likelihood
+    - max_nll: the maximum negative log-likelihood
+    - high_surprisal_frac: the fraction of tokens with a negative log-likelihood greater than the threshold
+    - threshold_nll_nats: the threshold negative log-likelihood in nats
+    - topk_margin_mean: the mean of the top-k margin
+    - first_k_avg_nll: the average negative log-likelihood of the first k tokens
+    - observed_mass_topk: the mean of the observed mass of the top-k tokens
+    - observed_entropy_topk: the mean of the observed entropy of the top-k tokens
+    - topk_value: the k value (number of top candidates considered)
+
     Args:
         resp: The `GenerateContentResponse` object from the google.genai client.
         first_k (int): The number of initial tokens to consider for the 'first_k_avg_nll' metric.
@@ -187,7 +202,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     elif action == 'ask_hint':
         user_prompt_content += "I am explicitly asking for a hint."
 
-    # For open/free-form answers on non-MC exercises (e.g., open_question), include student's answer
+    # For open_question, include student's answer
     elif data.get('answer'):
         user_prompt_content += (
             "Here is my submitted answer:\n\n"

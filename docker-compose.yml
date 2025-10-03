@@ -140,6 +140,7 @@ services:
       - NRIA_DISPLAY_NAME=steacher1
       - NRIA_OVERRIDE_HOSTNAME=steacher1
       - NRIA_CUSTOM_ATTRIBUTES={"env":"prod","service":"steacher"}
+      - NRIA_POSTGRESQL_PASSWORD=${NRIA_POSTGRESQL_PASSWORD}
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -157,6 +158,9 @@ services:
       - /sys:/host/sys:ro
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - newrelic_infra_db:/var/db/newrelic-infra
+      - ./newrelic-infra/integrations.d:/etc/newrelic-infra/integrations.d:ro
+    networks:
+      - backend  # important for postgresql monitoring integration
 
 
   certbot:

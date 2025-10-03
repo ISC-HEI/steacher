@@ -1,0 +1,26 @@
+integrations:
+  - name: nri-postgresql
+    env:
+      # Connection details
+      HOSTNAME: db
+      PORT: 5432
+      USERNAME: newrelic
+      # Password pulled from environment variable set in docker-compose
+      PASSWORD: ${NRIA_POSTGRESQL_PASSWORD}
+      DATABASE: steacher
+      
+      # Collection settings
+      COLLECTION_LIST: 'ALL'
+      COLLECT_DB_LOCK_METRICS: true
+      COLLECT_BLOAT_METRICS: true
+      
+      # Disable SSL since we're connecting within Docker network
+      ENABLE_SSL: false
+      TRUST_SERVER_CERTIFICATE: true
+      
+      # Optional: Custom query for additional metrics
+      # CUSTOM_METRICS_QUERY: ''
+      
+      # Timeout settings (in seconds)
+      TIMEOUT: 10
+
