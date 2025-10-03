@@ -7,6 +7,7 @@ import { defineComponent } from "vue";
 interface ProcessedMessage {
     cleanedContent: string;
     thoughts?: string[];
+    _isNew?: boolean;
     [key: string]: any;
 }
 
@@ -59,6 +60,7 @@ export const ChatbotPanel = defineComponent({
             <template v-if="message.role === 'assistant'">
                 <div v-if="message.cleanedContent"
                      class="box content mb-3 assistant-message"
+                     :class="{ 'message-new': message._isNew }"
                      :key="'assistant-content-' + index"
                      style="position: relative;">
                     
@@ -251,8 +253,11 @@ export const ChatbotPanel = defineComponent({
       const messagesEl = this.$refs.messagesContainer as HTMLElement | undefined;
       if (messagesEl) {
         messagesEl.addEventListener('scroll', this.onMessagesScroll, { passive: true });
-        // Initial scroll to bottom on mount
-        this.scrollToBottom();
+        // Delay scroll to ensure messages are rendered in the DOM
+        // A second nextTick ensures the message content has been painted
+        this.$nextTick(() => {
+          this.scrollToBottom();
+        });
       }
     });
     // Initialize unlocked state from server-provided prop
@@ -261,6 +266,18 @@ export const ChatbotPanel = defineComponent({
     try { this.$emit('solution-unlocked', this.solutionUnlocked); } catch (_) { /* noop */ }
   },
   watch: {
+    loading(this: any, newVal: boolean) {
+      // When loading indicator appears, scroll if user is near bottom
+      if (newVal) {
+        this.$nextTick(() => {
+          const messagesEl = this.$refs.messagesContainer as HTMLElement | undefined;
+          if (!messagesEl) return;
+          if (this.isNearBottom(messagesEl)) {
+            this.scrollToBottom();
+          }
+        });
+      }
+    },
     processedMessages: {
       handler(this: any) {
         // After messages update, auto-scroll only if user is near bottom
@@ -308,6 +325,10 @@ export const ChatbotPanel = defineComponent({
       this.$nextTick(() => this.scrollToBottom());
     },
     displayMessage(message: any) {
+        // Check if user is near bottom BEFORE adding the message
+        const messagesEl = this.$refs.messagesContainer as HTMLElement | undefined;
+        const wasNearBottom = messagesEl ? this.isNearBottom(messagesEl) : true;
+        
         const isComplete = message.role === 'assistant' && message.content.includes('<exercise_completed>');
         const isSolutionReveal = message.role === 'assistant' && message.content.includes('<solution_revealed>');
 
@@ -316,9 +337,27 @@ export const ChatbotPanel = defineComponent({
             ? { ...message, content: (message.content || '').replace('<exercise_completed>', '').replace('<solution_revealed>', '').trim() }
             : message;
 
-        // Assign a unique ID for reactivity purposes
-        const messageWithId = { ...messageToDisplay, _id: this.nextMessageId++ };
+        // Assign a unique ID and mark as new (for animation) for assistant messages
+        const messageWithId = { 
+            ...messageToDisplay, 
+            _id: this.nextMessageId++,
+            _isNew: message.role === 'assistant' // Only animate assistant messages
+        };
         this.internalMessages.push(messageWithId);
+        
+        // Remove the _isNew flag after animation completes (300ms)
+        if (messageWithId._isNew) {
+            setTimeout(() => {
+                messageWithId._isNew = false;
+            }, 350);
+        }
+        
+        // If user was near bottom, scroll after DOM updates
+        if (wasNearBottom) {
+            this.$nextTick(() => {
+                this.scrollToBottom();
+            });
+        }
 
         // Track qualifying submissions from user messages to unlock spoiler button
         try {

@@ -287,7 +287,7 @@ input[type="text"].console-input:focus {
     padding-right: 1rem;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
+    overflow-y: auto; /* Keep scrolling for left panel content (exercise description, editor, output) */
     min-height: 0;
 }
 
@@ -297,16 +297,17 @@ input[type="text"].console-input:focus {
     border-left: 1px solid #dbdbdb;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
+    /* overflow-y: auto; REMOVED - let #chatbot .chat-content handle scrolling */
     min-height: 0;
 }
 
 /* chatbot is the container for the chatbot messages */
 #chatbot {
     padding: 10px;
-    flex-grow: 1; /* Allow the chatbot to fill the available space */
+    flex: 1 1 auto; /* Allow the chatbot to fill the available space */
     display: flex;
     flex-direction: column;
+    min-height: 0; /* Critical for nested flex scrolling */
     /* Container itself shouldn't scroll; let the inner messages section scroll */
 }
 
@@ -418,6 +419,23 @@ code {
     border: 1px solid lightgray;
     padding: 10px;
     font-size: 16px;
+}
+
+/* Scale + Fade animation for new assistant messages */
+@keyframes scaleAndFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.assistant-message.message-new {
+    animation: scaleAndFadeIn 300ms ease-out;
+    transform-origin: top left; /* Anchors the scaling to the top-left corner */
 } 
 
 /* Messages area inside chatbot; scrollable and fills available space */
@@ -439,26 +457,6 @@ code {
     box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 
-/* highlight (flash) for new questions */
-.highlight-question {
-  animation: highlight-animation 4s ease-in-out;
-}
-
-@keyframes highlight-animation {
-  0% {
-    background-color: #fcfc02;
-  }
-  100% {
-    background-color: transparent;
-  }
-} 
-
-
-.is-bordered-thin {
-    border: 1px solid #dbdbdb;
-    border-radius: 4px;
-} 
-
 .initial-question {
     width: 100%;
     max-width: 100%;
@@ -474,7 +472,7 @@ code {
     width: 100%;
 }
 
-.schema-panel, .editor-panel, .chatbot-panel-sql {
+.schema-panel, .editor-panel {
     display: flex;
     flex-direction: column;
     overflow-y: auto;
@@ -485,13 +483,16 @@ code {
     min-height: 0;
 }
 
-/* Ensure the chatbot panel inside the grid fills the container */
-.chatbot-panel-sql .chatbot-container {
-    height: 100%;
+.chatbot-panel-sql {
     display: flex;
     flex-direction: column;
+    /* overflow-y: auto; REMOVED - let #chatbot .chat-content handle scrolling */
+    padding: 1rem;
+    background-color: #ffffff;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     min-height: 0;
-} 
+}
 
 .schema-summary {
     cursor: pointer;
