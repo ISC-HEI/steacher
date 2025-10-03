@@ -1,7 +1,7 @@
 {% load static %}
 {% load role_tags %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="height: 100vh;">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -47,8 +47,8 @@
     });
     </script>
 </head>
-<body>
-    <nav class="navbar is-light" role="navigation" aria-label="main navigation">
+<body class="base-layout-body">
+    <nav class="navbar is-light base-layout-navbar" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
             <a class="navbar-item" href="{% teacher_home_url user %}" style="padding: 0;">
                 <img src="{% static 'images/steacher_logo.png' %}" alt="Steacher Logo" style="max-height: 3rem; margin-right: 0.5rem;">
@@ -105,10 +105,30 @@
         </div>
     </nav>
 
-    <div class="{% block container_class %}container{% endblock %} mt-5">
-        {% block content %}
+    <main class="base-layout-main">
+        {% block main_content %}
+        <div class="{% block container_class %}container{% endblock %} mt-5">
+            {% block content %}
+            {% endblock %}
+        </div>
         {% endblock %}
-    </div>
+    </main>
+
+    <footer class="base-layout-footer">
+        {% block footer_content %}
+        <nav class="level is-mobile container">
+            <div class="level-left">
+                {% block footer_left %}{% endblock %}
+            </div>
+            <div class="level-item">
+                <span class="has-text-grey-dark">Steacher is a research project from the Institute of Informatic at <a href="https://hevs.ch" target="_blank">HEVS</a></span>
+            </div>
+            <div class="level-right">
+                {% block footer_right %}{% endblock %}
+            </div>
+        </nav>
+        {% endblock %}
+    </footer>
     
     {% block scripts %}
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js" defer></script>

@@ -9,115 +9,95 @@
     <span>{{ exercise.localized_title | truncatechars:80 }}</span>
 {% endblock %}
 
-{% block content %}
-
-<!-- Shared header with title and teacher edit link -->
-<div class="level" style="margin-bottom: 1rem; flex-wrap: wrap;">
-    <div class="level-left" style="flex: 1 1 auto; min-width: 0;">
-        <div>
-            <h2 class="title is-4" style="white-space: normal; overflow-wrap: anywhere; word-break: break-word;">
-                <span id="exercise-status-icon" class="icon mr-2">
-                    {% if attempt and attempt.complete %}
-                        <i class="fas fa-check-circle has-text-success"></i>
-                    {% else %}
-                        <i class="far fa-circle has-text-grey-light"></i>
-                    {% endif %}
-                </span>
-                {{ exercise.localized_title }}
-            </h2>
+{% block main_content %}
+<div class="exercise-page-wrapper">
+    <div class="exercise-metadata {% block metadata_container_class %}{% endblock %}">
+        <!-- Shared header with title and teacher edit link -->
+        <div class="level" style="margin-bottom: 1rem; flex-wrap: wrap;">
+            <div class="level-left" style="flex: 1 1 auto; min-width: 0;">
+                <div>
+                    <h2 class="title is-4" style="white-space: normal; overflow-wrap: anywhere; word-break: break-word;">
+                        <span id="exercise-status-icon" class="icon mr-2">
+                            {% if attempt and attempt.complete %}
+                                <i class="fas fa-check-circle has-text-success"></i>
+                            {% else %}
+                                <i class="far fa-circle has-text-grey-light"></i>
+                            {% endif %}
+                        </span>
+                        {{ exercise.localized_title }}
+                    </h2>
+                </div>
+            </div>
+            {% if can_edit %}
+            <div class="level-right" style="flex: 0 0 auto; margin-top: 0.5rem;">
+                <form method="post" action="{% url 'exercises:delete_user_answers' exercise.id %}">
+                    {% csrf_token %}
+                    <button class="button is-light" title="Delete my answers">
+                        <span class="icon"><i class="fas fa-trash"></i></span>
+                        <span class="is-size-7">Delete my answers</span>
+                    </button>
+                </form>
+                <a class="button is-light" href="{% url 'teachers:exercise_analytics_detail' exercise.id %}">
+                    <span class="icon"><i class="fas fa-chart-line"></i></span>
+                    <span class="is-size-7">Analytics</span>
+                </a>
+                <a class="button is-light" href="{% url 'teachers:exercise_add' course_pk=exercise.module.course.pk module_pk=exercise.module.pk %}">
+                    <span class="icon"><i class="fas fa-plus"></i></span>
+                    <span class="is-size-7">New exercise</span>
+                </a>
+                <form method="post" action="{% url 'teachers:duplicate_exercise' exercise_id=exercise.pk %}" style="display:inline; ">
+                    {% csrf_token %}
+                    <input type="hidden" name="redirect" value="1">
+                    <button class="button is-light" title="Duplicate & Edit">
+                        <span class="icon"><i class="fas fa-clone"></i></span>
+                        <span class="is-size-7">Duplicate</span>
+                    </button>
+                </form>
+                <a class="button is-light ml-4" href="{% url 'teachers:exercise_edit' course_pk=exercise.module.course.pk exercise_pk=exercise.pk %}">
+                    <span class="icon"><i class="fas fa-pencil-alt"></i></span>
+                    <span>Edit Exercise</span>
+                </a>
+            </div>
+            {% endif %}
         </div>
+
+        {% if can_edit %}<!-- AI tutor system prompt -->
+        <details style="margin-bottom: 1rem;">
+          <summary style="cursor: pointer; font-weight: 600;">AI tutor system prompt [expert mode]</summary>
+
+          {% if prompt_render_error %}
+          <div class="notification is-danger" style="margin-top: 0.75rem;">
+            {{ prompt_render_error }}
+            <div style="margin-top: 0.5rem;">
+              <a class="button is-small is-warning" href="{% url 'teachers:course_edit' pk=exercise.module.course.pk %}">Edit course prompt [expert mode]</a>
+            </div>
+          </div>
+          {% elif system_prompt_preview %}
+          <div style="margin-top: 0.75rem;">
+            <div class="is-size-7" style="margin-bottom: 0.5rem; display:flex; gap: 0.5rem; align-items:center;">
+              <a class="button is-small is-warning" href="{% url 'teachers:course_edit' pk=exercise.module.course.pk %}">Edit course prompt [expert mode]</a>
+              <button class="button is-small" onclick="(function(){ const el=document.getElementById('sys-prompt-pre'); if(!el) return; navigator.clipboard.writeText(el.textContent || ''); alert('System prompt successfully copied to clipboard'); })()">Copy</button>
+            </div>
+            <pre id="sys-prompt-pre" style="max-height: 40vh; overflow: auto; white-space: pre-wrap;">{{ system_prompt_preview|force_escape }}</pre>
+          </div>
+          {% else %}
+          <div class="notification is-warning" style="margin-top: 0.75rem;">
+            No system prompt available yet.
+            <div style="margin-top: 0.5rem;">
+              <a class="button is-small is-warning" href="{% url 'teachers:course_edit' pk=exercise.module.course.pk %}">Edit course prompt [expert mode]</a>
+            </div>
+          </div>
+          {% endif %}
+        </details>
+        {% endif %}
+
+        {% include "exercises/quiz_header.html" %}{% comment %} In quiz mode, this will show the quiz header {% endcomment %}
     </div>
-    {% if can_edit %}
-    <div class="level-right" style="flex: 0 0 auto; margin-top: 0.5rem;">
-        <form method="post" action="{% url 'exercises:delete_user_answers' exercise.id %}">
-            {% csrf_token %}
-            <button class="button is-light" title="Delete my answers">
-                <span class="icon"><i class="fas fa-trash"></i></span>
-                <span class="is-size-7">Delete my answers</span>
-            </button>
-        </form>
-        <a class="button is-light" href="{% url 'teachers:exercise_analytics_detail' exercise.id %}">
-            <span class="icon"><i class="fas fa-chart-line"></i></span>
-            <span class="is-size-7">Analytics</span>
-        </a>
-        <a class="button is-light" href="{% url 'teachers:exercise_add' course_pk=exercise.module.course.pk module_pk=exercise.module.pk %}">
-            <span class="icon"><i class="fas fa-plus"></i></span>
-            <span class="is-size-7">New exercise</span>
-        </a>
-        <form method="post" action="{% url 'teachers:duplicate_exercise' exercise_id=exercise.pk %}" style="display:inline; ">
-            {% csrf_token %}
-            <input type="hidden" name="redirect" value="1">
-            <button class="button is-light" title="Duplicate & Edit">
-                <span class="icon"><i class="fas fa-clone"></i></span>
-                <span class="is-size-7">Duplicate</span>
-            </button>
-        </form>
-        <a class="button is-light ml-4" href="{% url 'teachers:exercise_edit' course_pk=exercise.module.course.pk exercise_pk=exercise.pk %}">
-            <span class="icon"><i class="fas fa-pencil-alt"></i></span>
-            <span>Edit Exercise</span>
-        </a>
+
+    <div class="exercise-panels-wrapper">
+        {% block exercise_content %}{% endblock %}
     </div>
-    {% endif %}
-    
 </div>
-
-{% if can_edit %}<!-- AI tutor system prompt -->
-<details style="margin-bottom: 1rem;">
-  <summary style="cursor: pointer; font-weight: 600;">AI tutor system prompt [expert mode]</summary>
-
-  {% if prompt_render_error %}
-  <div class="notification is-danger" style="margin-top: 0.75rem;">
-    {{ prompt_render_error }}
-    <div style="margin-top: 0.5rem;">
-      <a class="button is-small is-warning" href="{% url 'teachers:course_edit' pk=exercise.module.course.pk %}">Edit course prompt [expert mode]</a>
-    </div>
-  </div>
-  {% elif system_prompt_preview %}
-  <div style="margin-top: 0.75rem;">
-    <div class="is-size-7" style="margin-bottom: 0.5rem; display:flex; gap: 0.5rem; align-items:center;">
-      <a class="button is-small is-warning" href="{% url 'teachers:course_edit' pk=exercise.module.course.pk %}">Edit course prompt [expert mode]</a>
-      <button class="button is-small" onclick="(function(){ const el=document.getElementById('sys-prompt-pre'); if(!el) return; navigator.clipboard.writeText(el.textContent || ''); alert('System prompt successfully copied to clipboard'); })()">Copy</button>
-    </div>
-    <pre id="sys-prompt-pre" style="max-height: 40vh; overflow: auto; white-space: pre-wrap;">{{ system_prompt_preview|force_escape }}</pre>
-  </div>
-  {% else %}
-  <div class="notification is-warning" style="margin-top: 0.75rem;">
-    No system prompt available yet.
-    <div style="margin-top: 0.5rem;">
-      <a class="button is-small is-warning" href="{% url 'teachers:course_edit' pk=exercise.module.course.pk %}">Edit course prompt [expert mode]</a>
-    </div>
-  </div>
-  {% endif %}
-</details>
-{% endif %}
-
-{% include "exercises/quiz_header.html" %}{% comment %} In quiz mode, this will show the quiz header {% endcomment %}
-
-{% block exercise_content %}{% endblock %}
-
-<div style="padding-bottom: 80px;"></div> <!-- Add padding to avoid overlap -->
-
-<!-- previous and next exercise buttons -->
-<div class="sticky-footer-nav">
-    <nav class="level is-mobile container">
-        <div class="level-left">
-            {% if previous_exercise %}
-            <a class="button is-light" href="{% url 'exercises:exercise_detail' pk=previous_exercise.pk %}">
-                <span class="icon"><i class="fas fa-arrow-left"></i></span>
-                <span>Previous</span>
-            </a>
-            {% endif %}
-        </div>
-        <div class="level-right">
-            {% if next_exercise %}
-            <a class="button is-primary" href="{% url 'exercises:exercise_detail' pk=next_exercise.pk %}">
-                <span>Next</span>
-                <span class="icon"><i class="fas fa-arrow-right"></i></span>
-            </a>
-            {% endif %}
-        </div>
-    </nav>
- </div>
 
 <!-- Shared JSON payloads for all exercise types -->
 {{ exercise_json|json_script:"exercise-data" }}
@@ -127,6 +107,24 @@
 {{ completion_feedback|json_script:"completion-feedback-data" }}
 {% endif %}
 {{ solution_unlocked|json_script:"solution-unlocked" }}
+{% endblock %}
+
+{% block footer_left %}
+    {% if previous_exercise %}
+    <a class="button is-light" href="{% url 'exercises:exercise_detail' pk=previous_exercise.pk %}">
+        <span class="icon"><i class="fas fa-arrow-left"></i></span>
+        <span>Previous</span>
+    </a>
+    {% endif %}
+{% endblock %}
+
+{% block footer_right %}
+    {% if next_exercise %}
+    <a class="button is-primary" href="{% url 'exercises:exercise_detail' pk=next_exercise.pk %}">
+        <span>Next</span>
+        <span class="icon"><i class="fas fa-arrow-right"></i></span>
+    </a>
+    {% endif %}
 {% endblock %}
 
 

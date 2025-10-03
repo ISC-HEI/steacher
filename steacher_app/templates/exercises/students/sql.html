@@ -3,13 +3,15 @@
 
 {% block title %}{{ exercise.title }} - SQL{% endblock %}
 
+{% block metadata_container_class %}sql-wide-container{% endblock %}
+
 {% block exercise_content %}
 <div id="sql-exercise-app"
      v-cloak
      data-static-prefix="{% get_static_prefix %}"
      data-asset-url="{% if exercise.exercise_data.db %}{% url 'exercises:serve_asset' exercise_id=exercise.id filename=exercise.exercise_data.db %}{% endif %}">
     {% csrf_token %}
-    <div class="exercise-container-sql">
+    <div class="exercise-container-sql sql-wide-container">
         <div class="schema-panel">
             <h5 class="title is-5">Database Schema</h5>
             <div v-if="loadingState === 'db-loading'">
