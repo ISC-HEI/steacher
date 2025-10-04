@@ -11,13 +11,12 @@
     <span>{% if exercise.pk %}Edit Exercise{% else %}Create Exercise{% endif %}</span>
 {% endblock %}
 
-{% block container_class %}container is-fluid wide-container{% endblock %}
-
-
-{% block content %}
-<div id="exercise-form-app" class="mt-4">
-    <h1 class="title is-3 mb-3">{% if exercise.pk %}Edit Exercise : {{ exercise.title }}{% else %}Create New Exercise{% endif %}</h1>
-    <div class="columns">
+{% block main_content %}
+<div id="exercise-form-app" class="exercise-form-wrapper">
+    <div class="container is-fluid wide-container" style="padding-top: 1rem;">
+        <h1 class="title is-3 mb-3">{% if exercise.pk %}Edit Exercise : {{ exercise.title }}{% else %}Create New Exercise{% endif %}</h1>
+    </div>
+    <div class="columns exercise-form-columns">
         <div class="column is-three-quarters">
             <div v-if="loading" class="notification is-info">Saving...</div>
             <div v-if="error" class="notification is-danger">[[ error ]]</div>
@@ -394,9 +393,8 @@
             </div>
         </div>
     </div>
+    {{ exercise_json|json_script:"exercise-form-data" }}
 </div>
-
-{{ exercise_json|json_script:"exercise-form-data" }}
 {% endblock %}
 
 {% block scripts %}

@@ -25,7 +25,7 @@ html {
 
 .base-layout-main {
     flex: 1 1 auto;
-    overflow: hidden;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
 }
@@ -45,6 +45,7 @@ html {
     display: flex;
     flex-direction: column;
     height: 100%;
+    min-height: 100%;
     overflow: hidden;
 }
 
@@ -71,14 +72,38 @@ html {
     padding-right: 1rem;
 }
 
+/* Standard container for Python, Scala, Open Question */
+.exercise-standard-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+/* Exercise form page layout */
+.exercise-form-wrapper {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 100%;
+    overflow: hidden;
+}
+
+.exercise-form-columns {
+    flex: 1 1 auto;
+    overflow: hidden;
+    margin: 0 !important;
+}
+
+.exercise-form-columns .column {
+    overflow-y: auto;
+    height: 100%;
+    padding: 1rem;
+}
+
 /* Add v-cloak to hide elements before Vue compiles them */
 [v-cloak] {
     display: none;
-}
-
-.question-section .title {
-    color: #363636;
-    margin-bottom: 1.5rem;
 }
 
 .navbar-item strong {
@@ -88,10 +113,6 @@ html {
 .section {
     padding-top: 2rem;
     padding-bottom: 1rem;
-}
-
-.breadcrumb {
-    margin-bottom: 1.5rem;
 }
 
 /* Loading animation enhancement */
@@ -255,14 +276,6 @@ input[type="text"].console-input:focus {
 .exercise-output .table-container {
     max-height: 1200px;
     overflow-y: auto;
-} 
-
-/* Console output area */
-.console-output {
-    min-height: 240px; /* similar to editor min height */
-    max-height: 600px;
-    overflow: auto;
-    border-radius: 4px;
 }
 
 /* Two-column layout for exercise page (Python, Scala, Open Question, etc.) */
@@ -278,7 +291,7 @@ input[type="text"].console-input:focus {
 }
 
 .wide-container {
-    max-width: 1200px !important; /* Important to override the default max-width */
+    max-width: 1400px !important; /* Important to override the default max-width */
     margin: 0 auto !important; /* Center the container */
 }
 
@@ -558,17 +571,6 @@ code {
 @keyframes typing-bounce {
     0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
     30% { opacity: 1; transform: translateY(-3px); }
-}
-
-.collapsible-message summary::marker {
-    font-size: 1.5em; /* Make the disclosure arrow bigger */
-}
-
-.collapsible-message h2 {
-    font-size: 1.1rem;
-}
-.collapsible-message code.language-python {
-    font-size: 0.8rem;
 }
 
 /* Pathway Recommendation Styling - removed (replaced by Bulma components) */

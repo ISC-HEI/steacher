@@ -3,13 +3,15 @@
 
 {% block title %}{{ exercise.localized_title }} - Python{% endblock %}
 
+{% block metadata_container_class %}exercise-standard-container{% endblock %}
+
 {% block exercise_content %}
 <div id="python-exercise-app"
      v-cloak
      data-static-prefix="{% get_static_prefix %}"
      data-execution-timeout="8000">
     {% csrf_token %}
-    <div class="exercise-container">
+    <div class="exercise-container exercise-standard-container">
         <div class="left-panel">
             <div class="exercise">
                 <div class="content">

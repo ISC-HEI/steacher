@@ -3,10 +3,12 @@
 
 {% block title %}{{ exercise.title }} - Open Question{% endblock %}
 
+{% block metadata_container_class %}exercise-standard-container{% endblock %}
+
 {% block exercise_content %}
 <div id="openq-exercise-app" v-cloak>
     {% csrf_token %}
-    <div class="exercise-container">
+    <div class="exercise-container exercise-standard-container">
         <div class="left-panel">
             <div class="exercise">
                 <div class="content">

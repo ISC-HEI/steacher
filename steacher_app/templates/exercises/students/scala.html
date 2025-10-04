@@ -3,12 +3,14 @@
 
 {% block title %}{{ exercise.title }} - Scala{% endblock %}
 
+{% block metadata_container_class %}exercise-standard-container{% endblock %}
+
 {% block exercise_content %}
 <div id="scala-exercise-app"
      v-cloak
      data-static-prefix="{% get_static_prefix %}">
     {% csrf_token %}
-    <div class="exercise-container">
+    <div class="exercise-container exercise-standard-container">
         <div class="left-panel">
             <div class="exercise">
                 <div class="content mb-0">
