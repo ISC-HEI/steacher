@@ -52,11 +52,12 @@
         <div class="navbar-brand">
             <a class="navbar-item" href="{% teacher_home_url user %}" style="padding: 0;">
                 <img src="{% static 'images/steacher_logo.png' %}" alt="Steacher Logo" style="max-height: 3rem; margin-right: 0.5rem;">
-                <strong>Steacher</strong>
+                <strong class="mb-1">Steacher</strong>
             </a>
-
             <div class="navbar-item">
-                <span style="margin-right: 0.5rem; font-weight: bold;">/</span>
+                <span style="margin-right: 0.5rem;">/</span>
+                <a href="{% teacher_home_url user %}">Home</a>
+                <span style="margin: 0 0.5rem;">/</span>
                 {% block page_title %}Dashboard{% endblock %}
             </div>
         </div>
