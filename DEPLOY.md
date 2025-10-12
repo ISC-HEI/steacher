@@ -723,13 +723,22 @@ docker compose exec -T db psql -U steacher_admin steacher_prod -c  "
 CONTAINER=my-local-postgres
 DB=steacher
 DB_USER=postgres
-PROD_BACKUP=/Users/ren/switchdrive/backup/dev/AI_x_teaching/pi_learning/backup/db_2025-10-02_23-55-15.sql
+PROD_BACKUP=/Users/ren/switchdrive/backup/dev/AI_x_teaching/pi_learning/backup/db_2025-10-12_13-38-54.sql
 
 
 docker exec -i my-local-postgres psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS steacher;"
 
 docker exec -i my-local-postgres psql -U postgres -d postgres -c "CREATE DATABASE steacher;"
 
-docker exec -i my-local-postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1   -c "DO \$\$BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='steacher_admin') THEN CREATE ROLE steacher_admin LOGIN; END IF; END\$\$;"
+# Create required roles
+docker exec -i my-local-postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+  -c "DO \$\$BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='steacher_admin') THEN
+          CREATE ROLE steacher_admin LOGIN;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='newrelic') THEN
+          CREATE ROLE newrelic LOGIN;
+        END IF;
+      END\$\$;"
 
 docker run --rm -i --network container:my-local-postgres   -e PGPASSWORD="myverysecretpassword" postgres:17   psql -h 127.0.0.1 -U postgres -d steacher -v ON_ERROR_STOP=1 < "$PROD_BACKUP"
