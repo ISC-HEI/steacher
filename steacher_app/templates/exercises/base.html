@@ -122,7 +122,14 @@
                 {% block footer_left %}{% endblock %}
             </div>
             <div class="level-item">
-                <span class="has-text-grey-dark">Steacher is a research project from the Institute of Informatic at <a href="https://hevs.ch" target="_blank">HEVS</a></span>
+                <span>
+                    <a href="https://www.hevs.ch/isc" target="_blank">
+                        <img src="{% static 'images/ISC Logo inline v2-150.png' %}" alt="ISC Logo" style="height: 35px;">
+                    </a>
+                </span>
+                <span class="has-text-grey-dark pl-6">Steacher is a research project from the 
+                    <a href="https://www.hevs.ch/isc" style="color: #363635;" target="_blank">Computer Science and Communication Systems Institute</a> 
+                    at <a href="https://hevs.ch" style="color: #363635;" target="_blank">HEVS</a></span>
             </div>
             <div class="level-right">
                 {% block footer_right %}{% endblock %}
