@@ -268,8 +268,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         this.worker = null;
                         this.workerReady = false;
                         this.executionError = `Execution timed out after ${this.executionTimeoutMs / 1000} seconds (possible infinite loop).`;
+                        this.consoleHistory.push({ type: 'error', content: this.executionError });
+                        const resolver = this.pendingResolvers[runId];
+                        if (resolver) {
+                            resolver({ success: false, error: this.executionError });
+                        }
                         delete this.pendingResolvers[runId];
-                        this.startWorker();
                     }, this.executionTimeoutMs);
 
                     const msg = await resultPromise.catch((e) => ({ error: String(e), success: false }));
@@ -316,6 +320,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     await this.getGuidance('run_submission', { error: this.executionError });
                 } else {
                     await this.getGuidance('run_submission', { output: this.executionOutput });
+                }
+                
+                // Restart worker if it was terminated due to timeout
+                if (!this.workerReady && !this.worker) {
+                    await this.startWorker();
                 }
             },
             
