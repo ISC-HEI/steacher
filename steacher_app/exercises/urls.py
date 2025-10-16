@@ -1,6 +1,6 @@
 from django.urls import path
 from django.views.generic import TemplateView
-from . import views_students, views_teachers
+from . import views_students, views_teachers, views_annotations
 
 app_name = 'exercises'
 
@@ -62,6 +62,10 @@ teachers_urlpatterns = [
     path('api/quiz/<int:cohort_id>/<int:module_id>/exercises/<int:exercise_id>/results/', views_teachers.quiz_results_api, name='quiz_results_api'),
     # Quiz reset API (teacher)
     path('api/quiz/<int:cohort_id>/<int:module_id>/reset/', views_teachers.reset_quiz, name='quiz_reset'),
+    
+    # Annotation routes
+    path('exercises/<int:exercise_id>/annotate/', views_annotations.annotate_exercise_entry, name='annotate_exercise'),
+    path('exercises/<int:exercise_id>/annotate/<int:attempt_id>/', views_annotations.annotate_attempt, name='annotate_attempt'),
 ]
 
 # Default export keeps backward compatibility (student-facing by default)

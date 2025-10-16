@@ -643,6 +643,32 @@ class QuizLog(models.Model):
         return f"Quiz {self.module.name} for {self.cohort.name} completed at {self.completed_at}"
 
 
+class AttemptEval(models.Model):
+    """
+    Teacher evaluation of a student's attempt at an exercise.
+    Used for manual annotation during the "Analyze" phase of evaluation lifecycle.
+    """
+    attempt = models.ForeignKey(Attempt, on_delete=models.CASCADE, related_name='evaluations')
+    is_ok = models.BooleanField(null=True, blank=True, help_text="True=good, False=bad, None=unknown")
+    feedback = models.TextField(blank=True, help_text="Free-form annotation notes")
+    annotator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name='attempt_annotations')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['attempt', 'annotator'], name='unique_eval_per_annotator_attempt')
+        ]
+        indexes = [
+            models.Index(fields=['annotator', 'created_at'], name='attempteval_annotator_idx'),
+        ]
+
+    def __str__(self):
+        status = "good" if self.is_ok is True else ("bad" if self.is_ok is False else "unknown")
+        return f"Eval of attempt {self.attempt_id} by {self.annotator}: {status}"
+
+
 def localized_name(obj, field_name: str, user, lang: str=None) -> str:
     """
     Helper function to return the localized name of the given object's i18n field for the given user.

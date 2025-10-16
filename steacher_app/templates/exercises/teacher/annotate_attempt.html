@@ -1,0 +1,301 @@
+{% extends "exercises/base.html" %}
+{% load markdown %}
+
+{% block title %}Annotate Attempt - {{ exercise.title }} - Steacher{% endblock %}
+
+{% block page_title %}
+    <a href="{% url 'teachers:course_detail' exercise.module.course.pk %}">{{ exercise.module.course.name }}</a>
+    <span style="margin: 0 0.5rem;">/</span>
+    <span>Annotate: {{ exercise.title }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="container is-fluid mt-4">
+    <div class="columns">
+        <!-- Left column: Attempt details -->
+        <div class="column is-7">
+            <!-- Exercise Question (collapsible, closed by default) -->
+            <details class="box">
+                <summary style="cursor: pointer; font-weight: 600;">
+                    <span class="icon"><i class="fas fa-book"></i></span>
+                    Exercise Question
+                    <a href="{% url 'exercises:exercise_detail' pk=exercise.pk %}" target="_blank" class="icon is-small ml-2" title="Open exercise in new tab" style="vertical-align: middle;">
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>
+                </summary>
+                <div class="content mt-3">
+                    <h3 class="title is-5">{{ exercise.title }}</h3>
+                    {% if exercise.description %}
+                    <p class="mb-3">{{ exercise.description }}</p>
+                    {% endif %}
+                    <div class="content">
+                        {{ exercise.question_i18n.en|markdown }}
+                    </div>
+                    {% if exercise.answer_data.expected_result %}
+                    <p class="mt-3"><strong>Expected result:</strong> <code>{{ exercise.answer_data.expected_result }}</code></p>
+                    {% endif %}
+                    {% if exercise.answer_data.hints %}
+                    <p class="mt-3"><strong>Hints:</strong></p>
+                    <ul>
+                    {% for hint in exercise.answer_data.hints.splitlines %}
+                        <li>{{ hint }}</li>
+                    {% endfor %}
+                    </ul>
+                    {% endif %}
+                    {% if exercise.answer_data.additional_context %}
+                    <p class="mt-3"><strong>Additional context:</strong></p>
+                    <div class="content">
+                        {{ exercise.answer_data.additional_context|linebreaksbr }}
+                    </div>
+                    {% endif %}
+                    {% if exercise.answer_data.correct_answers %}
+                    <p class="mt-3"><strong>Correct answers:</strong></p>
+                    {% for answer in exercise.answer_data.correct_answers %}
+                    <div class="box has-background-success-light mt-2">
+                        {% if answer.answer %}
+                        <pre><code>{{ answer.answer }}</code></pre>
+                        {% endif %}
+                        {% if answer.explanation %}
+                        <p class="mt-2"><em>{{ answer.explanation }}</em></p>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+                </div>
+            </details>
+
+            <!-- Conversation Traces -->
+            <div class="box">
+                <h3 class="title is-5 mb-4">
+                    <span class="icon"><i class="fas fa-comments"></i></span>
+                    Conversation
+                    {% if attempt.cohort %}
+                    <span class="tag is-light ml-2">Cohort: {{ attempt.cohort.name }}</span>
+                    {% endif %}
+                    {% if attempt.asked_for_solution %}
+                    <span class="tag is-danger ml-2" title="Student revealed the solution">
+                        <span class="icon"><i class="fas fa-eye"></i></span>
+                        <span>Solution Revealed</span>
+                    </span>
+                    {% endif %}
+                </h3>
+                
+                {% if traces %}
+                    {% for trace in traces %}
+                    <div class="message mb-4">
+                        <!-- User message -->
+                        {% if trace.user_content %}
+                        {% if trace.user_metadata.action == 'reveal_solution' %}
+                        <div class="message-header has-background-danger-light has-text-dark">
+                            <p><span class="icon"><i class="fas fa-eye"></i></span> Student asked to reveal the solution</p>
+                        </div>
+                        <div class="message-body has-background-danger-light has-text-dark">
+                        {% elif trace.user_metadata.action == 'ask_hint' %}
+                        <div class="message-header has-background-warning-light has-text-dark">
+                            <p><span class="icon"><i class="fas fa-lightbulb"></i></span> Student asked for hint</p>
+                        </div>
+                        <div class="message-body has-background-warning-light has-text-dark">
+                        {% elif trace.user_metadata.action == 'ask_question' %}
+                        <div class="message-header has-background-link-light has-text-dark">
+                            <p><span class="icon"><i class="fas fa-question-circle"></i></span> Student asked a question</p>
+                        </div>
+                        <div class="message-body has-background-link-light has-text-dark">
+                        {% else %}
+                        <div class="message-header has-background-info-light has-text-dark">
+                            <p><span class="icon"><i class="fas fa-user"></i></span> Student</p>
+                        </div>
+                        <div class="message-body has-background-info-light has-text-dark">
+                        {% endif %}
+                            <div class="content">
+                                {{ trace.user_content|linebreaksbr }}
+                            </div>
+                            {% if trace.user_metadata.code %}
+                            <details class="mt-2">
+                                <summary style="cursor: pointer;"><strong>Code submitted:</strong></summary>
+                                <pre class="mt-2"><code>{{ trace.user_metadata.code }}</code></pre>
+                            </details>
+                            {% endif %}
+                            {% if trace.user_metadata.output %}
+                            <details class="mt-2">
+                                <summary style="cursor: pointer;"><strong>Execution result:</strong></summary>
+                                <pre class="mt-2"><code>{{ trace.user_metadata.output }}</code></pre>
+                            </details>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Assistant response -->
+                        {% if trace.assistant_content %}
+                        <div class="message-header has-background-success-light has-text-dark mt-2">
+                            <p><span class="icon"><i class="fas fa-robot"></i></span> AI Tutor</p>
+                        </div>
+                        <div class="message-body has-background-success-light has-text-dark">
+                            <div class="content">
+                                {{ trace.assistant_content|markdown }}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="has-text-grey">No conversation traces found for this attempt.</p>
+                {% endif %}
+            </div>
+
+            <!-- Final Code (collapsible, closed by default) -->
+            {% if traces %}
+            {% with last_code=traces|last %}
+            {% if last_code.user_metadata.code %}
+            <details class="box">
+                <summary style="cursor: pointer; font-weight: 600;">
+                    <span class="icon"><i class="fas fa-code"></i></span>
+                    Final Student Code
+                </summary>
+                <div class="content mt-3">
+                    <pre><code>{{ last_code.user_metadata.code }}</code></pre>
+                </div>
+            </details>
+            {% endif %}
+            {% endwith %}
+            {% endif %}
+        </div>
+
+        <!-- Right column: Annotation form (sticky) -->
+        <div class="column is-5">
+            <div class="box" style="position: sticky; top: 80px;">
+                <h3 class="title is-5 mb-4">
+                    <span class="icon"><i class="fas fa-clipboard-check"></i></span>
+                    Evaluation
+                </h3>
+
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <!-- Progress indicator -->
+                    <div class="notification is-light mb-4">
+                        <p class="has-text-weight-semibold">Progress: {{ nav.annotated_count }} / {{ nav.total_count }} attempts annotated</p>
+                        <progress class="progress is-primary mt-2" value="{{ nav.annotated_count }}" max="{{ nav.total_count }}"></progress>
+                    </div>
+
+                    <!-- Radio buttons for evaluation -->
+                    <div class="field">
+                        <label class="label">Evaluation</label>
+                        <div class="control">
+                            <label class="radio">
+                                <input type="radio" name="is_ok" value="good" {% if existing_eval.is_ok %}checked{% endif %}>
+                                <span class="icon has-text-success"><i class="fas fa-check-circle"></i></span>
+                                Good
+                                <span class="tag is-light is-small ml-2" title="Keyboard shortcut: press 1">1</span>
+                            </label>
+                        </div>
+                        <div class="control">
+                            <label class="radio">
+                                <input type="radio" name="is_ok" value="bad" {% if existing_eval.is_ok == False %}checked{% endif %}>
+                                <span class="icon has-text-danger"><i class="fas fa-times-circle"></i></span>
+                                Bad
+                                <span class="tag is-light is-small ml-2" title="Keyboard shortcut: press 2">2</span>
+                            </label>
+                        </div>
+                        <div class="control">
+                            <label class="radio">
+                                <input type="radio" name="is_ok" value="unknown" {% if existing_eval.is_ok == None and existing_eval %}checked{% endif %}>
+                                <span class="icon has-text-grey"><i class="fas fa-question-circle"></i></span>
+                                Unknown
+                                <span class="tag is-light is-small ml-2" title="Keyboard shortcut: press 3">3</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Feedback textarea -->
+                    <div class="field">
+                        <label class="label">
+                            Comments (free-form notes)
+                            <span class="tag is-light is-small ml-2" title="Keyboard shortcut: press 4">4</span>
+                        </label>
+                        <div class="control">
+                            <textarea class="textarea" name="feedback" rows="6" placeholder="Note any issues, patterns, or observations...">{{ existing_eval.feedback|default:"" }}</textarea>
+                        </div>
+                    </div>
+
+                    <!-- Navigation buttons -->
+                    <div class="field is-grouped is-grouped-centered mt-5">
+                        <div class="control">
+                            <button type="submit" name="action" value="previous" class="button" {% if not nav.previous_id %}disabled{% endif %}>
+                                <span class="icon"><i class="fas fa-arrow-left"></i></span>
+                                <span>Previous</span>
+                            </button>
+                        </div>
+                        <div class="control">
+                            <button type="submit" name="action" value="next" class="button" {% if not nav.next_id %}disabled{% endif %}>
+                                <span>Next</span>
+                                <span class="icon"><i class="fas fa-arrow-right"></i></span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="field is-grouped is-grouped-centered mt-3">
+                        <div class="control">
+                            <button type="submit" name="action" value="next_unannotated" class="button is-primary is-fullwidth" {% if not nav.next_unannotated_id %}disabled{% endif %}>
+                                <span class="icon"><i class="fas fa-forward"></i></span>
+                                <span>Save & Next Unannotated</span>
+                                <span class="tag is-light is-small ml-2" title="Keyboard shortcut: press Z" style="background-color: rgba(255,255,255,0.3);">Z</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- All done message -->
+                {% if all_done %}
+                <div class="notification is-success mt-4">
+                    <p class="has-text-weight-semibold">✓ All attempts annotated!</p>
+                    <p class="mt-2">Next step: <a href="#" class="has-text-link">Create failure mode categories</a></p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Keyboard shortcuts for annotation workflow
+document.addEventListener('keydown', function(e) {
+    // Don't intercept if user is actively typing in textarea or input
+    if (['TEXTAREA', 'INPUT'].includes(e.target.tagName)) {
+        return;
+    }
+    
+    // Don't intercept if user is pressing modifier keys
+    if (e.ctrlKey || e.metaKey || e.altKey) {
+        return;
+    }
+    
+    switch(e.key) {
+        case '1':
+            e.preventDefault();
+            document.querySelector('input[name="is_ok"][value="good"]').checked = true;
+            break;
+        case '2':
+            e.preventDefault();
+            document.querySelector('input[name="is_ok"][value="bad"]').checked = true;
+            break;
+        case '3':
+            e.preventDefault();
+            document.querySelector('input[name="is_ok"][value="unknown"]').checked = true;
+            break;
+        case '4':
+            e.preventDefault();
+            document.querySelector('textarea[name="feedback"]').focus();
+            break;
+        case 'z':
+        case 'Z':
+            e.preventDefault();
+            var btn = document.querySelector('button[name="action"][value="next_unannotated"]');
+            if (btn && !btn.disabled) {
+                btn.click();
+            }
+            break;
+    }
+});
+</script>
+{% endblock %}
+

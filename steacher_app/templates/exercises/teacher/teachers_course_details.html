@@ -116,6 +116,9 @@
                                             <a class="button is-white is-small mr-1" title="Analytics" href="{% url 'teachers:exercise_analytics_detail' exercise.id %}">
                                                 <span class="icon"><i class="fas fa-chart-line"></i></span>
                                             </a>
+                                            <a class="button is-white is-small mr-1" title="Annotate attempts" href="{% url 'teachers:annotate_exercise' exercise.id %}">
+                                                <span class="icon"><i class="fas fa-clipboard-check"></i></span>
+                                            </a>
                                             <button class="button is-white is-small mr-1" title="Delete exercise" @click="deleteExercise('{{ exercise.pk }}')">
                                                 <span class="icon"><i class="fas fa-trash"></i></span>
                                             </button>
