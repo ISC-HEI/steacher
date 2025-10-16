@@ -140,7 +140,7 @@ class CourseAdminForm(forms.ModelForm):
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
     form = CourseAdminForm
-    list_display = ('name', 'owner', 'created_at', 'updated_at')
+    list_display = ('id', 'name', 'owner', 'created_at', 'updated_at')
     search_fields = ('name',)
     readonly_fields = ('created_at', 'updated_at')
     inlines = [CourseMembershipInline, ModuleInline]
@@ -529,7 +529,7 @@ class CohortMembershipInline(admin.TabularInline):
 @admin.register(Cohort)
 class CohortAdmin(admin.ModelAdmin):
     form = CohortAdminForm
-    list_display = ('name', 'course', 'owner', 'code', 'created_at', 'updated_at')
+    list_display = ('id', 'name', 'course', 'owner', 'code', 'created_at', 'updated_at')
     list_filter = ('course',)
     search_fields = ('name', 'code', 'description')
     readonly_fields = ('created_at', 'updated_at')

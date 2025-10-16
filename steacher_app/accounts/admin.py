@@ -60,7 +60,7 @@ class UserAdmin(DjangoUserAdmin):
             },
         ),
     )
-    list_display = ("username", "email", "first_name", "last_name", "preferred_language")
+    list_display = ("id", "username", "email", "first_name", "last_name", "preferred_language")
     search_fields = ("username", "first_name", "last_name", "email")
     ordering = ("username",)
     inlines = [CohortMembershipInline, CourseMembershipInline]
