@@ -1,0 +1,128 @@
+{% extends "exercises/base.html" %}
+
+{% block page_title %}
+    <a href="{% url 'teachers:dashboard' %}">Teacher Dashboard</a> / 
+    Model Comparison Stats - {{ experiment.name }}
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <section class="section">
+        <div class="level">
+            <div class="level-left">
+                <h1 class="title is-2">Model Comparison Statistics</h1>
+            </div>
+            <div class="level-right">
+                <a class="button is-primary" href="{% url 'evaluation:experiment_evaluate' experiment.id %}">
+                    <span class="icon"><i class="fas fa-arrow-left"></i></span>
+                    <span>Back to Evaluation</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="box">
+            <h2 class="title is-4">{{ experiment.name }}</h2>
+            <p class="subtitle is-6">{{ experiment.description }}</p>
+            
+            <div class="columns is-multiline mt-4">
+                <div class="column is-one-third">
+                    <div class="notification is-info is-light">
+                        <p class="heading">Total Comparisons</p>
+                        <p class="title is-3">{{ total_comparisons }}</p>
+                    </div>
+                </div>
+                <div class="column is-one-third">
+                    <div class="notification is-warning is-light">
+                        <p class="heading">Skipped</p>
+                        <p class="title is-3">{{ total_skipped }}</p>
+                    </div>
+                </div>
+                <div class="column is-one-third">
+                    <div class="notification is-success is-light">
+                        <p class="heading">Models Compared</p>
+                        <p class="title is-3">{{ model_stats|length }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if model_stats %}
+        <div class="box">
+            <h2 class="title is-4 mb-4">
+                <span class="icon"><i class="fas fa-trophy"></i></span>
+                <span>Win Rates by Model</span>
+            </h2>
+            
+            <p class="subtitle is-6 mb-4">
+                Win rate = percentage of comparisons where the model was ranked #1
+            </p>
+
+            <table class="table is-fullwidth is-striped is-hoverable">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th class="has-text-centered">Win Rate</th>
+                        <th class="has-text-centered">Wins</th>
+                        <th class="has-text-centered">Total Appearances</th>
+                        <th class="has-text-centered">Original Wins</th>
+                        <th>Progress Bar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for model_name, stats in model_stats.items %}
+                    <tr>
+                        <td>
+                            <strong>{{ model_name }}</strong>
+                        </td>
+                        <td class="has-text-centered">
+                            <span class="tag is-large" 
+                                  style="{% if stats.win_rate >= 50 %}background-color: #48c78e; color: white;{% elif stats.win_rate >= 30 %}background-color: #ffe08a; color: #363636;{% else %}background-color: #f14668; color: white;{% endif %}">
+                                {{ stats.win_rate|floatformat:1 }}%
+                            </span>
+                        </td>
+                        <td class="has-text-centered">
+                            {{ stats.wins }}
+                        </td>
+                        <td class="has-text-centered">
+                            {{ stats.total }}
+                        </td>
+                        <td class="has-text-centered">
+                            {% if stats.is_original_wins > 0 %}
+                                <span class="tag is-info">{{ stats.is_original_wins }}</span>
+                            {% else %}
+                                <span class="has-text-grey">0</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <progress class="progress is-success" 
+                                      value="{{ stats.win_rate|floatformat:0 }}" 
+                                      max="100"
+                                      style="width: 100%;">
+                                {{ stats.win_rate|floatformat:0 }}%
+                            </progress>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <div class="content mt-4">
+                <p class="is-size-7 has-text-grey">
+                    <strong>Original Wins:</strong> Number of times the model won when it was the original response shown to the student (vs. regenerated)
+                </p>
+            </div>
+        </div>
+        {% else %}
+        <div class="notification is-warning">
+            <p class="title is-5">No comparisons completed yet</p>
+            <p>Start evaluating to see statistics.</p>
+            <a class="button is-primary mt-3" href="{% url 'evaluation:experiment_evaluate' experiment.id %}">
+                <span class="icon"><i class="fas fa-play"></i></span>
+                <span>Start Evaluating</span>
+            </a>
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
+

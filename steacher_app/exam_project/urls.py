@@ -44,6 +44,7 @@ urlpatterns = [
     path('accounts/', include('django.contrib.auth.urls')),
     path('exercises/', include((exercises_urls.students_urlpatterns, 'exercises'), namespace='exercises')),
     path('teachers/', include((exercises_urls.teachers_urlpatterns, 'teachers'), namespace='teachers')),
+    path('evaluation/', include('evaluation.urls')),
     path('', login_required(dashboard), name='dashboard_root'),  # Root shows student dashboard (requires login)
 ]
 

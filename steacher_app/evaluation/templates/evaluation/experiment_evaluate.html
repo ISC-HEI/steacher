@@ -1,0 +1,295 @@
+{% load static %}
+{% load markdown %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Comparison - {{ experiment.name }}</title>
+    
+    <!-- Bulma CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.7.2/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        
+        .header-bar {
+            background-color: #f5f5f5;
+            border-bottom: 1px solid #dbdbdb;
+            padding: 0.75rem 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+        
+        .conversation-section {
+            max-width: 1200px;
+            margin: 0 auto 2rem;
+            background: white;
+            border: 1px solid #dbdbdb;
+            border-radius: 6px;
+            padding: 1.5rem;
+        }
+        
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .model-column {
+            background: white;
+            border: 2px solid #dbdbdb;
+            border-radius: 6px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .model-label {
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 1rem;
+            padding: 0.5rem;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+        
+        .model-response {
+            flex: 1;
+            margin-bottom: 1rem;
+            overflow-y: auto;
+            max-height: 500px;
+        }
+        
+        .error-response {
+            background-color: #fee;
+            border: 1px solid #fcc;
+            padding: 1rem;
+            border-radius: 4px;
+        }
+        
+        .model-comment-box {
+            margin-top: auto;
+        }
+        
+        .ranking-section {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border: 2px solid #3273dc;
+            border-radius: 6px;
+            padding: 1.5rem;
+        }
+        
+        .ranking-input {
+            font-size: 1.5rem;
+            font-family: monospace;
+            text-align: center;
+            padding: 0.75rem;
+        }
+        
+        @media (max-width: 1400px) {
+            .comparison-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .comparison-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header-bar">
+        <div>
+            <strong>{{ experiment.name }}</strong>
+            <span class="ml-4">Model Comparison Evaluation</span>
+        </div>
+        <div>
+            <a href="{% url 'evaluation:experiment_stats' experiment.id %}" class="button is-small is-info">
+                <span class="icon"><i class="fas fa-chart-line"></i></span>
+                <span>View Stats</span>
+            </a>
+            <form method="post" action="{% url 'logout' %}" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="button is-small is-light">
+                    <span class="icon"><i class="fas fa-sign-out-alt"></i></span>
+                    <span>Logout</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="main-content">
+        {% if error %}
+        <div class="notification is-danger max-width-1200 mx-auto mb-4">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <!-- Conversation History Section -->
+        <div class="conversation-section">
+            <h2 class="title is-4 mb-4">
+                <span class="icon"><i class="fas fa-comments"></i></span>
+                <span>Conversation History</span>
+            </h2>
+            
+            {% if comparison.conversation_history %}
+                {% for message in comparison.conversation_history %}
+                    {% if message.role == 'user' %}
+                        <div class="user-message mb-3">
+                            {{ message.content|markdown }}
+                        </div>
+                    {% elif message.role == 'assistant' %}
+                        <div class="assistant-message mb-3">
+                            {{ message.content|markdown }}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            {% else %}
+                <p class="has-text-grey">No conversation history (first interaction)</p>
+            {% endif %}
+        </div>
+
+        <!-- Model Responses Grid -->
+        <h2 class="title is-4 has-text-centered mb-4">Model Responses</h2>
+        
+        <div class="comparison-grid">
+            {% for letter, response in comparison.model_responses.items %}
+            <div class="model-column">
+                <div class="model-label">Model {{ letter|upper }}</div>
+                
+                <div class="model-response">
+                    {% if response.response|slice:":6" == "ERROR:" %}
+                        <div class="error-response">
+                            <p class="has-text-danger has-text-weight-bold">
+                                <span class="icon"><i class="fas fa-exclamation-triangle"></i></span>
+                                Error from model: {{ response.metadata.model }}
+                            </p>
+                            <p>{{ response.response }}</p>
+                        </div>
+                    {% else %}
+                        <div class="content">
+                            {{ response.response|markdown }}
+                        </div>
+                    {% endif %}
+                    
+                    {% if response.reasoning %}
+                        <details class="mt-3">
+                            <summary class="has-text-weight-semibold is-size-7" style="cursor: pointer;">
+                                <span class="icon is-small"><i class="fas fa-brain"></i></span>
+                                Reasoning
+                            </summary>
+                            <div class="box mt-2 has-background-light is-size-7">
+                                <p class="has-text-grey-dark" style="white-space: pre-wrap;">{{ response.reasoning }}</p>
+                            </div>
+                        </details>
+                    {% endif %}
+                </div>
+                
+                <div class="model-comment-box">
+                    <label class="label is-small">Comment for {{ letter|upper }}</label>
+                    <textarea 
+                        name="comment_{{ letter }}" 
+                        form="evaluation-form"
+                        class="textarea is-small" 
+                        rows="2" 
+                        placeholder="Optional comment about this response..."></textarea>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Ranking Section -->
+        <form id="evaluation-form" method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="submit">
+            
+            <div class="ranking-section">
+                <h3 class="title is-5 mb-3">
+                    <span class="icon"><i class="fas fa-sort"></i></span>
+                    <span>Rank the Responses</span>
+                </h3>
+                
+                <div class="content mb-4">
+                    <p>Type your ranking below. Examples:</p>
+                    <ul>
+                        <li><code>abcd</code> - A is best, B is 2nd, C is 3rd, D is worst</li>
+                        <li><code>(ab)cd</code> - A and B tied for 1st, C is 3rd, D is 4th</li>
+                        <li><code>a(bc)d</code> - A is 1st, B and C tied for 2nd, D is 4th</li>
+                    </ul>
+                </div>
+                
+                <div class="field">
+                    <label class="label">Your Ranking</label>
+                    <div class="control">
+                        <input 
+                            type="text" 
+                            name="ranking_input" 
+                            class="input ranking-input"
+                            placeholder="e.g., abcd or (ab)cd"
+                            autofocus
+                            required>
+                    </div>
+                </div>
+                
+                <div class="field mt-4">
+                    <label class="label">Global Comment (Optional)</label>
+                    <div class="control">
+                        <textarea 
+                            name="global_comment" 
+                            class="textarea" 
+                            rows="3"
+                            placeholder="Overall observations about this comparison..."></textarea>
+                    </div>
+                </div>
+                
+                <div class="field is-grouped is-grouped-centered mt-5">
+                    <div class="control">
+                        <button type="submit" class="button is-primary is-large">
+                            <span class="icon"><i class="fas fa-check"></i></span>
+                            <span>Submit Ranking</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+        
+        <!-- Skip button as separate form -->
+        <form method="post" style="text-align: center; margin-top: 1rem;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="skip">
+            <button type="submit" class="button is-light is-large">
+                <span class="icon"><i class="fas fa-forward"></i></span>
+                <span>Skip This Comparison</span>
+            </button>
+        </form>
+        
+        <div style="height: 2rem;"></div> <!-- Spacer -->
+    </div>
+</body>
+</html>
+

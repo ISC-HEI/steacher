@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     # our apps
     'accounts',  # only used for custom user model (prefered language)
     'exercises',
+    'evaluation',
 ]
 
 MIDDLEWARE = [
@@ -142,6 +143,7 @@ PASSWORD_HASHERS = [
 # OpenAI API Key
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '')
 SCALA_INTERPRETER_URL = os.getenv('SCALA_INTERPRETER_URL', 'http://localhost:8642')
 
 # Internationalization
