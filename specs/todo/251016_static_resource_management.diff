@@ -1,0 +1,83 @@
+diff --git a/nginx/nginx.conf b/nginx/nginx.conf
+index f9a4a79..b3320d9 100644
+--- a/nginx/nginx.conf
++++ b/nginx/nginx.conf
+@@ -150,13 +150,10 @@ http {
+ 
+         # Static and media (read-only mounts)
+         location /static/ {
+-            alias /app/static/;
+-        }
+-        location ~ ^/static/(.+\.mjs)$ {
+-            alias /app/static/$1;
+-            default_type application/javascript;
++            alias /app/staticfiles/;
+             expires 1y;
+             access_log off;
++            add_header Cache-Control "public, immutable";
+         }
+         location /media/ {
+             alias /app/media/;
+diff --git a/steacher_app/Dockerfile b/steacher_app/Dockerfile
+index 529625c..cce4a5a 100644
+--- a/steacher_app/Dockerfile
++++ b/steacher_app/Dockerfile
+@@ -37,6 +37,8 @@ COPY . .
+ COPY --from=builder /app/static/js/dist/ /app/static/js/dist/
+ COPY --from=builder /app/node_modules/ /app/node_modules/
+ 
++# Collect static files and generate manifest for cache-busting
++RUN python manage.py collectstatic --noinput
+ 
+ # Entrypoint (New Relic + Uvicorn with workers)
+ ENTRYPOINT ["sh","-c","NEW_RELIC_CONFIG_FILE=${NEW_RELIC_CONFIG_FILE:-/app/newrelic.ini} newrelic-admin run-program uvicorn exam_project.asgi:application --host 0.0.0.0 --port 8000 --workers ${WEB_CONCURRENCY:-5} --log-level info"]
+diff --git a/steacher_app/exam_project/settings.py b/steacher_app/exam_project/settings.py
+index a1dd0bb..5354eda 100644
+--- a/steacher_app/exam_project/settings.py
++++ b/steacher_app/exam_project/settings.py
+@@ -170,6 +170,17 @@ STATICFILES_DIRS = [
+     BASE_DIR / "node_modules",
+ ]
+ 
++# Use ManifestStaticFilesStorage for cache-busting via file hashing
++# Custom storage ignores missing source maps from node_modules
++STORAGES = {
++    "default": {
++        "BACKEND": "django.core.files.storage.FileSystemStorage",
++    },
++    "staticfiles": {
++        "BACKEND": "exercises.storage.ForgivingManifestStaticFilesStorage",
++    },
++}
++
+ # Default primary key field type
+ # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
+ 
+diff --git a/steacher_app/exercises/storage.py b/steacher_app/exercises/storage.py
+new file mode 100644
+index 0000000..2f0ef70
+--- /dev/null
++++ b/steacher_app/exercises/storage.py
+@@ -0,0 +1,22 @@
++# Custom storage backend for static files
++from django.contrib.staticfiles.storage import ManifestStaticFilesStorage
++
++
++class ForgivingManifestStaticFilesStorage(ManifestStaticFilesStorage):
++    """
++    ManifestStaticFilesStorage that doesn't fail on missing source maps or other referenced files.
++    """
++    manifest_strict = False
++
++    def hashed_name(self, name, content=None, filename=None):
++        """
++        Return hashed name, but don't fail if a referenced file (like a source map) is missing.
++        """
++        try:
++            return super().hashed_name(name, content, filename)
++        except ValueError as e:
++            # If file not found, return the original name unchanged
++            if "could not be found" in str(e):
++                return name
++            raise
++
