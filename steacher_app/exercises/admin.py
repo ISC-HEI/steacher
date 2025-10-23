@@ -294,7 +294,7 @@ class ExerciseAssetUploadForm(forms.ModelForm):
 @admin.register(ExerciseAsset)
 class ExerciseAssetAdmin(admin.ModelAdmin):
     form = ExerciseAssetUploadForm
-    list_display = ('name', 'course', 'description', 'created_at')
+    list_display = ('name', 'course', 'description', 'content_size', 'created_at')
     list_filter = ('course',)
     search_fields = ('name', 'description')
     readonly_fields = ('created_at', 'updated_at', 'content_size')
