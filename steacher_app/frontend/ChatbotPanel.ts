@@ -43,6 +43,10 @@ export const ChatbotPanel = defineComponent({
     solutionUnlockedInitial: {
         type: Boolean,
         default: false,
+    },
+    confettiAlreadyShown: {
+        type: Boolean,
+        default: false,
     }
   },
   // language=HTML
@@ -381,20 +385,22 @@ export const ChatbotPanel = defineComponent({
 
             // If we reach here, it's the first time processing completion.
             // Fire confetti and log for debugging.
-            if (!isSolutionReveal) {
+            if (!isSolutionReveal && !this.confettiAlreadyShown) {
                 console.log('Exercise complete: Firing confetti! 🎊');
                 confetti({ particleCount: 200, spread: 150, origin: { y: 0.6 } });
+            } else if (this.confettiAlreadyShown) {
+                console.log('Exercise complete: confetti already shown by exercise component.');
             } else {
                 console.log('Exercise complete (solution revealed): confetti suppressed.');
             }
 
-            // Trigger pathway logic
-            if (this.nextExerciseUrl) {
-                this.fetchPathwayRecommendation();
-            } else {
+            // Trigger pathway logic, TODO disabled for now
+            //if (this.nextExerciseUrl) {
+            //    this.fetchPathwayRecommendation();
+            //} else {
                 // This is the last exercise, show celebration
                 // disabled for now this.showCompletionModal = true;
-            }
+            //}
         }
     },
 

@@ -67,7 +67,8 @@ class AnswerData(BaseModel):
     unit_tests: UnitTests = Field(default_factory=UnitTests, description="The unit tests to run (if applicable). These tests will be run by the system and the results will be added to the student's prompt for the assistant.")
     correct_answers: List[CorrectAnswer] = Field(default_factory=list, description='''A list of correct answers to this question. 
     It's recommended to include multiple correct answers that reflect the expected diversity of student responses. It's the job of the assistant to propose an exhaustive list of correct answers.
-    For example, for a scala program to print the numbers from 1 to 10, you could include both "(1 to 10).foreach(println)" and "for (i <- 1 to 10)\\n   println(i)" as they express the same logic in different ways.''')
+    For example, for a scala program to print the numbers from 1 to 10, you could include both "(1 to 10).foreach(println)" and "for (i <- 1 to 10)\\n   println(i)" as they express the same logic in different ways.
+    For turtle exercises, the answer is Python code that will be executed via Pyodide to draw the correct pattern on canvas (rendered as reference in gray).''')
 
     class Config:
         extra = 'ignore'
@@ -122,7 +123,7 @@ def get_pydantic_schema_as_string() -> str:
   - `en` (string): English question.
   - `de` (string): German question.
   - `fr` (string): French question.
-- `exercise_type` (string): The type of the exercise (one of `python`, `sql`, `open_question`, `scala`). Determines the structure of `exercise_data`. Modify only if it makes sense.
+- `exercise_type` (string): The type of the exercise (one of `python`, `sql`, `open_question`, `scala`, `turtle`). Determines the structure of `exercise_data`. Modify only if it makes sense.
 - `available_sql_assets` (array of strings, read-only): For SQL exercises, a list of available database assets. Can be used to set up the db field in `exercise_data` below.
 - `course_pk` (integer, read-only): The primary key of the course this exercise belongs to. Do not modify.
 - `course_name` (string, read-only): The name of the course this exercise belongs to. Do not modify.

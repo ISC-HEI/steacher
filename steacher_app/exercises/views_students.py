@@ -445,6 +445,13 @@ def exercise_detail(request, pk):
         'created_at': exercise.created_at.isoformat(),
         'updated_at': exercise.updated_at.isoformat(),
     }
+    
+    # For turtle exercises, include the solution code (needed to draw reference pattern)
+    if exercise.exercise_type == 'turtle':
+        answer_data = exercise.answer_data or {}
+        correct_answers = answer_data.get('correct_answers', [])
+        if correct_answers and len(correct_answers) > 0:
+            exercise_json['solution_code'] = correct_answers[0].get('answer', '')
 
     attempt_id = None
     interactions = []
@@ -535,7 +542,9 @@ def exercise_detail(request, pk):
         'python': 'exercises/students/python.html',
         'scala': 'exercises/students/scala.html',
         'open_question': 'exercises/students/open_question.html',
+        'turtle': 'exercises/students/turtle.html',
     }
+    
     template_name = template_map.get(exercise.exercise_type)
     if not template_name:
         raise Http404(f"Unsupported exercise type: {exercise.exercise_type}")

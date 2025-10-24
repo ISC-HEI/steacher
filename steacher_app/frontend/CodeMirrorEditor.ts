@@ -194,6 +194,9 @@ export const CodeMirrorEditor = defineComponent({
                 default:
                     return [];
             }
+        },
+        getEditor() {
+            return this.editor;
         }
     },
 

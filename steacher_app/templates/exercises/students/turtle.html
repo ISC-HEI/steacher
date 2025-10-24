@@ -1,0 +1,182 @@
+{% extends 'exercises/exercise.html' %}
+{% load static %}
+
+{% block title %}{{ exercise.title }} - Turtle Graphics{% endblock %}
+
+{% block metadata_container_class %}turtle-wide-container{% endblock %}
+
+{% block exercise_content %}
+<div id="turtle-exercise-app"
+     v-cloak
+     data-static-prefix="{% get_static_prefix %}">
+    {% csrf_token %}
+    <div class="exercise-container-turtle turtle-wide-container">
+        <div class="left-panel">
+            <h5 class="title is-5">Question</h5>
+            <div class="exercise">
+                <div class="content">
+                    <div v-if="exercise.question"
+                         v-html="renderMarkdown(exercise.question)"
+                         class="box content mb-3 initial-question">
+                    </div>
+                </div>
+            </div>
+
+            <h5 class="title is-5 mt-4">Code Editor</h5>
+            <div class="field">
+                <div class="control">
+                    <code-mirror-editor
+                        ref="codeMirrorEditor"
+                        persistence-key="turtle-{{ exercise.id }}"
+                        language="python"
+                        v-model="userCode"
+                        :placeholder="'# Write your Python code here'"
+                        @run-query="executeUserCode">
+                    </code-mirror-editor>
+                </div>
+            </div>
+
+            <div class="field is-grouped exercise-controls mt-3">
+                <div class="control">
+                    <button
+                        v-if="!hasRun"
+                        @click="executeUserCode"
+                        class="button is-primary"
+                        :class="{ 'is-loading': loadingState === 'executing' }"
+                        :disabled="!pyodideReady || loadingState !== 'idle'">
+                        <span class="icon"><i class="fas fa-play"></i></span>
+                        <span>Run</span>
+                    </button>
+                    <button
+                        v-else
+                        @click="resetExercise"
+                        class="button is-danger">
+                        <span class="icon"><i class="fas fa-times"></i></span>
+                        <span>Reset</span>
+                    </button>
+                </div>
+                <div class="control">
+                    <button
+                        @click="submitAnswer"
+                        class="button is-success"
+                        :class="{ 'is-loading': loadingState === 'getting-guidance' }"
+                        :disabled="loadingState !== 'idle'">
+                        <span class="icon"><i class="fas fa-paper-plane"></i></span>
+                        <span>Submit</span>
+                    </button>
+                </div>
+                <div class="control">
+                    <button
+                        @click="giveHint"
+                        class="button is-info"
+                        :class="{ 'is-loading': loadingState === 'getting-guidance' }"
+                        :disabled="loadingState !== 'idle'">
+                        <span class="icon"><i class="fas fa-lightbulb"></i></span>
+                        <span>Gimme a Hint</span>
+                    </button>
+                </div>
+                <div class="control mt-3">
+                    <div class="is-flex is-align-items-center">
+                        <span class="has-text-weight-light mr-2">slow</span>
+                        <input type="range" v-model.number="animationSpeed" min="5" max="2000" step="5" style="width: 150px;" class="is-small">
+                        <span class="has-text-weight-light ml-2">fast</span>
+                    </div>
+                </div>
+    
+                <div class="control" v-if="loadingState === 'pyodide-loading'">
+                    <span class="tag is-light is-info is-medium">Loading Python interpreter...</span>
+                </div>
+            </div>
+
+            <div v-if="executionError" class="turtle-error-console mt-3">
+                <p>[[ executionError ]]</p>
+            </div>
+
+            <div class="turtle-help mt-4">
+                <p class="has-text-weight-semibold mb-2" style="font-size: 0.9rem;">Common Turtle Commands:</p>
+                <div style="font-size: 0.85rem; line-height: 1.6;">
+                    <div><code>forward(n)</code> move forward n steps, default is 1</div>
+                    <div><code>turn_right(deg)</code> turn right by degrees, default is 90</div>
+                    <div><code>turn_left(deg)</code> turn left by degrees, default is 90</div>
+                    <div><code>pen_up()</code> lift pen (no drawing). pen is down by default.</div>
+                    <div><code>pen_down()</code> put pen down (draw)</div>
+                    <div><code>jump_to(x,y)</code> move to position (x, y)</div>
+                    <div><code>at_goal()</code> return True if turtle is at goal position (green circle)</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="canvas-panel">
+            <h5 class="title is-5">Turtle Canvas</h5>
+            <div class="turtle-canvas-container">
+                <canvas ref="solutionCanvas" width="600" height="600"></canvas>
+                <canvas ref="userCanvas" width="600" height="600"></canvas>
+            </div>
+            
+            <div class="turtle-instruction-log mt-3">
+                <table class="table is-narrow is-fullwidth is-striped">
+                    <thead>
+                        <tr>
+                            <th>Step</th>
+                            <th>Line Nr <abbr title="Line number in the code editor"><i class="fas fa-question-circle" style="font-size: 0.8em;"></i></abbr></th>
+                            <th>Instruction</th>
+                            <th>X</th>
+                            <th>Y</th>
+                            <th>Heading <abbr title="0°=North (up), 90°=East (right), 180°=South (down), 270°=West (left)"><i class="fas fa-question-circle" style="font-size: 0.8em;"></i></abbr></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="log in instructionLog" :key="log.stepId">
+                            <td>[[ log.stepId ]]</td>
+                            <td>[[ log.lineno !== null ? log.lineno : '-' ]]</td>
+                            <td>[[ log.instruction ]]</td>
+                            <td>[[ log.x.toFixed(2) ]]</td>
+                            <td>[[ log.y.toFixed(2) ]]</td>
+                            <td>[[ log.heading.toFixed(0) ]]°</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="chatbot-panel-turtle">
+            <h5 class="title is-5">AI Tutor</h5>
+            <chatbot-panel
+                ref="chatbotPanel"
+                :loading="loadingState === 'getting-guidance'"
+                :attempt-id="{{ attempt_id }}"
+                next-exercise-url="{% if next_exercise %}{% url 'exercises:exercise_detail' next_exercise.pk %}{% endif %}"
+                :solution-unlocked-initial="{{ solution_unlocked|yesno:'true,false' }}"
+                :confetti-already-shown="confettiShown"
+                @question-asked="handleQuestion"
+                @solution-unlocked="solutionUnlocked = $event"
+                @reveal-solution="getGuidance('reveal_solution')">
+            </chatbot-panel>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+
+<!-- Import Map for Bare Module Specifiers -->
+<script type="importmap">
+{
+  "imports": {
+    "vue": "https://cdn.jsdelivr.net/npm/vue@3.5.22/dist/vue.esm-browser.prod.js",
+    "pyodide": "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.mjs",
+    "canvas-confetti": "https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.module.mjs",
+    "./ChatbotPanel.js": "{% static 'js/dist/ChatbotPanel.js' %}",
+    "marked": "https://cdn.jsdelivr.net/npm/marked@16.0.0/lib/marked.esm.js",
+    "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs",
+    "./CodeMirrorEditor.js": "{% static 'js/dist/CodeMirrorEditor.js' %}",
+    "codemirror-bundle": "{% static 'js/dist/codemirror-bundle.js' %}"
+  }
+}
+</script>
+
+<!-- Our JavaScript -->
+<script type="module" src="{% static 'js/dist/turtle.js' %}"></script>
+
+{% endblock %}
+

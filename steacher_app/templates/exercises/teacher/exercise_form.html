@@ -129,15 +129,15 @@
                                             <option value="python">Python</option>
                                             <option value="scala">Scala</option>
                                             <option value="sql">SQL</option>
-                                            <!-- <option value="turtle">Turtle</option> not really implemented yet -->                                        
+                                            <option value="turtle">Turtle</option>
                                         </select>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    <!-- Answer Template (only for Python, SQL, Scala, Open Question) -->
-                    <div class="field is-horizontal" v-if="['python','sql','scala','open_question'].includes(exercise.exercise_type)">
+                    <!-- Answer Template (only for Python, SQL, Scala, Turtle, Open Question) -->
+                    <div class="field is-horizontal" v-if="['python','sql','scala','open_question','turtle'].includes(exercise.exercise_type)">
                         <div class="field-label is-normal">
                             <label for="answer_template" class="label">Answer Template
                             <span class="tooltip-container">
@@ -247,100 +247,103 @@
                     </div>
                 </div>
                 <button type="button" @click="addCorrectAnswer" class="button is-link mb-4" title="Add another possible correct answer.">Add Correct Answer</button>
-                <hr>
-                <h3 class="mb-3 title is-4">Unit Tests</h3>
-                <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                        <label for="setup-code" class="label">Setup Code
-                        <span class="tooltip-container">
-                        <span class="tooltip-icon">?</span>
-                        <span class="tooltip-text">Optional code that runs once before all test cases. Use it to define shared functions or import libraries needed for testing.</span>
-                        </span>
-                        </label>
-                    </div>
-                    <div class="field-body">
-                        <div class="field">
-                            <div class="control">
-                                <textarea id="setup-code" class="textarea" v-model="exercise.answer_data.unit_tests.setup_code" rows="5"></textarea>
-                            </div>
+                
+                <div v-if="['python','scala'].includes(exercise.exercise_type)">
+                    <hr>
+                    <h3 class="mb-3 title is-4">Unit Tests</h3>
+                    <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                            <label for="setup-code" class="label">Setup Code
+                            <span class="tooltip-container">
+                            <span class="tooltip-icon">?</span>
+                            <span class="tooltip-text">Optional code that runs once before all test cases. Use it to define shared functions or import libraries needed for testing.</span>
+                            </span>
+                            </label>
                         </div>
-                    </div>
-                </div>
-                <div class="field is-horizontal">
-                    <div class="field-label is-normal">
-                        <label for="timeout" class="label">Timeout (seconds)
-                        <span class="tooltip-container">
-                        <span class="tooltip-icon">?</span>
-                        <span class="tooltip-text">The maximum time allowed for the student's code to run during testing to prevent infinite loops.</span>
-                        </span>
-                        </label>
-                    </div>
-                    <div class="field-body">
-                        <div class="field">
-                            <div class="control">
-                                <input type="number" id="timeout" class="input" v-model.number="exercise.answer_data.unit_tests.timeout_seconds">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="mb-4" v-for="(testCase, index) in exercise.answer_data.unit_tests.test_cases" :key="index">
-                    <div class="box">
-                        <h4 class="title is-5">Test Case [[ index + 1 ]]</h4>
-                        <div class="field is-horizontal">
-                            <div class="field-label is-normal">
-                                <label :for="'desc-' + index" class="label">Description
-                                <span class="tooltip-container">
-                                <span class="tooltip-icon">?</span>
-                                <span class="tooltip-text">A short, human-readable description of what this test case checks.</span>
-                                </span>
-                                </label>
-                            </div>
-                            <div class="field-body">
-                                <div class="field">
-                                    <div class="control">
-                                        <input :id="'desc-' + index" type="text" class="input" v-model="testCase.description">
-                                    </div>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <textarea id="setup-code" class="textarea" v-model="exercise.answer_data.unit_tests.setup_code" rows="5"></textarea>
                                 </div>
                             </div>
                         </div>
-                        <div class="field is-horizontal">
-                            <div class="field-label is-normal">
-                                <label :for="'code-' + index" class="label">Test Code
-                                <span class="tooltip-container">
-                                <span class="tooltip-icon">?</span>
-                                <span class="tooltip-text">Code that runs the student's solution to test it. It should use an 'assert' statement or 'print' to check the result. E.g., 'assert student_function(1, 2) == 3'.</span>
-                                </span>
-                                </label>
-                            </div>
-                            <div class="field-body">
-                                <div class="field">
-                                    <div class="control">
-                                        <textarea :id="'code-' + index" class="textarea" v-model="testCase.test_code" rows="2"></textarea>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="field is-horizontal">
-                            <div class="field-label is-normal">
-                                <label :for="'output-' + index" class="label">Expected Output
-                                <span class="tooltip-container">
-                                <span class="tooltip-icon">?</span>
-                                <span class="tooltip-text">The exact text that the 'Test Code' should print to the console. This must be an exact match (including newlines) for the test to pass.</span>
-                                </span>
-                                </label>
-                            </div>
-                            <div class="field-body">
-                                <div class="field">
-                                    <div class="control">
-                                        <textarea :id="'output-' + index" class="textarea" v-model="testCase.expected_output" rows="1"></textarea>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <button type="button" @click="removeTestCase(index)" class="button is-danger is-small" title="Remove this test case.">Remove Test Case</button>
                     </div>
+                    <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                            <label for="timeout" class="label">Timeout (seconds)
+                            <span class="tooltip-container">
+                            <span class="tooltip-icon">?</span>
+                            <span class="tooltip-text">The maximum time allowed for the student's code to run during testing to prevent infinite loops.</span>
+                            </span>
+                            </label>
+                        </div>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <input type="number" id="timeout" class="input" v-model.number="exercise.answer_data.unit_tests.timeout_seconds">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-4" v-for="(testCase, index) in exercise.answer_data.unit_tests.test_cases" :key="index">
+                        <div class="box">
+                            <h4 class="title is-5">Test Case [[ index + 1 ]]</h4>
+                            <div class="field is-horizontal">
+                                <div class="field-label is-normal">
+                                    <label :for="'desc-' + index" class="label">Description
+                                    <span class="tooltip-container">
+                                    <span class="tooltip-icon">?</span>
+                                    <span class="tooltip-text">A short, human-readable description of what this test case checks.</span>
+                                    </span>
+                                    </label>
+                                </div>
+                                <div class="field-body">
+                                    <div class="field">
+                                        <div class="control">
+                                            <input :id="'desc-' + index" type="text" class="input" v-model="testCase.description">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="field is-horizontal">
+                                <div class="field-label is-normal">
+                                    <label :for="'code-' + index" class="label">Test Code
+                                    <span class="tooltip-container">
+                                    <span class="tooltip-icon">?</span>
+                                    <span class="tooltip-text">Code that runs the student's solution to test it. It should use an 'assert' statement or 'print' to check the result. E.g., 'assert student_function(1, 2) == 3'.</span>
+                                    </span>
+                                    </label>
+                                </div>
+                                <div class="field-body">
+                                    <div class="field">
+                                        <div class="control">
+                                            <textarea :id="'code-' + index" class="textarea" v-model="testCase.test_code" rows="2"></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="field is-horizontal">
+                                <div class="field-label is-normal">
+                                    <label :for="'output-' + index" class="label">Expected Output
+                                    <span class="tooltip-container">
+                                    <span class="tooltip-icon">?</span>
+                                    <span class="tooltip-text">The exact text that the 'Test Code' should print to the console. This must be an exact match (including newlines) for the test to pass.</span>
+                                    </span>
+                                    </label>
+                                </div>
+                                <div class="field-body">
+                                    <div class="field">
+                                        <div class="control">
+                                            <textarea :id="'output-' + index" class="textarea" v-model="testCase.expected_output" rows="1"></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="button" @click="removeTestCase(index)" class="button is-danger is-small" title="Remove this test case.">Remove Test Case</button>
+                        </div>
+                    </div>
+                    <button type="button" @click="addTestCase" class="button is-link mb-4" title="Add a new unit test case to validate the student's solution.">Add Test Case</button>
                 </div>
-                <button type="button" @click="addTestCase" class="button is-link mb-4" title="Add a new unit test case to validate the student's solution.">Add Test Case</button>
                 <hr>
                 <div class="field is-grouped">
                     <div class="control">
