@@ -64,7 +64,6 @@
                         <th class="has-text-centered">Win Rate</th>
                         <th class="has-text-centered">Wins</th>
                         <th class="has-text-centered">Total Appearances</th>
-                        <th class="has-text-centered">Original Wins</th>
                         <th>Progress Bar</th>
                     </tr>
                 </thead>
@@ -86,13 +85,6 @@
                         <td class="has-text-centered">
                             {{ stats.total }}
                         </td>
-                        <td class="has-text-centered">
-                            {% if stats.is_original_wins > 0 %}
-                                <span class="tag is-info">{{ stats.is_original_wins }}</span>
-                            {% else %}
-                                <span class="has-text-grey">0</span>
-                            {% endif %}
-                        </td>
                         <td>
                             <progress class="progress is-success" 
                                       value="{{ stats.win_rate|floatformat:0 }}" 
@@ -105,12 +97,6 @@
                     {% endfor %}
                 </tbody>
             </table>
-
-            <div class="content mt-4">
-                <p class="is-size-7 has-text-grey">
-                    <strong>Original Wins:</strong> Number of times the model won when it was the original response shown to the student (vs. regenerated)
-                </p>
-            </div>
         </div>
         {% else %}
         <div class="notification is-warning">

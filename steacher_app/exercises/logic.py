@@ -341,8 +341,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
             system_instruction=prompt,
             response_mime_type="text/plain",
             temperature=_temp,
-            response_logprobs=True,
-            logprobs=5,
+            #FIXME: not working ATM response_logprobs=True, logprobs=5,
             thinking_config=genai.types.ThinkingConfig(include_thoughts=True), # capture thoughts for the assistant_metadata
         )
         chat_session = gemini_client.chats.create(

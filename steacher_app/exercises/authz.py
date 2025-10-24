@@ -41,15 +41,30 @@ def can_view_course(user: User, course: Course) -> bool:
     except Exception:
         return False
 
-def can_view_exercise(user: User, exercice : Exercise):
+def can_view_exercise(user: User, exercice: Exercise):
     """
     Check if the user can view the exercise.
-    Allows: any course owner/editor/viewer, any cohort member on this course.
+    
+    Allows:
+    - Course owner/editor/viewer: can view ANY exercise (including hidden ones)
+    - Cohort member (student): can ONLY view visible exercises
+    - Cohort teacher/assistant: can ONLY view visible exercises (same as students)
     """
-    if get_user_course_role(user, exercice.module.course) is not None:
+    course = exercice.module.course
+    role = get_user_course_role(user, course)
+    
+    # Course-level roles (owner/editor/viewer) can view all exercises
+    if role in {'owner', 'editor', 'viewer'}:
         return True
-    if CohortMembership.objects.filter(cohort__course=exercice.module.course, user=user).exists():
+    
+    # Students and cohort-level teachers can only view visible exercises
+    if not exercice.visible:
+        return False
+    
+    # Check if user is a cohort member (any role)
+    if CohortMembership.objects.filter(cohort__course=course, user=user).exists():
         return True
+    
     return False    
 
 
