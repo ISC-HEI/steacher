@@ -53,8 +53,6 @@ interface TurtleDataContext {
     commands: TurtleCommand[];
     solutionCommands: TurtleCommand[];
     currentTurtleState: TurtleState;
-    goalPosition: { x: number; y: number } | null;
-    hasGoal: boolean;
     hasRun: boolean;
     isAnimating: boolean;
     animationCancelled: boolean;
@@ -78,8 +76,6 @@ _x = 0.0
 _y = 0.0
 _heading = 0  # 0=north, 90=east, 180=south, 270=west
 _pen_down = True
-_GOAL_X = None
-_GOAL_Y = None
 
 def _emit(data):
     print(json.dumps(data))
@@ -130,16 +126,6 @@ def pen_down():
     frame = inspect.stack()[1]
     _emit({"cmd": "pen_down", "lineno": frame.lineno})
     _pen_down = True
-
-def at_goal():
-    """Return True if turtle is at the goal position. Does not emit a command."""
-    global _x, _y, _GOAL_X, _GOAL_Y
-    frame = inspect.stack()[1]
-    _emit({"cmd": "check_goal", "lineno": frame.lineno})
-    if _GOAL_X is None or _GOAL_Y is None:
-        return False
-    # Exact match
-    return abs(_x - _GOAL_X) < 0.01 and abs(_y - _GOAL_Y) < 0.01
 
 def get_x():
     """Return the turtle's current X position. Does not emit a command."""
@@ -215,8 +201,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 commands: [],
                 solutionCommands: [],
                 currentTurtleState: { x: 0, y: 0, heading: 0, penDown: true },
-                goalPosition: null,
-                hasGoal: false,
                 hasRun: false,
                 isAnimating: false,
                 animationCancelled: false,
@@ -406,14 +390,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log('[turtle] Solution commands parsed:', commands.length, commands);
                     this.solutionCommands = commands;
 
-                    // Detect goal mode
-                    this.hasGoal = commands.some(cmd => cmd.cmd === 'check_goal');
-                    if (this.hasGoal) {
-                        const finalState = this.simulateCommands(commands);
-                        this.goalPosition = { x: finalState.x, y: finalState.y };
-                        console.log('[turtle] Goal position:', this.goalPosition);
-                    }
-
                     this.drawSolution();
                     console.log('[turtle] Solution drawn');
 
@@ -556,11 +532,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 ctx.strokeStyle = getCSSVariable('--accent-muted');
                 ctx.lineWidth = 2;
                 this.drawPath(ctx, this.solutionCommands);
-
-                // Draw goal if present
-                if (this.hasGoal && this.goalPosition) {
-                    this.drawGoal(ctx, this.goalPosition.x, this.goalPosition.y);
-                }
             },
 
             drawPath(ctx: CanvasRenderingContext2D, commands: TurtleCommand[]) {
@@ -598,16 +569,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
 
                 ctx.stroke();
-            },
-
-            drawGoal(ctx: CanvasRenderingContext2D, x: number, y: number) {
-                const pos = this.logicalToCanvas(x, y);
-                const radius = 6; // Slightly smaller than turtle (8)
-                
-                ctx.fillStyle = getCSSVariable('--success-color');
-                ctx.beginPath();
-                ctx.arc(pos.cx, pos.cy, radius, 0, 2 * Math.PI);
-                ctx.fill();
             },
 
             drawAxisLines(ctx: CanvasRenderingContext2D) {
@@ -695,14 +656,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.loadingState = 'executing';
                     this.executionError = null;
 
-                    let fullCode = TURTLE_API_PYTHON + '\n';
-                    
-                    if (this.hasGoal && this.goalPosition) {
-                        fullCode += `_GOAL_X = ${this.goalPosition.x}\n`;
-                        fullCode += `_GOAL_Y = ${this.goalPosition.y}\n`;
-                    }
-                    
-                    fullCode += this.userCode;
+                    const fullCode = TURTLE_API_PYTHON + '\n' + this.userCode;
                     console.log('[turtle] User code length:', this.userCode.length);
                     const result = await this.executeCode(fullCode);
 
@@ -825,18 +779,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         state.penDown = false;
                     } else if (cmd.cmd === 'pen_down') {
                         state.penDown = true;
-                    } else if (cmd.cmd === 'check_goal') {
-                        // at_goal() check - no state change, just a brief pause and log entry
-                        await this.delay(100);
-                        stepId++;
-                        this.instructionLog.push({
-                            stepId,
-                            x: state.x,
-                            y: state.y,
-                            heading: state.heading,
-                            instruction: 'at_goal()',
-                            lineno: cmd.lineno ? cmd.lineno - TURTLE_API_LINE_COUNT : null
-                        });
                     }
                 }
 
@@ -1036,14 +978,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.loadingState = 'executing';
                     this.executionError = null;
 
-                    let fullCode = TURTLE_API_PYTHON + '\n';
-                    
-                    if (this.hasGoal && this.goalPosition) {
-                        fullCode += `_GOAL_X = ${this.goalPosition.x}\n`;
-                        fullCode += `_GOAL_Y = ${this.goalPosition.y}\n`;
-                    }
-                    
-                    fullCode += this.userCode;
+                    const fullCode = TURTLE_API_PYTHON + '\n' + this.userCode;
                     const result = await this.executeCode(fullCode);
 
                     if (!result.success) {
@@ -1158,10 +1093,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Send to guidance API
                 this.loadingState = 'getting-guidance';
                 try {
-                    const goalReached = this.hasGoal && this.goalPosition && 
-                        Math.abs(this.currentTurtleState.x - this.goalPosition.x) < 0.01 &&
-                        Math.abs(this.currentTurtleState.y - this.goalPosition.y) < 0.01;
-
                     const payload = {
                         action: 'run_submission',
                         code: this.userCode,
@@ -1171,8 +1102,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         submission_timestamp: new Date().toISOString(),
                         turtle_state: {
                             final_position: { x: this.currentTurtleState.x, y: this.currentTurtleState.y },
-                            final_heading: this.currentTurtleState.heading,
-                            goal_reached: goalReached
+                            final_heading: this.currentTurtleState.heading
                         }
                     };
 
