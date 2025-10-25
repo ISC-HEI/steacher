@@ -62,7 +62,7 @@ interface TurtleDataContext {
     instructionLog: InstructionLogEntry[];
     hasWon: boolean;
     confettiShown: boolean;
-    animationSpeed: number;  // Slider value (10-2000); higher = slower due to inverse calculation
+    animationSpeed: number;  // Slider position (0-9); converted to exponential speed scale (1-30 units/sec)
     currentHighlightedLine: number | null;
 }
 
@@ -85,7 +85,6 @@ def forward(steps=1):
     global _x, _y, _heading, _pen_down
     frame = inspect.stack()[1]
     _emit({"cmd": "forward", "value": steps, "lineno": frame.lineno})
-    # Update internal state for at_goal() checks
     import math
     rad = math.radians(_heading)
     _x += steps * math.sin(rad)
@@ -210,7 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 instructionLog: [{ stepId: 0, x: 0.00, y: 0.00, heading: 0, instruction: '(start position)', lineno: null }],
                 hasWon: false,
                 confettiShown: false,
-                animationSpeed: 1500,  // Inverse speed (so that we can display a slider with 10-2000). Actual delay = (2005 - value). 1500 → ~505ms, 5 → 2000ms, 2000 → 5ms
+                animationSpeed: 2,  // Default slider position (0-9), gives ~2.2 units/sec
                 currentHighlightedLine: null
             }
         },
@@ -243,9 +242,26 @@ document.addEventListener('DOMContentLoaded', function() {
         },
 
         methods: {
+            getUnitsPerSecond(): number {
+                // Exponential scaling from 1 to 200 units/sec across slider positions 0-9
+                const minSpeed = 1;
+                const maxSpeed = 200;
+                const normalized = this.animationSpeed / 9;
+                return minSpeed * Math.pow(maxSpeed / minSpeed, normalized);
+            },
+
             renderMarkdown(this: any, content: string) {
                 if (!content) return '';
                 return DOMPurify.sanitize(marked.parse(content) as string);
+            },
+
+            checkBounds(state: TurtleState): boolean {
+                const limit = 10.05;
+                if (state.x < -limit || state.x > limit || state.y < -limit || state.y > limit) {
+                    this.executionError = `Turtle went out of bounds at position (${state.x.toFixed(2)}, ${state.y.toFixed(2)})! Stay within -10 to +10.`;
+                    return false;
+                }
+                return true;
             },
 
             async startWorker() {
@@ -701,6 +717,8 @@ document.addEventListener('DOMContentLoaded', function() {
             },
 
             async animateCommands(commands: TurtleCommand[]) {
+                const animationStartTime = performance.now();
+               
                 const canvas = this.$refs.userCanvas as HTMLCanvasElement;
                 if (!canvas) return;
                 const ctx = canvas.getContext('2d');
@@ -735,6 +753,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             instruction: `forward(${cmd.value})`,
                             lineno: cmd.lineno ? cmd.lineno - TURTLE_API_LINE_COUNT : null
                         });
+                        if (!this.checkBounds(state)) break;
                     } else if (cmd.cmd === 'turn_left' && cmd.degrees) {
                         await this.animateRotation(ctx, state, -cmd.degrees);
                         // animateRotation already updated state.heading
@@ -775,6 +794,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             instruction: `jump_to(${cmd.x}, ${cmd.y})`,
                             lineno: cmd.lineno ? cmd.lineno - TURTLE_API_LINE_COUNT : null
                         });
+                        if (!this.checkBounds(state)) break;
                     } else if (cmd.cmd === 'pen_up') {
                         state.penDown = false;
                     } else if (cmd.cmd === 'pen_down') {
@@ -797,6 +817,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         this.confettiShown = true;
                     }
                 }
+
+                const animationEndTime = performance.now();
+                const totalTimeMs = animationEndTime - animationStartTime;
+                console.log('[turtle] Animation completed in', totalTimeMs.toFixed(2), 'ms');
             },
 
             async animateForward(ctx: CanvasRenderingContext2D, state: TurtleState, distance: number) {
@@ -806,9 +830,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const endX = startX + distance * Math.sin(rad);
                 const endY = startY + distance * Math.cos(rad);
                 
-                // Convert slider value to units per second (higher slider = faster)
-                // Slider range: 10-2000, map to ~0.5-10 units/sec
-                const unitsPerSecond = 0.5 + (this.animationSpeed - 10) / 209.47;
+                const unitsPerSecond = this.getUnitsPerSecond();
                 const durationMs = (distance / unitsPerSecond) * 1000;
                 
                 const startTime = performance.now();
@@ -889,9 +911,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const startHeading = state.heading;
                 const endHeading = (startHeading + deltaDegrees + 360) % 360;
                 
-                // Rotation speed proportional to degrees (90° reference)
-                const unitsPerSecond = 0.5 + (this.animationSpeed - 10) / 209.47;
-                const degreesPerSecond = unitsPerSecond * 90; // Scale degrees to match forward speed
+                const unitsPerSecond = this.getUnitsPerSecond();
+                const degreesPerSecond = unitsPerSecond * 90; // 90° turn takes same time as moving 1 unit
                 const durationMs = (Math.abs(deltaDegrees) / degreesPerSecond) * 1000;
                 
                 const startTime = performance.now();
@@ -930,8 +951,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const startY = state.y;
                 const distance = Math.sqrt((targetX - startX) ** 2 + (targetY - startY) ** 2);
                 
-                // Duration proportional to distance traveled
-                const unitsPerSecond = 0.5 + (this.animationSpeed - 10) / 209.47;
+                const unitsPerSecond = this.getUnitsPerSecond();
                 const durationMs = (distance / unitsPerSecond) * 1000;
                 
                 const startTime = performance.now();
@@ -1018,6 +1038,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     this.currentTurtleState = this.simulateCommands(commands);
                     this.drawTurtle(ctx, this.currentTurtleState.x, this.currentTurtleState.y, this.currentTurtleState.heading, this.currentTurtleState.penDown);
+
+                    // Check bounds
+                    if (!this.checkBounds(this.currentTurtleState)) {
+                        return;
+                    }
 
                     // Check win condition (for Submit without prior Run)
                     if (this.checkWinCondition()) {
