@@ -130,7 +130,7 @@ def pen_down():
     _pen_down = True
 
 def at_goal():
-    """Return True if turtle is at the goal position."""
+    """Return True if turtle is at the goal position. Does not emit a command."""
     global _x, _y, _GOAL_X, _GOAL_Y
     frame = inspect.stack()[1]
     _emit({"cmd": "check_goal", "lineno": frame.lineno})
@@ -138,6 +138,16 @@ def at_goal():
         return False
     # Exact match
     return abs(_x - _GOAL_X) < 0.01 and abs(_y - _GOAL_Y) < 0.01
+
+def get_x():
+    """Return the turtle's current X position. Does not emit a command."""
+    global _x
+    return _x
+
+def get_y():
+    """Return the turtle's current Y position. Does not emit a command."""
+    global _y
+    return _y
 `;
 
 // Count lines in the preamble so we can adjust line numbers for highlighting
@@ -519,7 +529,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 ctx.stroke();
             },
 
-            drawTurtle(ctx: CanvasRenderingContext2D, x: number, y: number, heading: number) {
+            drawTurtle(ctx: CanvasRenderingContext2D, x: number, y: number, heading: number, penDown: boolean = true) {
                 const pos = this.logicalToCanvas(x, y);
                 const radius = 8;
                 const color = getCSSVariable('--accent-color');
@@ -527,25 +537,38 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Draw circle (outline only)
                 ctx.strokeStyle = color;
                 ctx.lineWidth = 2;
+                
+                // Use dashed line when pen is up
+                if (!penDown) {
+                    ctx.setLineDash([4, 4]);
+                }
+                
                 ctx.beginPath();
                 ctx.arc(pos.cx, pos.cy, radius, 0, 2 * Math.PI);
                 ctx.stroke();
+                
+                // Reset line dash
+                if (!penDown) {
+                    ctx.setLineDash([]);
+                }
 
-                // Draw directional triangle at the edge
-                ctx.save();
-                ctx.translate(pos.cx, pos.cy);
-                ctx.rotate((heading * Math.PI) / 180);
-                
-                const triangleSize = 7;
-                ctx.fillStyle = color;
-                ctx.beginPath();
-                ctx.moveTo(0, -radius); // Point at edge of circle (north)
-                ctx.lineTo(-triangleSize * 0.6, -radius + triangleSize);
-                ctx.lineTo(triangleSize * 0.6, -radius + triangleSize);
-                ctx.closePath();
-                ctx.fill();
-                
-                ctx.restore();
+                // Only draw directional triangle when pen is down
+                if (penDown) {
+                    ctx.save();
+                    ctx.translate(pos.cx, pos.cy);
+                    ctx.rotate((heading * Math.PI) / 180);
+                    
+                    const triangleSize = 10;
+                    ctx.fillStyle = color;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -radius - triangleSize); // Point outside circle
+                    ctx.lineTo(-triangleSize * 0.6, -radius * 0.8); // Left corner at circle edge
+                    ctx.lineTo(triangleSize * 0.6, -radius * 0.8); // Right corner at circle edge
+                    ctx.closePath();
+                    ctx.fill();
+                    
+                    ctx.restore();
+                }
             },
 
             drawInitialTurtle() {
@@ -800,7 +823,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 ctx.stroke();
                 
                 // Draw turtle at current position
-                this.drawTurtle(ctx, state.x, state.y, state.heading);
+                this.drawTurtle(ctx, state.x, state.y, state.heading, state.penDown);
             },
 
             async animateRotation(ctx: CanvasRenderingContext2D, state: TurtleState, deltaDegrees: number) {
@@ -935,7 +958,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.drawPath(ctx, commands);
 
                     this.currentTurtleState = this.simulateCommands(commands);
-                    this.drawTurtle(ctx, this.currentTurtleState.x, this.currentTurtleState.y, this.currentTurtleState.heading);
+                    this.drawTurtle(ctx, this.currentTurtleState.x, this.currentTurtleState.y, this.currentTurtleState.heading, this.currentTurtleState.penDown);
 
                     // Check win condition (for Submit without prior Run)
                     if (this.checkWinCondition()) {
