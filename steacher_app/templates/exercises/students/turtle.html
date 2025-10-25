@@ -8,7 +8,8 @@
 {% block exercise_content %}
 <div id="turtle-exercise-app"
      v-cloak
-     data-static-prefix="{% get_static_prefix %}">
+     data-static-prefix="{% get_static_prefix %}"
+     data-execution-timeout="2000">
     {% csrf_token %}
     <div class="exercise-container-turtle turtle-wide-container">
         <div class="left-panel">
@@ -43,7 +44,7 @@
                         @click="executeUserCode"
                         class="button is-primary"
                         :class="{ 'is-loading': loadingState === 'executing' }"
-                        :disabled="!pyodideReady || loadingState !== 'idle'">
+                        :disabled="!workerReady || loadingState !== 'idle'">
                         <span class="icon"><i class="fas fa-play"></i></span>
                         <span>Run</span>
                     </button>

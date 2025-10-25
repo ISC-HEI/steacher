@@ -46,8 +46,10 @@ interface TurtleDataContext {
     userCode: string;
     loadingState: 'idle' | 'pyodide-loading' | 'executing' | 'getting-guidance';
     executionError: string | null;
-    pyodide: any;
-    pyodideReady: boolean;
+    worker: Worker | null;
+    workerReady: boolean;
+    pendingResolvers: { [runId: string]: (value: any) => void };
+    executionTimeoutMs: number;
     commands: TurtleCommand[];
     solutionCommands: TurtleCommand[];
     currentTurtleState: TurtleState;
@@ -199,13 +201,17 @@ document.addEventListener('DOMContentLoaded', function() {
         data(): TurtleDataContext {
             const datasetEl = appElement as HTMLElement;
             const staticPrefix = datasetEl?.getAttribute('data-static-prefix') || '/static/';
+            const timeoutAttr = datasetEl?.getAttribute('data-execution-timeout');
+            const executionTimeoutMs = timeoutAttr ? parseInt(timeoutAttr, 10) : 8000;
             return {
                 exercise: exerciseData,
                 userCode: lastUserCode || (exerciseData.exercise_data && exerciseData.exercise_data.answer_template) || '',
                 loadingState: 'idle',
                 executionError: null,
-                pyodide: null,
-                pyodideReady: false,
+                worker: null,
+                workerReady: false,
+                pendingResolvers: {},
+                executionTimeoutMs,
                 commands: [],
                 solutionCommands: [],
                 currentTurtleState: { x: 0, y: 0, heading: 0, penDown: true },
@@ -244,7 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 initialMessages.forEach(msg => chatbotPanel.displayMessage(msg));
             }
 
-            await this.initPyodide();
+            await this.startWorker();
             await this.executeSolutionCode();
             this.drawInitialTurtle();
 
@@ -258,65 +264,161 @@ document.addEventListener('DOMContentLoaded', function() {
                 return DOMPurify.sanitize(marked.parse(content) as string);
             },
 
-            async initPyodide() {
+            async startWorker() {
                 try {
+                    console.log('[turtle] Starting worker...');
                     this.loadingState = 'pyodide-loading';
-                    // Lazy-load to keep initial bundle small for non-turtle exercises.
-                    const { loadPyodide } = await import('pyodide');
-                    this.pyodide = await loadPyodide({
-                        indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.28.3/full/'
+                    const cacheBust = Date.now();
+                    const workerUrl = `${this.staticPrefix}js/dist/python_worker.js?v=${cacheBust}`;
+                    console.log('[turtle] Worker URL:', workerUrl);
+                    const w = new Worker(workerUrl, { type: 'module' });
+                    this.worker = w;
+
+                    // Create a promise that resolves when worker is ready
+                    const workerReadyPromise = new Promise<void>((resolve, reject) => {
+                        w.onmessage = (evt: MessageEvent) => {
+                            const msg = evt.data as any;
+                            if (!msg || !msg.type) return;
+                            if (msg.type === 'ready') {
+                                console.log('[turtle] Worker ready!');
+                                this.workerReady = true;
+                                this.loadingState = 'idle';
+                                resolve();
+                                return;
+                            }
+                            if (msg.type === 'init-error') {
+                                console.error('[turtle] Worker init error:', msg.error);
+                                this.executionError = 'Failed to initialize Python interpreter: ' + String(msg.error);
+                                this.loadingState = 'idle';
+                                reject(new Error(msg.error));
+                                return;
+                            }
+                            if (msg.type === 'result') {
+                                const { runId } = msg;
+                                console.log('[turtle] Worker result for runId:', runId);
+                                const resolver = this.pendingResolvers[runId];
+                                if (resolver) {
+                                    resolver(msg);
+                                    delete this.pendingResolvers[runId];
+                                }
+                                return;
+                            }
+                        };
                     });
-                    this.pyodideReady = true;
-                    this.loadingState = 'idle';
+
+                    const pyodideModuleUrl = `https://cdn.jsdelivr.net/pyodide/v0.28.3/full/pyodide.mjs?v=${cacheBust}`;
+                    const indexURL = `https://cdn.jsdelivr.net/pyodide/v0.28.3/full/`;
+                    console.log('[turtle] Sending init message to worker');
+                    w.postMessage({ type: 'init', pyodideModuleUrl, indexURL });
+                    
+                    // Wait for worker to be ready before returning
+                    await workerReadyPromise;
+                    console.log('[turtle] startWorker completed');
                 } catch (error) {
-                    console.error('Failed to initialize Pyodide:', error);
-                    this.executionError = 'Failed to load Python interpreter: ' + String(error);
+                    console.error('[turtle] Failed to start worker:', error);
+                    this.executionError = 'Failed to start Python worker: ' + String(error);
                     this.loadingState = 'idle';
                 }
             },
 
+            async executeCode(code: string): Promise<{ success: boolean; stdout?: string; error?: string }> {
+                if (!this.worker || !this.workerReady) {
+                    console.log('[turtle] Worker not ready');
+                    return { success: false, error: 'Python worker not ready yet' };
+                }
+
+                console.log('[turtle] Executing code in worker...');
+                const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                const resultPromise = new Promise((resolve) => {
+                    this.pendingResolvers[runId] = resolve as (value: any) => void;
+                }) as Promise<any>;
+
+                this.worker.postMessage({ type: 'run', runId, code });
+
+                let timedOut = false;
+                const timeoutHandle = setTimeout(() => {
+                    timedOut = true;
+                    console.log('[turtle] Execution timed out, terminating worker');
+                    try {
+                        this.worker?.terminate();
+                    } catch (_) { /* noop */ }
+                    this.worker = null;
+                    this.workerReady = false;
+                    const resolver = this.pendingResolvers[runId];
+                    if (resolver) {
+                        resolver({ success: false, error: `Execution timed out after ${this.executionTimeoutMs / 1000} seconds` });
+                    }
+                    delete this.pendingResolvers[runId];
+                }, this.executionTimeoutMs);
+
+                const msg = await resultPromise.catch((e) => ({ error: String(e), success: false }));
+                clearTimeout(timeoutHandle);
+
+                if (timedOut) {
+                    return { success: false, error: `Execution timed out after ${this.executionTimeoutMs / 1000} seconds. Your code may contain an infinite loop.` };
+                }
+
+                console.log('[turtle] Execution result:', { success: msg.success, stdoutLength: msg.stdout?.length, error: msg.error });
+                return msg;
+            },
+
             async executeSolutionCode() {
-                if (!this.pyodideReady || !this.pyodide) return;
+                console.log('[turtle] executeSolutionCode started');
+                if (!this.workerReady || !this.worker) {
+                    console.log('[turtle] Worker not ready for solution');
+                    return;
+                }
                 
                 const solution = (this.exercise as any).solution_code;
                 if (!solution) {
-                    console.log('No solution provided, skipping solution drawing');
+                    console.log('[turtle] No solution provided, skipping solution drawing');
                     return;
                 }
 
+                console.log('[turtle] Solution code length:', solution.length);
+
                 try {
-                    const commands: TurtleCommand[] = [];
-                    this.pyodide.setStdout({
-                        batched: (line: string) => {
-                            try {
-                                const cmd = JSON.parse(line);
-                                commands.push(cmd);
-                            } catch (e) {
-                                // Not JSON, ignore
-                            }
-                        }
-                    });
-
-                    // Execute solution once so we can visualize the target path before learners run code.
                     const fullCode = TURTLE_API_PYTHON + '\n' + solution;
-                    await this.pyodide.runPythonAsync(fullCode);
-                    this.pyodide.setStdout({});
+                    const result = await this.executeCode(fullCode);
 
+                    if (!result.success) {
+                        console.error('[turtle] Error executing solution:', result.error);
+                        return;
+                    }
+
+                    console.log('[turtle] Solution stdout:', result.stdout);
+
+                    // Parse turtle commands from stdout
+                    const commands: TurtleCommand[] = [];
+                    if (result.stdout) {
+                        result.stdout.split('\n').forEach(line => {
+                            if (line.trim()) {
+                                try {
+                                    const cmd = JSON.parse(line.trim());
+                                    commands.push(cmd);
+                                } catch (e) {
+                                    console.log('[turtle] Failed to parse line as JSON:', line);
+                                }
+                            }
+                        });
+                    }
+
+                    console.log('[turtle] Solution commands parsed:', commands.length, commands);
                     this.solutionCommands = commands;
 
                     // Detect goal mode
                     this.hasGoal = commands.some(cmd => cmd.cmd === 'check_goal');
                     if (this.hasGoal) {
-                        // Use solution endpoint rather than metadata; teachers only maintain one source of truth.
                         const finalState = this.simulateCommands(commands);
                         this.goalPosition = { x: finalState.x, y: finalState.y };
+                        console.log('[turtle] Goal position:', this.goalPosition);
                     }
 
-                    // Draw solution on background canvas
                     this.drawSolution();
+                    console.log('[turtle] Solution drawn');
 
                 } catch (error) {
-                    console.error('Error executing solution:', error);
+                    console.error('[turtle] Error executing solution:', error);
                 }
             },
 
@@ -582,47 +684,62 @@ document.addEventListener('DOMContentLoaded', function() {
             },
 
             async executeUserCode() {
-                if (!this.pyodideReady || !this.pyodide) {
+                console.log('[turtle] executeUserCode started');
+                if (!this.workerReady || !this.worker) {
                     this.executionError = 'Python interpreter not ready yet. Please wait...';
+                    console.log('[turtle] Worker not ready for user code');
                     return;
                 }
 
                 try {
                     this.loadingState = 'executing';
                     this.executionError = null;
-                    const commands: TurtleCommand[] = [];
 
-                    this.pyodide.setStdout({
-                        batched: (line: string) => {
-                            try {
-                                const cmd = JSON.parse(line);
-                                commands.push(cmd);
-                            } catch (e) {
-                                // Not JSON, ignore
-                            }
-                        }
-                    });
-
-                    // Run learner code inside same interpreter so goal checks keep shared state.
                     let fullCode = TURTLE_API_PYTHON + '\n';
                     
-                    // Inject goal position if present
                     if (this.hasGoal && this.goalPosition) {
                         fullCode += `_GOAL_X = ${this.goalPosition.x}\n`;
                         fullCode += `_GOAL_Y = ${this.goalPosition.y}\n`;
                     }
                     
                     fullCode += this.userCode;
-                    await this.pyodide.runPythonAsync(fullCode);
-                    this.pyodide.setStdout({});
+                    console.log('[turtle] User code length:', this.userCode.length);
+                    const result = await this.executeCode(fullCode);
 
+                    if (!result.success) {
+                        console.error('[turtle] Error executing user code:', result.error);
+                        this.executionError = this.cleanPythonError(result.error || 'Unknown error');
+                        if (this.executionError.includes('timed out')) {
+                            await this.startWorker(); // Restart worker after timeout
+                        }
+                        return;
+                    }
+
+                    console.log('[turtle] User stdout:', result.stdout);
+
+                    // Parse turtle commands from stdout
+                    const commands: TurtleCommand[] = [];
+                    if (result.stdout) {
+                        result.stdout.split('\n').forEach(line => {
+                            if (line.trim()) {
+                                try {
+                                    const cmd = JSON.parse(line.trim());
+                                    commands.push(cmd);
+                                } catch (e) {
+                                    console.log('[turtle] Failed to parse user line as JSON:', line);
+                                }
+                            }
+                        });
+                    }
+
+                    console.log('[turtle] User commands parsed:', commands.length, commands);
                     this.commands = commands;
                     this.hasRun = true;
                     
-                    // Animate the commands
                     await this.animateCommands(commands);
 
                 } catch (error) {
+                    console.error('[turtle] Error in executeUserCode:', error);
                     this.executionError = this.cleanPythonError(String(error));
                 } finally {
                     this.loadingState = 'idle';
@@ -913,35 +1030,42 @@ document.addEventListener('DOMContentLoaded', function() {
 
             async executeUserCodeInstant() {
                 // Execute without animation for Submit
-                if (!this.pyodideReady || !this.pyodide) return;
+                if (!this.workerReady || !this.worker) return;
 
                 try {
                     this.loadingState = 'executing';
                     this.executionError = null;
-                    const commands: TurtleCommand[] = [];
-
-                    this.pyodide.setStdout({
-                        batched: (line: string) => {
-                            try {
-                                const cmd = JSON.parse(line);
-                                commands.push(cmd);
-                            } catch (e) {
-                                // Not JSON, ignore
-                            }
-                        }
-                    });
 
                     let fullCode = TURTLE_API_PYTHON + '\n';
                     
-                    // Inject goal position if present
                     if (this.hasGoal && this.goalPosition) {
                         fullCode += `_GOAL_X = ${this.goalPosition.x}\n`;
                         fullCode += `_GOAL_Y = ${this.goalPosition.y}\n`;
                     }
                     
                     fullCode += this.userCode;
-                    await this.pyodide.runPythonAsync(fullCode);
-                    this.pyodide.setStdout({});
+                    const result = await this.executeCode(fullCode);
+
+                    if (!result.success) {
+                        this.executionError = this.cleanPythonError(result.error || 'Unknown error');
+                        if (this.executionError.includes('timed out')) {
+                            await this.startWorker(); // Restart worker after timeout
+                        }
+                        return;
+                    }
+
+                    // Parse turtle commands from stdout
+                    const commands: TurtleCommand[] = [];
+                    if (result.stdout) {
+                        result.stdout.split('\n').forEach(line => {
+                            try {
+                                const cmd = JSON.parse(line.trim());
+                                commands.push(cmd);
+                            } catch (e) {
+                                // Not JSON, ignore
+                            }
+                        });
+                    }
 
                     this.commands = commands;
                     this.hasRun = true;
