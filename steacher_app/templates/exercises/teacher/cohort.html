@@ -22,7 +22,7 @@
         <div class="histogram is-flex is-align-items-end" style="gap: 6px;">
             {% for bucket in histogram %}
             <div class="has-text-centered" style="width: 18px;">
-                <div class="tooltip" data-height-px="{{ bucket.height_px }}" style="background-color: #00d1b2; border-radius: 3px;" title="{{ bucket.count }} student(s): {{ bucket.names|join:', ' }}"></div>
+                <div class="tooltip cohort-progress-bar" data-height-px="{{ bucket.height_px }}" title="{{ bucket.count }} student(s): {{ bucket.names|join:', ' }}"></div>
                 <div class="is-size-7 has-text-grey mt-1">{{ bucket.label }}</div>
             </div>
             {% endfor %}
@@ -34,7 +34,7 @@
         <div class="histogram is-flex is-align-items-end" style="gap: 6px;">
             {% for bar in exercise_completion_bars %}
             <a href="{% url 'teachers:cohort_exercise_detail' selected_cohort.pk bar.exercise_id %}" class="has-text-centered" style="width: 18px; display: block;">
-                <div class="tooltip" data-height-px="{{ bar.height_px }}" style="background-color: #00d1b2; border-radius: 3px;" title="{{ bar.percent }}% ({{ bar.count }}/{{ bar.total }})"></div>
+                <div class="tooltip cohort-progress-bar" data-height-px="{{ bar.height_px }}" title="{{ bar.percent }}% ({{ bar.count }}/{{ bar.total }})"></div>
                 <div class="is-size-7 has-text-grey mt-1">{{ bar.label }}</div>
             </a>
             {% endfor %}
@@ -226,7 +226,7 @@ document.addEventListener('DOMContentLoaded', function() {
             var label = (isFinite(v) ? v.toFixed(decimals) : '0');
             return '<div style="position:relative; width:100%;">'
                 + '<progress class="progress ' + colorClass + ' is-small" value="' + pct + '" max="100" style="width:100%;"></progress>'
-                + '<span style="position:absolute; left:0; right:0; top:0; bottom:0; display:flex; align-items:center; justify-content:center; font-size:0.75rem; color:#fff; text-shadow: 0 1px 1px rgba(0,0,0,0.4);">' + label + '</span>'
+                + '<span class="progress-label-overlay">' + label + '</span>'
                 + '</div>';
         }
     }

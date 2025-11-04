@@ -365,7 +365,7 @@
         <div class="column is-one-quarter">
             <div class="box" style="height: calc(100vh - 180px); display: flex; flex-direction: column;">
                 <h3 class="title is-5">AI Exercise Assistant</h3>
-                <div style="flex: 1; overflow: auto; border: 1px solid #eee; padding: 0.75rem; margin-bottom: 0.75rem;">
+                <div class="ai-assistant-content">
                     <div v-if="assistantError" class="notification is-danger is-light">[[ assistantError ]]</div>
                     <div v-if="messages.length === 0" class="has-text-grey">Start by describing what you want to change or paste content to improve…</div>
                     <div v-for="(m, i) in messages" :key="i" style="margin-bottom: 0.75rem;">
