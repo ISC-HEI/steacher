@@ -22,16 +22,37 @@ OPENROUTER_API_KEY=your_openrouter_api_key
 
 ### Start Database in Docker
 
+set "[password]" and use command below
+
 ```bash
-docker-compose up db
+docker run --name my-local-postgres -e POSTGRES_PASSWORD=[password] -p 5432:5432 -d postgres
 ```
 
 ### Refresh js files
 
 Run in a separate terminal from the `steacher_app` root.
 
+(one time)
+```bash
+npm install
+```
+
 ```bash
 npm run watch
+```
+
+
+### Run migrations
+
+```bash
+python manage.py migrate
+```
+
+
+### Create the database
+
+```bash
+docker exec -i my-local-postgres psql -U postgres -c "CREATE DATABASE steacher;"
 ```
 
 ### Create a superuser
@@ -42,11 +63,6 @@ One time setup, unless you wipe out the database.
 python manage.py createsuperuser
 ```
 
-### Run migrations
-
-```bash
-python manage.py migrate
-```
 
 ### Start the Web Server
 
@@ -57,6 +73,8 @@ python manage.py runserver
 ```
 
 Visit `http://127.0.0.1:8000/` to see the homepage.
+
+Visit `http://127.0.0.1:8000/admin` once logged in to create exercices.
 
 Optionally, run the following command to start scala interpreter server.
 ```bash
