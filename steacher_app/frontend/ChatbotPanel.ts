@@ -22,6 +22,8 @@ interface ChatbotPanelData {
     isDarkMode: boolean;
     solutionUnlocked: boolean;
     _submissionsCount: number;
+  showAddMenu?: boolean;
+  previewImageUrl?: string | null;
 }
 
 export const ChatbotPanel = defineComponent({
@@ -182,6 +184,20 @@ export const ChatbotPanel = defineComponent({
         </button>
       </div>
 
+  <!-- Hidden file input for the Add menu -->
+  <input type="file" ref="addFileInput" style="display:none" @change="handleAddFileChange" accept="image/*" />
+
+      <!-- Image Preview Box (above input area) -->
+      <div v-if="previewImageUrl" class="box mb-2" style="position:relative;padding:0.75rem;">
+        <button class="delete is-small" style="position:absolute;right:0.5rem;top:0.5rem;z-index:1;" 
+                @click.prevent="clearPreview" aria-label="Remove image">
+        </button>
+        <div style="max-height:200px;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+          <img :src="previewImageUrl" alt="Selected image" 
+               style="max-width:100%;max-height:200px;object-fit:contain;" />
+        </div>
+      </div>
+
       <!-- Input area -->
       <div class="field has-addons mt-3">
         <!-- Single Input Field -->
@@ -206,6 +222,22 @@ export const ChatbotPanel = defineComponent({
             </span>
             <span>Ask Question</span>
           </button>
+        </p>
+
+        <!-- Add (+) menu control -->
+        <p class="control" style="position: relative;">
+          <button ref="addMenuButton" class="button is-light" @click.prevent="toggleAddMenu" :disabled="loading || pathwayLoading || pathwayData" title="Add">
+            <span class="icon"><i class="fas fa-plus"></i></span>
+          </button>
+
+          <!-- Small expanding menu (positioned relative to the + button) -->
+          <div ref="addMenu" v-if="showAddMenu" class="box" style="position: absolute; right: 0; bottom: calc(100% + 0.5rem); width: 14rem; padding: 0.5rem; z-index: 9999; background: white; box-shadow: 0 6px 18px rgba(0,0,0,0.12); max-height: 18rem; overflow: auto;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:0.5rem;">
+              <img src="/static/test-QR.png" alt="QR placeholder" style="max-width:100%;height:auto;max-height:12rem;object-fit:contain;border:1px solid #e6e6e6;background:#fff;padding:0.25rem;display:block;margin:0;" />
+              <button class="button is-small is-fullwidth is-light" @click.prevent="openFileDialog">upload from PC</button>
+            </div>
+          </div>
+
         </p>
 
       </div>
@@ -245,6 +277,10 @@ export const ChatbotPanel = defineComponent({
       isDarkMode: typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : false,
       solutionUnlocked: false,
       _submissionsCount: 0,
+      // UI state for the small add-menu
+      showAddMenu: false,
+      // Preview URL for image selected via the add-menu
+      previewImageUrl: null,
     };
   },
   computed: {
@@ -268,6 +304,17 @@ export const ChatbotPanel = defineComponent({
     this.solutionUnlocked = !!this.$props.solutionUnlockedInitial;
     // Notify parent of initial state so it can show/hide the button in editors
     try { this.$emit('solution-unlocked', this.solutionUnlocked); } catch (_) { /* noop */ }
+
+    // Document click handler to close the add-menu when clicking outside
+    (this as any)._onDocClickHandler = (ev: Event) => this.onDocumentClick(ev);
+    document.addEventListener('click', (this as any)._onDocClickHandler as EventListener, true);
+  },
+  beforeUnmount(this: any) {
+    // Cleanup document listener
+    try {
+      const h = (this as any)._onDocClickHandler as EventListener | undefined;
+      if (h) document.removeEventListener('click', h, true);
+    } catch (_) { /* noop */ }
   },
   watch: {
     loading(this: any, newVal: boolean) {
@@ -506,6 +553,64 @@ export const ChatbotPanel = defineComponent({
       textarea.style.height = 'auto';
       // Set the height to the scroll height to fit the content
       textarea.style.height = `${textarea.scrollHeight}px`;
+    },
+
+    toggleAddMenu(this: any) {
+      this.showAddMenu = !this.showAddMenu;
+    },
+
+    openFileDialog(this: any) {
+      // Trigger the hidden file input to open the system file picker
+      try {
+        const input = this.$refs.addFileInput as HTMLInputElement | undefined;
+        if (input) {
+          input.click();
+        }
+      } catch (e) {
+        console.warn('Unable to open file dialog', e);
+      }
+    },
+
+    handleAddFileChange(this: any, event: Event) {
+      const input = event.target as HTMLInputElement;
+      const file = input.files && input.files[0];
+      if (file) {
+        try {
+          if (file.type && file.type.startsWith('image/')) {
+            // Revoke previous blob URL if any
+            if (this.previewImageUrl && typeof this.previewImageUrl === 'string' && this.previewImageUrl.startsWith('blob:')) {
+              try { URL.revokeObjectURL(this.previewImageUrl); } catch (_) { /* noop */ }
+            }
+            this.previewImageUrl = URL.createObjectURL(file);
+            // Close the menu since preview will show above input
+            this.showAddMenu = false;
+          } else {
+            console.log('Selected non-image file from add-menu:', file);
+          }
+        } catch (err) {
+          console.warn('Error handling selected file', err);
+        }
+      }
+      // Clear the input value so same file can be picked again if needed
+      if (input) input.value = '';
+    },
+
+    clearPreview(this: any) {
+      if (this.previewImageUrl && this.previewImageUrl.startsWith('blob:')) {
+        try { URL.revokeObjectURL(this.previewImageUrl); } catch (_) { /* noop */ }
+      }
+      this.previewImageUrl = null;
+    },
+
+    onDocumentClick(this: any, ev: Event) {
+      if (!this.showAddMenu) return;
+      const target = ev.target as Node | null;
+      const menu = this.$refs.addMenu as HTMLElement | undefined;
+      const btn = this.$refs.addMenuButton as HTMLElement | undefined;
+      if (menu && menu.contains(target)) return; // click inside menu
+      if (btn && btn.contains(target)) return; // click on toggle button
+      // Click outside -> close the menu
+      this.showAddMenu = false;
     },
     // Deprecated: Option buttons removed; no special parsing needed.
 
