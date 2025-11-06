@@ -17,6 +17,16 @@ students_urlpatterns = [
     path('courses/<int:pk>/export/', views_students.export_course_data, name='export_course_data'),
     # More specific patterns first to avoid conflicts
     path('<int:exercise_id>/attempts/<int:attempt_id>/guidance/', views_students.get_guidance, name='get_guidance'),
+    # Image upload / token endpoints
+    path('attempts/<int:attempt_id>/upload-token/', views_students.generate_upload_token, name='generate_upload_token'),
+    path('attempts/<int:attempt_id>/image/', views_students.list_attempt_images, name='list_attempt_images'),
+    path('attempts/image/<str:token>/', views_students.serve_attempt_image, name='serve_attempt_image'),
+    path('attempts/<int:attempt_id>/image/<int:image_id>/delete/', views_students.delete_attempt_image, name='delete_attempt_image'),
+    path('attempts/qr/<str:token>/', views_students.serve_qr_code, name='serve_qr_code'),
+    path('attempts/image-status/<str:token>/', views_students.image_status, name='image_status'),
+    # Mobile (unauthenticated) upload page and submit endpoint
+    path('upload/<str:token>/', views_students.mobile_upload_page, name='mobile_upload_page'),
+    path('upload/<str:token>/submit/', views_students.mobile_upload_submit, name='mobile_upload_submit'),
     path('api/attempts/<int:attempt_id>/recommend_pathway/', views_students.recommend_learning_pathway, name='recommend_learning_pathway'),
     path('<int:exercise_id>/delete_answers/', views_students.delete_user_answers, name='delete_user_answers'),
     path('<int:exercise_id>/<str:filename>', views_students.serve_asset, name='serve_asset'),

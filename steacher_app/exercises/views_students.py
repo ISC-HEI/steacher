@@ -3,8 +3,8 @@ import logging
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
 from django.contrib.auth import get_user_model
-from django.views.decorators.csrf import csrf_protect
-from django.http import JsonResponse, HttpResponse, Http404
+from django.views.decorators.csrf import csrf_protect, csrf_exempt
+from django.http import JsonResponse, HttpResponse, Http404, FileResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST, require_GET
 from django.db import models
@@ -17,6 +17,9 @@ import time
 import json
 import os
 import newrelic.agent as nr
+import secrets
+import base64
+from django.urls import reverse
 
 from .models import Exercise, ExerciseAsset, Course, Attempt, UserInvite, ChatThread, CohortMembership, Trace, TraceEval, create_trace_for, localized_name, Cohort
 from .prompting import build_system_prompt
@@ -673,6 +676,202 @@ def delete_user_answers(request, exercise_id):
     assert_can_view_exercise(request.user, exercise)
     Attempt.objects.filter(user=request.user, exercise=exercise).delete()
     return redirect('exercises:exercise_detail', pk=exercise_id)
+
+@login_required
+@require_POST
+def generate_upload_token(request, attempt_id):
+    """Generate a short-lived upload token and AttemptImage placeholder for the given attempt.
+    Returns JSON with token and upload URL; optionally a QR code data URI if qrcode is installed.
+    """
+    attempt = get_object_or_404(Attempt, pk=attempt_id, user=request.user)
+    exercise = attempt.exercise
+
+    # Rate limiting could be applied here using rate_limit decorator if desired
+    token = secrets.token_urlsafe(32)
+    expires_at = timezone.now() + timedelta(minutes=30)
+
+    img = None
+    try:
+        # Single placeholder row created to track token and expiry
+        from .models import AttemptImage
+        img = AttemptImage.objects.create(
+            attempt=attempt,
+            upload_token=token,
+            token_expires_at=expires_at,
+        )
+    except Exception:
+        logger.exception('Failed to create AttemptImage token')
+        return JsonResponse({'status': 'error', 'message': 'Failed to create upload token'}, status=500)
+
+    upload_path = reverse('exercises:mobile_upload_page', args=[token])
+    upload_url = request.build_absolute_uri(upload_path)
+
+    qr_data_uri = None
+    try:
+        import qrcode
+        from io import BytesIO
+        qr = qrcode.make(upload_url)
+        buf = BytesIO()
+        qr.save(buf, format='PNG')
+        qr_b64 = base64.b64encode(buf.getvalue()).decode('ascii')
+        qr_data_uri = f'data:image/png;base64,{qr_b64}'
+    except Exception:
+        # QR generation optional; continue without it
+        qr_data_uri = None
+
+    return JsonResponse({
+        'status': 'success',
+        'token': token,
+        'upload_url': upload_url,
+        'expires_at': expires_at.isoformat(),
+        'qr_code_data_uri': qr_data_uri,
+    })
+
+
+@require_GET
+def mobile_upload_page(request, token):
+    """Render the mobile upload page for the given token (no authentication required).
+    """
+    from .models import AttemptImage
+    image_record = AttemptImage.objects.filter(upload_token=token).first()
+    if not image_record:
+        return HttpResponse('Invalid upload link', status=404)
+
+    if timezone.now() > image_record.token_expires_at:
+        return HttpResponse('Upload link expired', status=403)
+
+    # If already uploaded, show a simple message
+    if image_record.image:
+        return render(request, 'exercises/upload_already_used.html', status=400)
+
+    exercise = image_record.attempt.exercise if image_record.attempt else None
+    exercise_title = getattr(exercise, 'title', '')
+    exercise_question = ''
+    try:
+        exercise_question = (exercise.question_i18n or {}).get('en', '')[:200]
+    except Exception:
+        exercise_question = ''
+
+    return render(request, 'exercises/mobile_upload.html', {
+        'token': token,
+        'exercise_title': exercise_title,
+        'exercise_question': exercise_question,
+    })
+
+
+@csrf_exempt
+@require_POST
+def mobile_upload_submit(request, token):
+    """Handle the mobile image upload POST for the given token (no auth required).
+    Expects multipart/form-data with 'image' file field.
+    """
+    from .models import AttemptImage
+    image_record = AttemptImage.objects.filter(upload_token=token).first()
+    if not image_record:
+        return JsonResponse({'error': 'Invalid token'}, status=404)
+
+    if timezone.now() > image_record.token_expires_at:
+        return JsonResponse({'error': 'Token expired'}, status=403)
+
+    if image_record.image:
+        return JsonResponse({'error': 'Token already used'}, status=400)
+
+    uploaded_file = request.FILES.get('image')
+    if not uploaded_file:
+        return JsonResponse({'error': 'No image provided'}, status=400)
+
+    # Basic validations
+    if not uploaded_file.content_type.startswith('image/'):
+        return JsonResponse({'error': 'Invalid file type'}, status=400)
+    if uploaded_file.size > 5 * 1024 * 1024:
+        return JsonResponse({'error': 'File too large (max 5MB)'}, status=400)
+
+    try:
+        image_record.image = uploaded_file.read()
+        image_record.image_type = uploaded_file.content_type
+        image_record.file_size = uploaded_file.size
+        image_record.uploaded_at = timezone.now()
+        image_record.save()
+        return JsonResponse({'status': 'success'})
+    except Exception:
+        logger.exception('Failed to save uploaded image')
+        return JsonResponse({'error': 'Upload failed'}, status=500)
+
+
+@login_required
+@require_GET
+def list_attempt_images(request, attempt_id):
+    """Return a list of uploaded images for the attempt (authenticated).
+    """
+    attempt = get_object_or_404(Attempt, pk=attempt_id, user=request.user)
+    from .models import AttemptImage
+    imgs = AttemptImage.objects.filter(attempt=attempt).order_by('-created_at')
+    data = []
+    for img in imgs:
+        thumb_url = request.build_absolute_uri(reverse('exercises:serve_attempt_image', args=[img.upload_token]))
+        data.append({
+            'id': img.id,
+            'token': img.upload_token,
+            'uploaded_at': img.uploaded_at.isoformat() if img.uploaded_at else img.created_at.isoformat(),
+            'file_size': img.file_size,
+            'thumbnail_url': thumb_url,
+        })
+    return JsonResponse({'images': data})
+
+
+@login_required
+@require_GET
+def serve_attempt_image(request, token):
+    """Serve an attempt image using its upload token."""
+    from .models import AttemptImage
+    img = get_object_or_404(AttemptImage, upload_token=token)
+    if not img.image:
+        return HttpResponse('No image', status=404)
+    return HttpResponse(img.image, content_type=img.image_type)
+
+
+def serve_qr_code(request, token):
+    """Generate and serve a QR code for the mobile upload page."""
+    upload_url = request.build_absolute_uri(reverse('exercises:mobile_upload_page', args=[token]))
+    
+    try:
+        import qrcode
+        from io import BytesIO
+        qr = qrcode.make(upload_url)
+        buf = BytesIO()
+        qr.save(buf, format='PNG')
+        buf.seek(0)
+        return FileResponse(buf, content_type='image/png')
+    except Exception:
+        return HttpResponse('Failed to generate QR code', status=500)
+
+
+@require_GET
+def image_status(request, token):
+    """Return upload status for a given upload token (unauthenticated polling endpoint)."""
+    from .models import AttemptImage
+    img = AttemptImage.objects.filter(upload_token=token).first()
+    if not img:
+        return JsonResponse({'status': 'error', 'message': 'Not found'}, status=404)
+    # Expired
+    try:
+        if img.token_expires_at and timezone.now() > img.token_expires_at:
+            return JsonResponse({'status': 'expired'}, status=403)
+    except Exception:
+        pass
+    if img.image:
+        return JsonResponse({'status': 'completed'})
+    return JsonResponse({'status': 'pending'})
+
+
+@login_required
+@require_POST
+def delete_attempt_image(request, attempt_id, image_id):
+    attempt = get_object_or_404(Attempt, pk=attempt_id, user=request.user)
+    from .models import AttemptImage
+    img = get_object_or_404(AttemptImage, pk=image_id, attempt=attempt)
+    img.delete()
+    return JsonResponse({'status': 'success'})
 
 
 

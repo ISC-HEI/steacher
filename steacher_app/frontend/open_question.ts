@@ -6,12 +6,21 @@ import confetti from 'canvas-confetti';
 import type { Exercise } from './utils.js';
 import { csrfFetch, getCsrfToken } from './utils.js';
 
+interface ImageUpload {
+    token: string;
+}
+
 interface OpenQuestionDataContext {
     exercise: Exercise;
     userAnswer: string;
     queryError: string | null;
     loadingState: 'idle' | 'getting-guidance';
     start_timestamp: string;
+    showQRModal: boolean;
+    uploadToken: string | null;
+    isPolling: boolean;
+    uploadedImages: ImageUpload[];
+    pollingInterval: number | null;
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -77,6 +86,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 queryError: null,
                 loadingState: 'idle',
                 start_timestamp: new Date().toISOString(),
+                showQRModal: false,
+                uploadToken: null,
+                isPolling: false,
+                uploadedImages: [],
+                pollingInterval: null,
             };
         },
         async mounted() {
@@ -121,6 +135,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         question: details.question || null,
                         start_timestamp: this.start_timestamp,
                         submission_timestamp: new Date().toISOString(),
+                        image_tokens: this.uploadedImages.map(img => img.token),
                     };
 
                     const response = await csrfFetch(`/exercises/${this.exercise.id}/attempts/${attemptId}/guidance/`, {
@@ -178,6 +193,69 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             handleQuestion(question: string) {
                 this.getGuidance('ask_question', { question });
+            },
+
+            async showUploadModal() {
+                try {
+                    const response = await csrfFetch(`/exercises/attempts/${attemptId}/upload-token/`, {
+                        method: 'POST'
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to get upload token');
+                    }
+
+                    const data = await response.json();
+                    this.uploadToken = data.token;
+                    this.showQRModal = true;
+                    this.startPolling();
+                } catch (error) {
+                    console.error('Error getting upload token:', error);
+                    this.queryError = 'Failed to initialize image upload.';
+                }
+            },
+
+            closeUploadModal() {
+                this.showQRModal = false;
+                this.uploadToken = null;
+                this.stopPolling();
+            },
+
+            startPolling() {
+                this.isPolling = true;
+                this.pollingInterval = window.setInterval(async () => {
+                    if (!this.uploadToken) {
+                        this.stopPolling();
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`/exercises/attempts/image-status/${this.uploadToken}/`);
+                        if (!response.ok) {
+                            throw new Error('Failed to check upload status');
+                        }
+
+                        const data = await response.json();
+                        if (data.status === 'completed') {
+                            this.uploadedImages.push({ token: this.uploadToken });
+                            this.closeUploadModal();
+                        }
+                    } catch (error) {
+                        console.error('Error checking upload status:', error);
+                    }
+                }, 2000); // Poll every 2 seconds
+            },
+
+            stopPolling() {
+                this.isPolling = false;
+                if (this.pollingInterval !== null) {
+                    window.clearInterval(this.pollingInterval);
+                    this.pollingInterval = null;
+                }
+            },
+
+            removeImage(index: number) {
+                this.uploadedImages.splice(index, 1);
             }
         },
         components: {
@@ -192,6 +270,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.warn('Error saving answer to localStorage', e);
                 }
             }
+        },
+        
+        beforeUnmount() {
+            this.stopPolling();
         }
     });
 

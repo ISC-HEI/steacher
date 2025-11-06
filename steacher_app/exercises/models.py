@@ -215,6 +215,48 @@ class CohortMembership(models.Model):
         return super().save(*args, **kwargs)
 
 
+class AttemptImage(models.Model):
+    """
+    Image uploaded for an attempt, typically a photo of handwritten work.
+    Stored as binary in the database to match existing ExerciseAsset pattern.
+    """
+    attempt = models.ForeignKey(
+        'Attempt',
+        on_delete=models.CASCADE,
+        related_name='images'
+    )
+    image = models.BinaryField(help_text="Store image as binary data", null=True, blank=True)
+    upload_token = models.CharField(
+        max_length=128,
+        unique=True,
+        db_index=True,
+        help_text="Unique token for unauthenticated upload"
+    )
+    uploaded_at = models.DateTimeField(null=True, blank=True, help_text="When the image was uploaded")
+    created_at = models.DateTimeField(auto_now_add=True)
+    image_type = models.CharField(
+        max_length=50,
+        default='image/jpeg',
+        help_text="MIME type of the image"
+    )
+    token_expires_at = models.DateTimeField(help_text="When the upload token expires")
+    file_size = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Size in bytes"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['attempt', 'created_at']),
+            models.Index(fields=['upload_token']),
+        ]
+
+    def __str__(self):
+        return f"AttemptImage {self.id} for attempt {self.attempt_id}"
+
+
 class CourseMembership(models.Model):
     """
     Course-level membership with roles: owner (single), editor, viewer.

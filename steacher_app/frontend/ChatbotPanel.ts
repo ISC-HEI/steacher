@@ -46,6 +46,10 @@ export const ChatbotPanel = defineComponent({
         type: Boolean,
         default: false,
     },
+  uploadedImages: {
+    type: Array,
+    default: () => []
+  },
     confettiAlreadyShown: {
         type: Boolean,
         default: false,
@@ -188,13 +192,20 @@ export const ChatbotPanel = defineComponent({
   <input type="file" ref="addFileInput" style="display:none" @change="handleAddFileChange" accept="image/*" />
 
       <!-- Image Preview Box (above input area) -->
-      <div v-if="previewImageUrl" class="box mb-2" style="position:relative;padding:0.75rem;">
-        <button class="delete is-small" style="position:absolute;right:0.5rem;top:0.5rem;z-index:1;" 
-                @click.prevent="clearPreview" aria-label="Remove image">
-        </button>
-        <div style="max-height:200px;overflow:hidden;display:flex;align-items:center;justify-content:center;">
-          <img :src="previewImageUrl" alt="Selected image" 
-               style="max-width:100%;max-height:200px;object-fit:contain;" />
+      <div v-if="previewImageUrl || (uploadedImages && uploadedImages.length > 0)" class="box mb-2" style="position:relative;padding:0.75rem;">
+        <!-- If a local preview (file selected via add-menu) exists show it first -->
+        <button v-if="previewImageUrl" class="delete is-small" style="position:absolute;right:0.5rem;top:0.5rem;z-index:1;" 
+                @click.prevent="clearPreview" aria-label="Remove image"></button>
+        <div v-if="previewImageUrl" style="max-height:200px;overflow:hidden;display:flex;align-items:center;justify-content:center;">
+          <img :src="previewImageUrl" alt="Selected image" style="max-width:100%;max-height:200px;object-fit:contain;" />
+        </div>
+
+        <!-- Otherwise show uploaded images (from QR flow) above the question input -->
+        <div v-else style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;justify-content:center;">
+          <div v-for="(img, idx) in uploadedImages" :key="idx" style="position:relative;">
+            <img :src="'/exercises/attempts/image/' + img.token" style="max-height:160px;max-width:160px;object-fit:contain;border:1px solid #e6e6e6;background:#fff;padding:0.25rem;" />
+            <button class="delete is-small" style="position:absolute;top:-8px;right:-8px;" @click.prevent="removeUploadedImage(idx)"></button>
+          </div>
         </div>
       </div>
 
@@ -556,7 +567,10 @@ export const ChatbotPanel = defineComponent({
     },
 
     toggleAddMenu(this: any) {
-      this.showAddMenu = !this.showAddMenu;
+      // Previously toggled a small add-menu. Now emit an event so the parent
+      // can open the upload (QR) modal. This transfers the "Upload picture"
+      // behaviour to the + button as requested.
+      try { this.$emit('open-upload-modal'); } catch (_) { /* noop */ }
     },
 
     openFileDialog(this: any) {
@@ -569,6 +583,10 @@ export const ChatbotPanel = defineComponent({
       } catch (e) {
         console.warn('Unable to open file dialog', e);
       }
+    },
+
+    removeUploadedImage(this: any, index: number) {
+      try { this.$emit('remove-image', index); } catch (_) { /* noop */ }
     },
 
     handleAddFileChange(this: any, event: Event) {

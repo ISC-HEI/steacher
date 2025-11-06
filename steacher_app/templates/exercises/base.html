@@ -20,6 +20,7 @@
     <meta name="theme-color" content="#ffffff">
     <meta name="theme-color" content="#0b0b0b" media="(prefers-color-scheme: dark)">
     <meta name="csrf-token" content="{{ csrf_token }}">
+    {% block head %}{% endblock %}
     
     <!-- Bulma CSS via CDN (pinned) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">

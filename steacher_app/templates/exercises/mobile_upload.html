@@ -1,0 +1,132 @@
+{% extends "exercises/base.html" %}
+
+{% load static %}
+
+{% block head %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/vue@3.5.22/dist/vue.global.prod.js"></script>
+{% endblock %}
+
+{% block content %}
+<div id="mobile-upload-app" class="container mt-5" v-cloak>
+    <div class="box">
+        <h1 class="title is-3">Upload Your Answer</h1>
+        <p class="subtitle is-5">{{ exercise_title }}</p>
+        
+        <div v-if="!imageSelected" class="content">
+            <label class="button is-large is-primary is-fullwidth" for="photo-input">
+                <span class="icon is-large"><i class="fas fa-camera fa-2x"></i></span>
+                <span class="ml-3">Take Photo or Choose File</span>
+            </label>
+            <input 
+                type="file" 
+                id="photo-input" 
+                accept="image/*" 
+                capture="environment"
+                style="display: none;"
+                @change="handleFileSelect">
+        </div>
+        
+        <div v-if="imageSelected && !uploaded">
+            <figure class="image">
+                <img :src="imagePreview" alt="Preview">
+            </figure>
+            
+            <div id="cropper-container" class="my-4"></div>
+            
+            <div class="buttons mt-4">
+                <button @click="uploadImage" class="button is-primary is-large is-fullwidth" :class="{ 'is-loading': uploading }">
+                    <span class="icon"><i class="fas fa-upload"></i></span>
+                    <span>Upload</span>
+                </button>
+                <button @click="resetSelection" class="button is-light is-fullwidth">
+                    <span class="icon"><i class="fas fa-redo"></i></span>
+                    <span>Retake</span>
+                </button>
+            </div>
+        </div>
+        
+        <div v-if="uploaded" class="notification is-success is-light">
+            <span class="icon is-large"><i class="fas fa-check-circle fa-3x"></i></span>
+            <h2 class="title is-4 mt-3">Photo Successfully Sent!</h2>
+            <p>You can now return to your computer.</p>
+        </div>
+        
+        <div v-if="error" class="notification is-danger">
+            <p>[[ error ]]</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const { createApp } = Vue;
+    const app = createApp({
+    delimiters: ['[[', ']]'],
+    data() {
+        return {
+            imageSelected: false,
+            imagePreview: null,
+            selectedFile: null,
+            croppedBlob: null,
+            uploading: false,
+            uploaded: false,
+            error: null,
+            token: '{{ token }}',
+            cropper: null,
+        };
+    },
+    methods: {
+        handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                this.error = 'Please select an image file';
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                this.error = 'Image is too large. Maximum size is 5MB';
+                return;
+            }
+            this.selectedFile = file;
+            this.imagePreview = URL.createObjectURL(file);
+            this.imageSelected = true;
+            this.error = null;
+        },
+        async uploadImage() {
+            this.uploading = true;
+            this.error = null;
+            try {
+                const formData = new FormData();
+                const fileToUpload = this.croppedBlob || this.selectedFile;
+                formData.append('image', fileToUpload, 'answer.jpg');
+                const resp = await fetch(`/exercises/upload/${this.token}/submit/`, {
+                    method: 'POST',
+                    body: formData,
+                });
+                if (!resp.ok) throw new Error('Upload failed');
+                this.uploaded = true;
+            } catch (e) {
+                this.error = 'Upload failed. Please try again.';
+            } finally {
+                this.uploading = false;
+            }
+        },
+        resetSelection() {
+            this.imageSelected = false;
+            this.imagePreview = null;
+            this.selectedFile = null;
+            this.croppedBlob = null;
+            this.error = null;
+            document.getElementById('photo-input').value = '';
+        }
+    }
+});
+
+    app.mount('#mobile-upload-app');
+});
+</script>
+{% endblock %}
