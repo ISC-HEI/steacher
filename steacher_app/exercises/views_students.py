@@ -787,7 +787,11 @@ def mobile_upload_submit(request, token):
         return JsonResponse({'error': 'File too large (max 5MB)'}, status=400)
 
     try:
-        image_record.image = uploaded_file.read()
+        # Convert the uploaded file to base64
+        image_data = uploaded_file.read()
+        base64_image = base64.b64encode(image_data).decode('utf-8')
+        
+        image_record.image = base64_image
         image_record.image_type = uploaded_file.content_type
         image_record.file_size = uploaded_file.size
         image_record.uploaded_at = timezone.now()
@@ -827,7 +831,13 @@ def serve_attempt_image(request, token):
     img = get_object_or_404(AttemptImage, upload_token=token)
     if not img.image:
         return HttpResponse('No image', status=404)
-    return HttpResponse(img.image, content_type=img.image_type)
+    # Decode base64 image
+    try:
+        binary_image = base64.b64decode(img.image)
+        return HttpResponse(binary_image, content_type=img.image_type)
+    except Exception:
+        logger.exception('Failed to decode image')
+        return HttpResponse('Failed to decode image', status=500)
 
 
 def serve_qr_code(request, token):

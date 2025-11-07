@@ -225,7 +225,7 @@ class AttemptImage(models.Model):
         on_delete=models.CASCADE,
         related_name='images'
     )
-    image = models.BinaryField(help_text="Store image as binary data", null=True, blank=True)
+    image = models.TextField(help_text="Store image as base64 encoded string", null=True, blank=True)
     upload_token = models.CharField(
         max_length=128,
         unique=True,
@@ -324,6 +324,9 @@ class Exercise(models.Model):
     visible = models.BooleanField(default=True, help_text="Whether the exercise is visible to students.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    uses_images = models.BooleanField(default=False) # user can input images
+
     # Reverse link to all Trace rows that reference this Exercise as owner (e.g., authoring)
     traces = GenericRelation('Trace', related_query_name='exercise_owner')
 
