@@ -215,13 +215,13 @@ class CohortMembership(models.Model):
         return super().save(*args, **kwargs)
 
 
-class AttemptImage(models.Model):
+class TraceImage(models.Model):
     """
-    Image uploaded for an attempt, typically a photo of handwritten work.
-    Stored as binary in the database to match existing ExerciseAsset pattern.
+    Image uploaded for a Trace, typically a photo of handwritten work.
+    Stored as b64 in the database to direcly match the format in which it.
     """
-    attempt = models.ForeignKey(
-        'Attempt',
+    trace = models.ForeignKey(
+        'Trace',
         on_delete=models.CASCADE,
         related_name='images'
     )
@@ -249,12 +249,12 @@ class AttemptImage(models.Model):
     class Meta:
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['attempt', 'created_at']),
+            models.Index(fields=['trace', 'created_at']),
             models.Index(fields=['upload_token']),
         ]
 
     def __str__(self):
-        return f"AttemptImage {self.id} for attempt {self.attempt_id}"
+        return f"TraceImage {self.id} for attempt {self.trace_id}"
 
 
 class CourseMembership(models.Model):
@@ -325,7 +325,7 @@ class Exercise(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    uses_images = models.BooleanField(default=False) # user can input images
+    allow_image_upload = models.BooleanField(default=False) # user can input images
 
     # Reverse link to all Trace rows that reference this Exercise as owner (e.g., authoring)
     traces = GenericRelation('Trace', related_query_name='exercise_owner')

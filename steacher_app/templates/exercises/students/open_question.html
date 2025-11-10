@@ -21,10 +21,6 @@
                         <div class="control">
                             <textarea class="textarea" v-model="userAnswer" placeholder="Write your answer here..." rows="10"></textarea>
                         </div>
-                        <div class="mt-2 is-flex is-align-items-center">
-                            <!-- Upload Picture button removed — functionality moved to + button in chatbot panel -->
-                            <!-- uploadedImages moved to chatbot panel (displayed above the Question textbox) -->
-                        </div>
                     </div>
                     
                     <!-- QR Code Upload Modal -->
@@ -89,11 +85,13 @@
                 </div>
             </div>
         </div>
+        
         <div class="right-panel">
             <chatbot-panel
                 ref="chatbotPanel"
                 :loading="loadingState === 'getting-guidance'"
                 :attempt-id="{{ attempt_id }}"
+                :allow-image-upload="exercise.allow_image_upload"
                 @open-upload-modal="showUploadModal"
                 :uploaded-images="uploadedImages"
                 @remove-image="removeImage"

@@ -7,6 +7,7 @@ export interface Exercise {
     exercise_type: string;
     description: string;
     question: string;
+    allow_image_upload: boolean;
     exercise_data: {
         additional_context?: string;
         db?: string; // SQL only

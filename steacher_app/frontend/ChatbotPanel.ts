@@ -53,6 +53,10 @@ export const ChatbotPanel = defineComponent({
     confettiAlreadyShown: {
         type: Boolean,
         default: false,
+    },
+    allowImageUpload: {
+        type: Boolean,
+        default: false,
     }
   },
   // language=HTML
@@ -236,7 +240,7 @@ export const ChatbotPanel = defineComponent({
         </p>
 
         <!-- Add (+) menu control -->
-        <p class="control" style="position: relative;">
+        <p v-if="allowImageUpload" class="control" style="position: relative;">
           <button ref="addMenuButton" class="button is-light" @click.prevent="toggleAddMenu" :disabled="loading || pathwayLoading || pathwayData" title="Add">
             <span class="icon"><i class="fas fa-plus"></i></span>
           </button>

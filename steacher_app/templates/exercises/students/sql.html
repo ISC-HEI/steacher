@@ -178,6 +178,7 @@
                 ref="chatbotPanel"
                 :loading="loadingState === 'getting-guidance'"
                 :attempt-id="{{ attempt_id }}"
+                :allow-image-upload="exercise.allow_image_upload"
                 next-exercise-url="{% if next_exercise %}{% url 'exercises:exercise_detail' next_exercise.pk %}{% endif %}"
                 :solution-unlocked-initial="{{ solution_unlocked|yesno:'true,false' }}"
                 @question-asked="handleQuestion"
