@@ -212,7 +212,7 @@ LOGGING = {
     'loggers': {
         'exercises.logic': {
             'handlers': ['file', 'console'],
-            'level': 'INFO',
+            'level': 'DEBUG',
             'propagate': True,
         },
         'exercises.views_students': {

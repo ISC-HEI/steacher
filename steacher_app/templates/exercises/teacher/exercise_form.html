@@ -388,10 +388,11 @@
                 <h3 class="title is-5">AI Exercise Assistant</h3>
                 <div class="ai-assistant-content">
                     <div v-if="assistantError" class="notification is-danger is-light">[[ assistantError ]]</div>
-                    <div v-if="messages.length === 0" class="has-text-grey">Start by describing what you want to change or paste content to improve…</div>
+                    <div v-if="messages.length === 0" class="has-text-grey">The authoring assistant helps you improve your exercise. Messages from the authoring assistant will appear here.<br><br>Start by describing the changes you want in the text box below or paste content to improve. <br><br>E.g. you can write: "here's my question in french, format it to english and don't forget to ask the students to write comments in the code."<br><br> There are two modes: Improve and Feedback. In Improve mode, the assistant will improve the exercise based on your instructions. In Feedback mode, the assistant will provide text feedback without modifying the exercise.</div>
                     <div v-for="(m, i) in messages" :key="i" style="margin-bottom: 0.75rem;">
                         <p><strong>[[ m.role === 'user' ? 'You' : 'Assistant' ]]</strong></p>
-                        <div class="content" style="white-space: pre-wrap;">[[ m.content ]]</div>
+                        <div v-if="m.role === 'assistant'" class="content" v-html="renderMarkdown(m.content)"></div>
+                        <div v-else class="content" style="white-space: pre-wrap;">[[ m.content ]]</div>
                         <hr v-if="i < messages.length - 1" style="margin: 0.5rem 0;">
                     </div>
                     <!-- Thinking indicator while waiting for AI response -->
@@ -401,18 +402,19 @@
                             <span class="dot" style="--ti-delay: 0ms;"></span>
                             <span class="dot" style="--ti-delay: 150ms;"></span>
                             <span class="dot" style="--ti-delay: 300ms;"></span>
-                            <span class="helper-text">Generating response... this can take 5–15s</span>
+                            <span class="helper-text">Generating response... this can take 10–20s</span>
                         </div>
                     </div>
                 </div>
                 <div class="field" style="margin-bottom: 0.5rem;">
                     <div class="control">
-                        <textarea class="textarea" v-model="draftMessage" @keydown.meta.enter.prevent="sendAssistantMessage" placeholder="Ask for improvements, provide constraints, paste draft content... Leave empty and hit 'Send' to improve the exercise question." rows="4"></textarea>
+                        <textarea class="textarea" v-model="draftMessage" placeholder="Provide instructions and context, or leave empty to auto-improve." rows="4"></textarea>
                     </div>
                 </div>
                 <div class="buttons">
-                    <button class="button is-link" :class="{ 'is-loading': sending }" :disabled="sending" @click="sendAssistantMessage" title="Send your message to the AI assistant.">Send</button>
-                    <button class="button" :disabled="!lastAppliedSnapshot" @click="undoLastAIEdit" title="Revert the last change made by the AI assistant.">Undo last AI edit</button>
+                    <button class="button is-success" :class="{ 'is-loading': sending }" :disabled="sending" @click="sendAssistantMessage('edit')" title="AI will modify the exercise based on your instructions (or auto-improve if empty)">Improve Exercise</button>
+                    <button class="button is-link" :class="{ 'is-loading': sending }" :disabled="sending" @click="sendAssistantMessage('feedback')" title="AI will provide text feedback without modifying the exercise">Get Feedback</button>
+                    <button class="button" :class="{ 'is-static': lastActionMode === 'feedback' }" :disabled="!lastAppliedSnapshot || lastActionMode === 'feedback'" @click="undoLastAIEdit" title="Revert the last change made by the AI assistant (only for Improve mode)">Undo last AI edit</button>
                 </div>
             </div>
         </div>
@@ -426,7 +428,9 @@
 <script type="importmap">
 {
   "imports": {
-    "vue": "https://cdn.jsdelivr.net/npm/vue@3.4.27/dist/vue.esm-browser.js"
+    "vue": "https://cdn.jsdelivr.net/npm/vue@3.4.27/dist/vue.esm-browser.js",
+    "marked": "https://cdn.jsdelivr.net/npm/marked@16.0.0/lib/marked.esm.js",
+    "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs"
   }
 }
 </script>

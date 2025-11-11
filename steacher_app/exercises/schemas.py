@@ -55,8 +55,8 @@ class AnswerData(BaseModel):
     """
     hints: str = Field(default="", description='''A string containing hints, with each hint on a new line. 
     It is not mandatory for the assistant to use the hints, but it should help it understand the exercise context and generate better hints.
-    Hints should be in English, and the assistant will translate them into the language of the student.''')
-    additional_context: str = Field(default="", description='''Additional context for the answer. This is only shown to the assistant, not to the student.
+    Hints should be in English, and the assistant will translate them into the language of the student. Ideally, hints should be progressive (easier → harder).''')
+    additional_context: str = Field(default="", description='''Additional context for the answer. This is only shown to the assistant, not to the student. It may include prerequisite assumptions.
     It could include additional information about the exercise, the context in which it is to be solved, etc. For example, if the students have not yet learned about a specific technique, 
     you could instruct the assistant not to talk about it.
     Else you could also instruct the assistant to be quite permissive into the correct answers, because the question is exploratory and the correct answer is not always obvious.''')
@@ -108,7 +108,7 @@ def get_pydantic_schema_as_string() -> str:
 
     prompt = f"""
     
-# Top-level Exercise fields
+### Top-level Exercise fields
 - `pk` (integer, read-only): The primary key of the exercise. Do not modify.
 - `title_i18n` (object): The title of the exercise in English, German, and French. Make sure that the title does not give away any hints about the exercise's solution.
   - `en` (string): English title.
@@ -130,13 +130,13 @@ def get_pydantic_schema_as_string() -> str:
 - `course_name` (string, read-only): The name of the course this exercise belongs to. Do not modify.
 - `course_description` (string, read-only): The description of the course this exercise belongs to. Use this to get some context about the course. Do not modify.
 
-# Exercise Data Schema (`exercise_data`)
+### Exercise Data Schema (`exercise_data`)
 {exercise_data_schema_str}
 
-# Answer Data Schema (`answer_data`)
+### Answer Data Schema (`answer_data`)
 {answer_data_schema_str}
 
-The final JSON object you return should contain all three parts: the top-level fields, `exercise_data`, and `answer_data`. """
+"""
 
     return prompt
 

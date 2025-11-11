@@ -1093,7 +1093,6 @@ def exercise_authoring_assistant(request):
 
     if not isinstance(messages, list):
         return JsonResponse({'status': 'error', 'message': 'messages must be a list'}, status=400)
-
     if not course_pk:
         return JsonResponse({'status': 'error', 'message': 'Missing course_pk in context'}, status=400)
 
@@ -1129,6 +1128,7 @@ def exercise_authoring_assistant(request):
                     if (last_msg.get('role') or 'user') == 'user':
                         user_text = str(last_msg.get('content') or '')
             except Exception:
+                logger.exception("Error getting user text from messages")
                 user_text = ''
 
             assistant_text = str(result.get('assistant_message') or '')
@@ -1141,9 +1141,11 @@ def exercise_authoring_assistant(request):
                     'model': result.get('assistant_metadata', {}).get('model'),
                     'usage': result.get('assistant_metadata', {}).get('usage'),
                     'finish_reason': result.get('assistant_metadata', {}).get('finish_reason'),
+                    'mode': mode,
                 },
             }
             
+            # Persist the trace, has_any is True if there is any trace for this object on the authoring channel
             has_any = trace_object.traces.filter(channel='authoring').exists()
             if not has_any:
                 fields['system_prompt'] = str(result.get('system_prompt') or '')

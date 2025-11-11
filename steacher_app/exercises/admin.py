@@ -330,15 +330,17 @@ class TraceAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'content_type', 'object_id', 'channel', 'rank_order', 'created_repr')
     list_filter = (('user', admin.RelatedOnlyFieldListFilter), ('content_type', admin.RelatedOnlyFieldListFilter), 'channel')
     search_fields = ('user__username', 'user__email')
-    ordering = ('content_type', 'object_id', 'rank_order', 'id')
+    ordering = ('-id',)
     readonly_fields = ()
 
     def created_repr(self, obj):
         try:
-            return getattr(obj, 'id', None)
+            if obj.created_at:
+                return obj.created_at.strftime('%Y-%m-%d %H:%M:%S')
+            return None
         except Exception:
             return None
-    created_repr.short_description = 'Created'
+    created_repr.short_description = 'Created at'
 
 
 class HasEvaluationFilter(admin.SimpleListFilter):

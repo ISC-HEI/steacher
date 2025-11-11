@@ -1,5 +1,7 @@
 import { createApp, defineComponent } from 'vue';
 import { csrfFetch, getCsrfToken } from './utils.js';
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 interface TestCase {
     description: string;
@@ -83,11 +85,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 loading: false,
                 error: null as string | null,
                 // Assistant state (ephemeral, desktop only)
-                messages: [] as { role: 'user' | 'assistant'; content: string }[],
+                messages: [] as { role: 'user' | 'assistant'; content: string; mode?: string }[],
                 draftMessage: '',
                 sending: false,
                 assistantError: null as string | null,
                 lastAppliedSnapshot: null as ExerciseFormData | null,
+                lastActionMode: null as 'edit' | 'feedback' | null,
                 course_pk: coursePk,
                 uiLang: 'en' as 'en' | 'fr' | 'de',
                 course_name: courseName,
@@ -314,16 +317,30 @@ document.addEventListener('DOMContentLoaded', function() {
             removeCorrectAnswer(index: number) {
                 this.exercise.answer_data.correct_answers.splice(index, 1);
             },
-            async sendAssistantMessage() {
+            renderMarkdown(content: string): string {
+                try {
+                    const rawHtml = marked.parse(content) as string;
+                    return DOMPurify.sanitize(rawHtml);
+                } catch (err) {
+                    console.error('Markdown rendering failed:', err);
+                    return content;
+                }
+            },
+            async sendAssistantMessage(mode: 'edit' | 'feedback') {
                 if (this.sending) return;
 
                 const message = this.draftMessage.trim();
-                const content = message === '' ? 'Improve the exercise question.' : message;
+                
+                // For edit mode with empty message, use default improvement prompt
+                // For feedback mode, empty message is allowed (general feedback)
+                const content = (mode === 'edit' && message === '') 
+                    ? 'Improve the exercise question.' 
+                    : message;
 
                 this.assistantError = null;
                 this.sending = true;
 
-                const userMsg = { role: 'user' as const, content: content };
+                const userMsg = { role: 'user' as const, content: content, mode: mode };
                 this.messages.push(userMsg);
                 this.draftMessage = '';
 
@@ -343,7 +360,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         body: JSON.stringify({
                             exercise: this.exercise,
                             messages: this.messages,
-                            context: { course_pk: this.course_pk },
+                            context: { course_pk: this.course_pk, mode: mode },
                         }),
                     });
 
@@ -355,19 +372,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     const assistant_message: string = result.assistant_message || '';
                     const updated_exercise: ExerciseFormData = result.updated_exercise || this.exercise;
 
-                    // Ensure the nested structure for unit tests exists in the AI's response.
-                    if (!updated_exercise.answer_data) {
-                        updated_exercise.answer_data = { unit_tests: { setup_code: '', test_cases: [], timeout_seconds: 10 }, correct_answers: [], hints: '' };
-                    }
-                    if (!updated_exercise.answer_data.unit_tests) {
-                        updated_exercise.answer_data.unit_tests = { setup_code: '', test_cases: [], timeout_seconds: 10 };
-                    }
+                    if (mode === 'edit') {
+                        // Edit mode: Apply changes and create snapshot for undo
+                        // Ensure the nested structure for unit tests exists in the AI's response.
+                        if (!updated_exercise.answer_data) {
+                            updated_exercise.answer_data = { unit_tests: { setup_code: '', test_cases: [], timeout_seconds: 10 }, correct_answers: [], hints: '' };
+                        }
+                        if (!updated_exercise.answer_data.unit_tests) {
+                            updated_exercise.answer_data.unit_tests = { setup_code: '', test_cases: [], timeout_seconds: 10 };
+                        }
 
-                    this.lastAppliedSnapshot = this.deepClone(this.exercise);
-                    this.exercise = this.deepClone(updated_exercise);
+                        this.lastAppliedSnapshot = this.deepClone(this.exercise);
+                        this.exercise = this.deepClone(updated_exercise);
+                        this.lastActionMode = 'edit';
+                    } else {
+                        // Feedback mode: Display message only, don't modify form
+                        this.lastActionMode = 'feedback';
+                    }
 
                     if (assistant_message) {
-                        this.messages.push({ role: 'assistant', content: assistant_message });
+                        this.messages.push({ role: 'assistant', content: assistant_message, mode: mode });
                     }
                 } catch (err: any) {
                     this.assistantError = err.message || String(err);
@@ -376,9 +400,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
             undoLastAIEdit() {
-                if (!this.lastAppliedSnapshot) return;
+                if (!this.lastAppliedSnapshot || this.lastActionMode !== 'edit') return;
                 this.exercise = this.deepClone(this.lastAppliedSnapshot);
                 this.lastAppliedSnapshot = null;
+                this.lastActionMode = null;
             },
             async saveExercise() { return this.performSave(true); },
             async saveAndContinue() { return this.performSave(false); }
