@@ -41,12 +41,9 @@ npm install
 npm run watch
 ```
 
+### Create log directory
 
-### Run migrations
-
-```bash
-python manage.py migrate
-```
+Create a new folder called "logs" here: \steacher_app\steacher_app\logs
 
 
 ### Create the database
@@ -54,6 +51,14 @@ python manage.py migrate
 ```bash
 docker exec -i my-local-postgres psql -U postgres -c "CREATE DATABASE steacher;"
 ```
+
+
+### Run migrations
+
+```bash
+python manage.py migrate
+```
+
 
 ### Create a superuser
 
