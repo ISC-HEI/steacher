@@ -18,7 +18,7 @@ students_urlpatterns = [
     # More specific patterns first to avoid conflicts
     path('<int:exercise_id>/attempts/<int:attempt_id>/guidance/', views_students.get_guidance, name='get_guidance'),
     # Image upload / token endpoints
-    path('attempts/<int:trace_id>/upload-token/', views_image_upload.generate_upload_token, name='generate_upload_token'),
+    path('attempts/<int:attempt_id>/upload-token/', views_image_upload.generate_upload_token, name='generate_upload_token'),
     path('attempts/image/<str:token>/', views_image_upload.serve_trace_image, name='serve_trace_image'),
     path('attempts/<int:trace_id>/image/<int:image_id>/delete/', views_image_upload.delete_trace_image, name='delete_trace_image'),
     path('attempts/qr/<str:token>/', views_image_upload.serve_qr_code, name='serve_qr_code'),
