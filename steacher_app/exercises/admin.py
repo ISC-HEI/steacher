@@ -6,7 +6,7 @@ from django.urls import reverse
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html, mark_safe
 from django.db.models import Count
-from .models import Exercise, Course, Module, ExerciseAsset, Attempt, UserInvite, ChatThread, Cohort, CohortMembership, Trace, TraceEval, CourseMembership, QuizLog
+from .models import Exercise, Course, Module, ExerciseAsset, Attempt, UserInvite, ChatThread, Cohort, CohortMembership, Trace, TraceEval, CourseMembership, QuizLog, TraceImage
 from django_jsonform.widgets import JSONFormWidget
 
 # Customize Django admin titles
@@ -596,3 +596,47 @@ class QuizLogAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+
+@admin.register(TraceImage)
+class TraceImageAdmin(admin.ModelAdmin):
+    list_display = ('id', 'trace', 'image_type', 'file_size_display', 'uploaded_at', 'created_at')
+    list_filter = (('trace__user', admin.RelatedOnlyFieldListFilter), 'image_type', 'uploaded_at')
+    search_fields = ('trace__user__username', 'upload_token')
+    readonly_fields = ('image_preview', 'upload_token', 'uploaded_at', 'created_at', 'token_expires_at', 'file_size')
+    ordering = ('-created_at',)
+    
+    fieldsets = (
+        (None, {
+            'fields': ('trace', 'image_type', 'file_size', 'upload_token', 'token_expires_at')
+        }),
+        ('Image', {
+            'fields': ('image_preview',)
+        }),
+        ('Timestamps', {
+            'fields': ('uploaded_at', 'created_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def image_preview(self, obj):
+        if not obj or not obj.image:
+            return 'No image uploaded'
+        try:
+            data_url = f"data:{obj.image_type};base64,{obj.image}"
+            return mark_safe(f'<img src="{data_url}" style="max-width: 800px; max-height: 600px;" />')
+        except Exception as e:
+            return f'Error displaying image: {str(e)}'
+    image_preview.short_description = 'Image Preview'
+    
+    def file_size_display(self, obj):
+        if not obj or not obj.file_size:
+            return '0 bytes'
+        size = obj.file_size
+        if size < 1024:
+            return f'{size} bytes'
+        elif size < 1024 * 1024:
+            return f'{size / 1024:.1f} KB'
+        else:
+            return f'{size / (1024 * 1024):.1f} MB'
+    file_size_display.short_description = 'File Size'

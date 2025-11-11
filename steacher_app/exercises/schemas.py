@@ -124,6 +124,7 @@ def get_pydantic_schema_as_string() -> str:
   - `de` (string): German question.
   - `fr` (string): French question.
 - `exercise_type` (string): The type of the exercise (one of `python`, `sql`, `open_question`, `scala`, `turtle`). Determines the structure of `exercise_data`. Modify only if it makes sense.
+- `allow_image_upload` (boolean): Whether students can upload images as part of their answer (e.g., photos of handwritten work, diagrams, or screenshots). Useful for exercises where visual content is part of the solution.
 - `available_sql_assets` (array of strings, read-only): For SQL exercises, a list of available database assets. Can be used to set up the db field in `exercise_data` below.
 - `course_pk` (integer, read-only): The primary key of the course this exercise belongs to. Do not modify.
 - `course_name` (string, read-only): The name of the course this exercise belongs to. Do not modify.

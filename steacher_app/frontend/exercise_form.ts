@@ -14,6 +14,7 @@ interface ExerciseFormData {
     description_i18n: Record<string, string>;
     question_i18n: Record<string, string>;
     exercise_type: string;
+    allow_image_upload: boolean;
     exercise_data: {
         db?: string;
         answer_template?: string;
@@ -69,6 +70,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!(initialData as any).title_i18n) (initialData as any).title_i18n = {};
     if (!(initialData as any).description_i18n) (initialData as any).description_i18n = {};
     if (!(initialData as any).question_i18n) (initialData as any).question_i18n = {};
+    if (typeof (initialData as any).allow_image_upload !== 'boolean') {
+        (initialData as any).allow_image_upload = false;
+    }
     
 
     const ExerciseFormApp = defineComponent({

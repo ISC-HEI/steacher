@@ -1003,6 +1003,7 @@ def exercise_form(request, course_pk, exercise_pk=None, module_pk=None):
                     exercise.order = max_order + 1
 
             exercise.exercise_type = data.get('exercise_type', 'python')
+            exercise.allow_image_upload = data.get('allow_image_upload', False)
             ex_data = data.get('exercise_data', {}) or {}
             
             try:
@@ -1057,6 +1058,7 @@ def exercise_form(request, course_pk, exercise_pk=None, module_pk=None):
         "description_i18n": exercise.description_i18n,
         "question_i18n": exercise.question_i18n,
         "exercise_type": exercise.exercise_type,
+        "allow_image_upload": exercise.allow_image_upload,
         "exercise_data": exercise.exercise_data_obj.model_dump(),
         "answer_data": exercise.answer_data_obj.model_dump(),
         "available_sql_assets": available_sql_assets,

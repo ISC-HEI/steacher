@@ -136,6 +136,27 @@
                             </div>
                         </div>
                     </div>
+                    <!-- Allow Image Upload (only for Open Question) -->
+                    <div class="field is-horizontal" v-if="exercise.exercise_type === 'open_question'">
+                        <div class="field-label is-normal">
+                            <label class="label" for="allow_image_upload">Allow Image Upload
+                            <span class="tooltip-container">
+                            <span class="tooltip-icon">?</span>
+                            <span class="tooltip-text">If enabled, students can upload images as part of their answer (e.g., photos of handwritten work, diagrams, or screenshots).</span>
+                            </span>
+                            </label>
+                        </div>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <label class="checkbox">
+                                        <input type="checkbox" id="allow_image_upload" v-model="exercise.allow_image_upload">
+                                        Students can upload images
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <!-- Answer Template (only for Python, SQL, Scala, Turtle, Open Question) -->
                     <div class="field is-horizontal" v-if="['python','sql','scala','open_question','turtle'].includes(exercise.exercise_type)">
                         <div class="field-label is-normal">
