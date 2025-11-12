@@ -327,11 +327,11 @@ class ExerciseAssetAdmin(admin.ModelAdmin):
 
 @admin.register(Trace)
 class TraceAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'content_type', 'object_id', 'channel', 'rank_order', 'created_repr')
+    list_display = ('id', 'user', 'content_type', 'object_id', 'channel', 'rank_order', 'created_repr', 'view_related_object')
     list_filter = (('user', admin.RelatedOnlyFieldListFilter), ('content_type', admin.RelatedOnlyFieldListFilter), 'channel')
-    search_fields = ('user__username', 'user__email')
+    search_fields = ('id', 'user__username', 'user__email')
     ordering = ('-id',)
-    readonly_fields = ()
+    readonly_fields = ('view_related_object_link', 'created_at')
 
     def created_repr(self, obj):
         try:
@@ -341,6 +341,56 @@ class TraceAdmin(admin.ModelAdmin):
         except Exception:
             return None
     created_repr.short_description = 'Created at'
+
+    def view_related_object(self, obj):
+        """Display a link to the related object (e.g., Attempt) in the list view."""
+        if not obj or not obj.content_type or not obj.object_id:
+            return '-'
+        try:
+            model_class = obj.content_type.model_class()
+            if model_class.__name__ == 'Attempt':
+                url = reverse('admin:exercises_attempt_change', args=[obj.object_id])
+                return format_html('<a href="{}">Attempt #{}</a>', url, obj.object_id)
+            elif model_class.__name__ == 'ChatThread':
+                url = reverse('admin:exercises_chatthread_change', args=[obj.object_id])
+                return format_html('<a href="{}">Chat #{}</a>', url, obj.object_id)
+            else:
+                return f"{model_class.__name__} #{obj.object_id}"
+        except Exception:
+            return '-'
+    view_related_object.short_description = 'Related Object'
+
+    def view_related_object_link(self, obj):
+        """Display a link to the related object in the detail view."""
+        if not obj or not obj.content_type or not obj.object_id:
+            return 'No related object'
+        try:
+            model_class = obj.content_type.model_class()
+            if model_class.__name__ == 'Attempt':
+                url = reverse('admin:exercises_attempt_change', args=[obj.object_id])
+                return format_html('<a href="{}">View Attempt #{}</a>', url, obj.object_id)
+            elif model_class.__name__ == 'ChatThread':
+                url = reverse('admin:exercises_chatthread_change', args=[obj.object_id])
+                return format_html('<a href="{}">View Chat Thread #{}</a>', url, obj.object_id)
+            else:
+                return f"{model_class.__name__} #{obj.object_id}"
+        except Exception as e:
+            return f'Error: {str(e)}'
+    view_related_object_link.short_description = 'Related Object'
+
+    fieldsets = (
+        (None, {
+            'fields': ('user', 'content_type', 'object_id', 'view_related_object_link', 'channel', 'rank_order', 'created_at')
+        }),
+        ('Content', {
+            'fields': ('system_prompt', 'user_content', 'assistant_content'),
+            'classes': ('collapse',)
+        }),
+        ('Metadata', {
+            'fields': ('user_metadata', 'assistant_metadata'),
+            'classes': ('collapse',)
+        }),
+    )
 
 
 class HasEvaluationFilter(admin.SimpleListFilter):
@@ -360,19 +410,42 @@ class HasEvaluationFilter(admin.SimpleListFilter):
 
 @admin.register(Attempt)
 class AttemptAdmin(admin.ModelAdmin):
-    list_display = ('id', 'version', 'exercise', 'user', 'complete')
+    list_display = ('id', 'version', 'exercise_link', 'user', 'complete')
     list_filter = (('exercise', admin.RelatedOnlyFieldListFilter), ('user', admin.RelatedOnlyFieldListFilter), 'complete', 'version')
-    search_fields = ('exercise__title_i18n', 'user__username')
+    search_fields = ('id', 'exercise__title_i18n', 'user__username')
     inlines = []
-    readonly_fields = ('id', 'version')
+    readonly_fields = ('id', 'version', 'exercise_admin_link')
     ordering = ['id']
 
     fieldsets = (
         (None, {
-            'fields': ('id', 'version', 'exercise', 'user', 'complete')
+            'fields': ('id', 'version', 'exercise', 'exercise_admin_link', 'user', 'complete')
         }),
         # Interactions display removed to keep admin minimal for traces
     )
+
+    def exercise_link(self, obj):
+        """Display a clickable link to the Exercise in the list view."""
+        if not obj or not obj.exercise:
+            return '-'
+        try:
+            url = reverse('admin:exercises_exercise_change', args=[obj.exercise.id])
+            return format_html('<a href="{}">{}</a>', url, obj.exercise.title)
+        except Exception:
+            return str(obj.exercise)
+    exercise_link.short_description = 'Exercise'
+    exercise_link.admin_order_field = 'exercise'
+
+    def exercise_admin_link(self, obj):
+        """Display a clickable link to the Exercise in the detail view."""
+        if not obj or not obj.exercise:
+            return 'No exercise'
+        try:
+            url = reverse('admin:exercises_exercise_change', args=[obj.exercise.id])
+            return format_html('<a href="{}">View Exercise: {}</a>', url, obj.exercise.title)
+        except Exception as e:
+            return f'Error: {str(e)}'
+    exercise_admin_link.short_description = 'Exercise'
 
     change_form_template = "admin/exercises/attempt/change_form.html"
 

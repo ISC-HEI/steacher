@@ -545,7 +545,7 @@ To help you understand the course, here is some additional context.
         logger.exception("Failed to serialize exercise")
         exercise_json_str = json.dumps({"error": "failed to serialize exercise"})
     system_prompt += f"""
-    
+
 ## Current Exercise Context
 Here is the current state of the exercise you are helping the teacher with:
 ```json
@@ -554,9 +554,8 @@ Here is the current state of the exercise you are helping the teacher with:
 
 """
 
-    messages_for_llm = [{"role": "system", "content": system_prompt}]
-    logger.debug(f"System prompt: {system_prompt}")
-
+    messages_for_llm = [{"role": "system", "content": str(system_prompt)}]
+    logger.debug(f"System prompt: {system_prompt}, type: {type(system_prompt)}")
 
     # Append the short-lived in-page messages (user/assistant conversation)
     for m in messages:
@@ -568,12 +567,14 @@ Here is the current state of the exercise you are helping the teacher with:
 
     # 3) Ask for a JSON object in the response, without a strict schema
     try:
+        start_time = time.time()
         completion = client.chat.completions.create(
             model=MODEL_PRO,
             messages=messages_for_llm,
             temperature=0.2,
             response_format= {"type": "json_object"} if mode == 'edit' else {"type": "text"},
         )
+        logger.debug(f"Completion time: {time.time() - start_time}, {completion}")
     except Exception as e:
         logger.error(f"Failed to create completion for authoring assistant: {e}, messages: {messages_for_llm}")
         # Return a response that indicates failure but doesn't crash the frontend
