@@ -15,18 +15,18 @@ students_urlpatterns = [
     path('chat/threads/<int:thread_id>/delete/', views_students.chat_thread_delete, name='chat_thread_delete'),
     path('courses/<int:pk>/', views_students.course_detail, name='course_detail'),
     path('courses/<int:pk>/export/', views_students.export_course_data, name='export_course_data'),
-    # More specific patterns first to avoid conflicts
-    path('<int:exercise_id>/attempts/<int:attempt_id>/guidance/', views_students.get_guidance, name='get_guidance'),
     # Image upload / token endpoints
-    path('attempts/<int:trace_id>/upload-token/', views_image_upload.generate_upload_token, name='generate_upload_token'),
-    path('attempts/image/<str:token>/', views_image_upload.serve_trace_image, name='serve_trace_image'),
-    path('attempts/<int:trace_id>/image/<int:image_id>/delete/', views_image_upload.delete_trace_image, name='delete_trace_image'),
-    path('attempts/qr/<str:token>/', views_image_upload.serve_qr_code, name='serve_qr_code'),
-    path('attempts/image-status/<str:token>/', views_image_upload.image_status, name='image_status'),
+    path('image/upload-token/', views_image_upload.generate_upload_token, name='generate_upload_token'),
+    path('image/<str:token>/', views_image_upload.serve_trace_image, name='serve_trace_image'),
+    path('image/qr/<str:token>/', views_image_upload.serve_qr_code, name='serve_qr_code'),
+	path('trace/<int:trace_id>/image/<int:image_id>/delete/', views_image_upload.delete_trace_image, name='delete_trace_image'),
+    path('image/image-status/<str:token>/', views_image_upload.image_status, name='image_status'),
     # Mobile (unauthenticated) upload page and submit endpoint
     path('upload/<str:token>/', views_image_upload.mobile_upload_page, name='mobile_upload_page'),
     path('upload/<str:token>/submit/', views_image_upload.mobile_upload_submit, name='mobile_upload_submit'),
-    path('api/attempts/<int:trace_id>/recommend_pathway/', views_students.recommend_learning_pathway, name='recommend_learning_pathway'),
+	# More specific patterns first to avoid conflicts
+    path('<int:exercise_id>/attempts/<int:attempt_id>/guidance/', views_students.get_guidance, name='get_guidance'),
+    path('api/attempts/<int:attempt_id>/recommend_pathway/', views_students.recommend_learning_pathway, name='recommend_learning_pathway'),
     path('<int:exercise_id>/delete_answers/', views_students.delete_user_answers, name='delete_user_answers'),
     path('<int:exercise_id>/<str:filename>', views_students.serve_asset, name='serve_asset'),
     path('api/scala/execute/', views_students.scala_execute, name='scala_execute'),

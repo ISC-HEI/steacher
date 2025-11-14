@@ -207,7 +207,7 @@ export const ChatbotPanel = defineComponent({
         <!-- Otherwise show uploaded images (from QR flow) above the question input -->
         <div v-else style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;justify-content:center;">
           <div v-for="(img, idx) in uploadedImages" :key="idx" style="position:relative;">
-            <img :src="'/exercises/attempts/image/' + img.token" style="max-height:160px;max-width:160px;object-fit:contain;border:1px solid #e6e6e6;background:#fff;padding:0.25rem;" />
+            <img :src="'/exercises/image/' + img.token" style="max-height:160px;max-width:160px;object-fit:contain;border:1px solid #e6e6e6;background:#fff;padding:0.25rem;" />
             <button class="delete is-small" style="position:absolute;top:-8px;right:-8px;" @click.prevent="removeUploadedImage(idx)"></button>
           </div>
         </div>

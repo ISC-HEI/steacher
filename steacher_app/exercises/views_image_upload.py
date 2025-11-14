@@ -19,12 +19,11 @@ logger = logging.getLogger(__name__)
 
 @login_required
 @require_POST
-def generate_upload_token(request, trace_id):
+def generate_upload_token(request):
     """Generate a short-lived upload token and TraceImage placeholder for the given attempt.
     Returns JSON with token and upload URL; optionally a QR code data URI if qrcode is installed.
     """
-    trace = get_object_or_404(Trace, pk=trace_id, user=request.user)
-    #exercise = attempt.exercise
+    #trace = get_object_or_404(Trace, pk=trace_id, user=request.user)
 
     # Rate limiting could be applied here using rate_limit decorator if desired
     token = secrets.token_urlsafe(32)
@@ -35,7 +34,6 @@ def generate_upload_token(request, trace_id):
         # Single placeholder row created to track token and expiry
         from .models import TraceImage
         img = TraceImage.objects.create(
-            trace=trace,
             upload_token=token,
             token_expires_at=expires_at,
         )

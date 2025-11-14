@@ -223,7 +223,9 @@ class TraceImage(models.Model):
     trace = models.ForeignKey(
         'Trace',
         on_delete=models.CASCADE,
-        related_name='images'
+        related_name='images',
+        null=True, 
+        blank=True
     )
     image = models.BinaryField(help_text="Store image as binary data", null=True, blank=True)
     upload_token = models.CharField(

@@ -197,7 +197,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             async showUploadModal() {
                 try {
-                    const response = await csrfFetch(`/exercises/attempts/${attemptId}/upload-token/`, {
+                    const response = await csrfFetch(`/exercises/image/upload-token/`, {
                         method: 'POST'
                     });
                     
@@ -230,7 +230,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     try {
-                        const response = await fetch(`/exercises/attempts/image-status/${this.uploadToken}/`);
+                        const response = await fetch(`/exercises/image/image-status/${this.uploadToken}/`);
                         if (!response.ok) {
                             throw new Error('Failed to check upload status');
                         }
