@@ -218,14 +218,14 @@ class CohortMembership(models.Model):
 class TraceImage(models.Model):
     """
     Image uploaded for a Trace, typically a photo of handwritten work.
-    Stored as b64 in the database to direcly match the format in which it.
+    Stored as binary data in the database.
     """
     trace = models.ForeignKey(
         'Trace',
         on_delete=models.CASCADE,
         related_name='images'
     )
-    image = models.TextField(help_text="Store image as base64 encoded string", null=True, blank=True)
+    image = models.BinaryField(help_text="Store image as binary data", null=True, blank=True)
     upload_token = models.CharField(
         max_length=128,
         unique=True,
@@ -245,6 +245,22 @@ class TraceImage(models.Model):
         blank=True,
         help_text="Size in bytes"
     )
+
+    @property
+    def image_bytes(self) -> bytes:
+        """
+        Returns the image data as bytes, handling the conversion from memoryview if needed.
+        This ensures consistent bytes type for external APIs like Gemini.
+        """
+        if not self.image:
+            return b''
+        
+        if isinstance(self.image, memoryview):
+            return self.image.tobytes()
+        elif isinstance(self.image, bytes):
+            return self.image
+        else:
+            return bytes(self.image)
 
     class Meta:
         ordering = ['-created_at']

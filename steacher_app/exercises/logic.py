@@ -2,7 +2,7 @@ import json
 import openai
 import time
 from django.conf import settings
-from .models import Trace, Exercise, Attempt, Course, create_trace_for, localized_name
+from .models import Trace, TraceImage, Exercise, Attempt, Course, create_trace_for, localized_name
 from django.contrib.contenttypes.models import ContentType
 from .schemas import ExerciseData, AnswerData, get_pydantic_schema_as_string
 import logging
@@ -349,7 +349,30 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
             config=chat_config,
             history=history_parts,
         )
-        gen_response = chat_session.send_message(Part(text=user_prompt_content))
+        
+        user_complete_input = [Part(text=user_prompt_content)]
+
+        # Add uploaded images if present
+        image = data.get('image_tokens', [])
+        if image:
+            for token in image:
+                try:
+                    trace_image = TraceImage.objects.get(upload_token=token)
+                    if trace_image.image:
+                        # Create a Part from the binary image data
+                        image_part = genai.types.Part.from_bytes(
+                            data=trace_image.image_bytes,
+                            mime_type=trace_image.image_type or 'image/jpeg'
+                        )
+                        user_complete_input.append(image_part)
+                except TraceImage.DoesNotExist:
+                    logger.warning(f"TraceImage with token {token} not found")
+                except Exception as e:
+                    logger.error(f"Failed to load image with token {token}: {e}")
+
+        gen_response = chat_session.send_message(user_complete_input)
+        #gen_response = chat_session.send_message([Part(text=user_prompt_content)])
+
     except Exception as e:
         logger.error(f"Gemini generate_content failed for exercise {exercise.id}: {e}")
         # As a fallback, return a graceful error-style message
