@@ -18,6 +18,7 @@ interface OpenQuestionDataContext {
     start_timestamp: string;
     showQRModal: boolean;
     uploadToken: string | null;
+    qrCodeDataUri: string | null;
     isPolling: boolean;
     uploadedImages: ImageUpload[];
     pollingInterval: number | null;
@@ -88,6 +89,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 start_timestamp: new Date().toISOString(),
                 showQRModal: false,
                 uploadToken: null,
+                qrCodeDataUri: null,
                 isPolling: false,
                 uploadedImages: [],
                 pollingInterval: null,
@@ -207,6 +209,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     const data = await response.json();
                     this.uploadToken = data.token;
+                    this.qrCodeDataUri = data.qr_code_data_uri;
                     this.showQRModal = true;
                     this.startPolling();
                 } catch (error) {
@@ -218,6 +221,7 @@ document.addEventListener('DOMContentLoaded', function() {
             closeUploadModal() {
                 this.showQRModal = false;
                 this.uploadToken = null;
+                this.qrCodeDataUri = null;
                 this.stopPolling();
             },
 
@@ -230,7 +234,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     try {
-                        const response = await fetch(`/exercises/image/image-status/${this.uploadToken}/`);
+                        const response = await csrfFetch(`/exercises/image/image-status/${this.uploadToken}/`);
                         if (!response.ok) {
                             throw new Error('Failed to check upload status');
                         }

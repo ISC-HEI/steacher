@@ -681,7 +681,7 @@ def delete_user_answers(request, exercise_id):
 
 @login_required
 @require_POST
-@rate_limit(user_limit=20, user_burst=10, ip_limit=60, ip_burst=20, name='scala_execute')
+@rate_limit(user_limit=20, ip_limit=80, name='scala_execute')
 def scala_execute(request):
     """Proxy Scala code execution to the scala_interpreter service. TODO: limit somehow this access"""
     try:

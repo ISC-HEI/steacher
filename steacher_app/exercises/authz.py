@@ -284,11 +284,27 @@ def _touch_bucket(bucket: list[int], now_ms: int, window_ms: int, max_events: in
         del bucket[: len(bucket) - (max_events + 5)]
 
 
-def rate_limit(*, user_limit: int | None = None, user_burst: int = 0, ip_limit: int | None = None, ip_burst: int = 0, name: str | None = None):
+def rate_limit(*, user_limit: int | None = None, ip_limit: int | None = None, name: str | None = None):
     """
     Session-backed rate limiting decorator.
     Uses request.session to store small timestamp buckets (epoch ms). Good enough for
     per-user throttling without extra infrastructure. Returns 429 with Retry-After.
+
+    Args:
+        user_limit: Maximum number of requests per user per window. None disables user limiting. Window is 60 seconds.
+        ip_limit: Maximum number of requests per IP per window. None disables IP limiting. Window is 60 seconds.
+        name: Name of the rate limit. Defaults to None (uses view function name).
+
+    Examples:
+        # Allow 10 requests per user per minute
+        @rate_limit(user_limit=10)
+        def my_view(request):
+            ...
+
+        # Allow 30 requests per user, plus fallback IP limit of 80
+        @rate_limit(user_limit=30, ip_limit=80, name="scala_execute")
+        def scala_execute(request):
+            ...
     """
 
     def decorator(view_func):
@@ -299,7 +315,7 @@ def rate_limit(*, user_limit: int | None = None, user_burst: int = 0, ip_limit: 
                 window_ms = WINDOW_SECONDS * 1000
                 # Per-user bucket
                 if user_limit is not None and user_limit >= 0:
-                    allowed = max(0, int(user_limit) + int(user_burst))
+                    allowed = max(0, int(user_limit))
                     uid = getattr(getattr(request, 'user', None), 'id', None)
                     if uid is not None:
                         sess_key = f"rl:{name or view_func.__name__}:u:{uid}:{WINDOW_SECONDS}"
@@ -325,7 +341,6 @@ def rate_limit(*, user_limit: int | None = None, user_burst: int = 0, ip_limit: 
                                     'user_id': uid,
                                     'ip_address': _client_ip(request),
                                     'limit': user_limit,
-                                    'burst': user_burst,
                                     'window_seconds': WINDOW_SECONDS,
                                 })
                             except Exception:
@@ -340,7 +355,7 @@ def rate_limit(*, user_limit: int | None = None, user_burst: int = 0, ip_limit: 
 
                 # Per-IP fallback
                 if ip_limit is not None and ip_limit >= 0:
-                    allowed2 = max(0, int(ip_limit) + int(ip_burst))
+                    allowed2 = max(0, int(ip_limit))
                     window_ms2 = window_ms
                     ip = _client_ip(request) or 'unknown'
                     sess_key2 = f"rl:{name or view_func.__name__}:ip:{ip}:{WINDOW_SECONDS}"
@@ -364,7 +379,6 @@ def rate_limit(*, user_limit: int | None = None, user_burst: int = 0, ip_limit: 
                                 'endpoint': name or view_func.__name__,
                                 'ip_address': ip,
                                 'limit': ip_limit,
-                                'burst': ip_burst,
                                 'window_seconds': WINDOW_SECONDS,
                             })
                         except Exception:
