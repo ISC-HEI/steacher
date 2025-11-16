@@ -27,18 +27,24 @@ This specification documents the complete image upload feature for exercises, al
 
 ### Data Model
 
-**TraceImage Model** (already existed, enhanced usage):
+**TraceImage Model**:
 - Stores binary image data in database
 - Linked to Trace via foreign key (nullable for upload flow)
 - Unique upload token for QR-based upload
 - Stores MIME type, file size, and timestamps
-- Token has expiry timestamp for security
+- Token has expiry timestamp for security (10 minutes)
+- Token chaining fields:
+  - `next_token`: CharField storing the upload token for the next image in the chain
+  - `chain_position`: IntegerField (0=first, 1=second, 2=third) tracking position in upload sequence
+  - Enables sequential multi-image upload from mobile device without desktop interaction
 
 **Key Relationships:**
 - `TraceImage.trace` → `Trace` (many-to-one)
 - `Trace.images` → `TraceImage[]` (one-to-many via `related_name='images'`)
 
 ### Upload Flow
+
+**Standard Flow (Desktop → Mobile → Desktop):**
 
 ```
 ┌─────────────┐
@@ -49,7 +55,7 @@ This specification documents the complete image upload feature for exercises, al
        │ 1. Click "Upload picture"
        ▼
 ┌─────────────────┐
-│ Generate Token  │ ← TraceImage created with trace=NULL
+│ Generate Token  │ ← TraceImage created with trace=NULL, chain_position=0
 │  & QR Code      │
 └──────┬──────────┘
        │
@@ -58,6 +64,7 @@ This specification documents the complete image upload feature for exercises, al
 ┌─────────────────┐
 │ Mobile Upload   │
 │   (Public)      │ ← Image saved to TraceImage.image
+│  with Cropper   │    next_token generated if chain_position < 2
 └──────┬──────────┘
        │
        │ 3. Poll for completion
@@ -71,7 +78,7 @@ This specification documents the complete image upload feature for exercises, al
        ▼
 ┌─────────────────┐
 │ Create Trace    │
-│ Link Images     │ ← TraceImage.trace = created_trace
+│ Link Images     │ ← TraceImage.trace = created_trace (for all chain positions)
 └──────┬──────────┘
        │
        │ 5. Page refresh
@@ -82,11 +89,75 @@ This specification documents the complete image upload feature for exercises, al
 └─────────────────┘
 ```
 
+**Token Chaining Flow (Mobile-only multi-upload):**
+
+```
+┌─────────────────┐
+│ Mobile Upload   │ chain_position=0
+│   (Photo 1)     │
+└──────┬──────────┘
+       │ Server returns next_token
+       ▼
+┌─────────────────┐
+│ Mobile Upload   │ chain_position=1
+│   (Photo 2)     │ ← Same mobile session continues
+└──────┬──────────┘
+       │ Server returns next_token
+       ▼
+┌─────────────────┐
+│ Mobile Upload   │ chain_position=2
+│   (Photo 3)     │ ← Same mobile session continues
+└──────┬──────────┘
+       │ No next_token (limit reached)
+       ▼
+┌─────────────────┐
+│   All Done!     │
+│ Return to PC    │
+└─────────────────┘
+```
+
+**Key Benefits:**
+- Student can capture all 3 images from phone without returning to desktop
+- Modal closes automatically on desktop after first upload
+- Desktop continues polling silently for subsequent images
+- Chain is linked by parent.next_token → child.upload_token relationship
+
 ## Implementation Details
 
 ### Frontend Components
 
-#### 1. Data Structures (`open_question.ts`)
+#### 1. Mobile Upload UI (`mobile_upload.html`)
+
+**Complete UX Overhaul:**
+
+The mobile upload page is designed to be a standalone single-page app with three states:
+
+**Waiting State:**
+- Branded landing page with Steacher logo
+- "Open Camera" button (auto-triggers on load for mobile devices)
+- Desktop adaptation: Changes to "Upload Photo" with file picker
+
+**Cropping State (Cropper.js integration):**
+- Full-screen image cropper with touch-optimized controls
+- Blue crop box outline (4px thick) with white overlay outside crop area
+- Responsive cropper with no zoom (prevents confusion)
+- Actions: "Retake" or "Send!"
+- Loading state with spinner during upload
+
+**Success State:**
+- Green checkmark confirmation
+- "Take Another Photo" button (if chain_position < 2)
+- "Close" button to exit
+- Vibration feedback on successful upload (mobile)
+
+**Key Features:**
+- No external dependencies except Cropper.js (loaded from CDN)
+- Vanilla JavaScript (no Vue on mobile page)
+- Image compressed to max 2048x2048 at 85% JPEG quality
+- Auto-continuation for chained uploads (next_token)
+- Mobile device detection adapts button text and behavior
+
+#### 2. Data Structures (`open_question.ts`)
 
 **PendingImage Interface:**
 - Stores upload token (maps to TraceImage.upload_token)
@@ -98,8 +169,13 @@ This specification documents the complete image upload feature for exercises, al
 - Images added after successful QR upload
 - Cleared after successful submission
 - Individual removal via `removePendingImage(index)` method
+- **Token chaining behavior:**
+  - After first image upload, modal closes but polling continues silently
+  - Desktop polls for subsequent images in the chain using next_token
+  - All chained images added to pendingImages automatically
+  - Polling stops when submitting answer or closing modal manually
 
-#### 2. UI Components (`open_question.html`)
+#### 3. UI Components (`open_question.html`)
 
 **Upload Button:**
 - Only visible when under 3-image limit
@@ -111,38 +187,49 @@ This specification documents the complete image upload feature for exercises, al
 - Each image has individual remove button (X)
 - Max height 200px per image
 
-**Dynamic Textarea:**
-- 10 rows when no images
-- 3 rows when images present
-
 **Submit Button:**
 - Enabled with images OR text (not both required)
-- Disabled during loading state
 
 ### Backend Components
 
-#### 1. Payload Structure (`open_question.ts` → `views_students.py`)
+#### 1. Token Generation and Chaining (`views_image_upload.py`)
+
+**generate_upload_url() Helper:**
+- Extracted reusable function for creating upload tokens
+- Creates TraceImage placeholder with 10-minute expiry
+- Returns token and expiry timestamp
+- Used both for initial generation and chain continuation
+
+**Token Chaining Logic in mobile_upload_submit():**
+- Determines chain_position by looking for parent TraceImage with matching next_token
+- Generates next_token only if chain_position < 2 (3 photos max)
+- Returns next_token in JSON response for mobile to continue
+- Updates chain_position field automatically
+
+#### 2. Payload Structure (`open_question.ts` → `views_students.py`)
 
 **Submission includes:**
 - Action type (submit_answer, ask_hint, etc.)
 - Text answer
-- Array of image tokens
+- Array of image tokens (may include chained tokens)
 
-#### 2. Image Processing (`logic.py` - `fetch_ai_guidance()`)
+#### 3. Image Processing (`logic.py` - `fetch_ai_guidance()`)
 
 **Loading Images for LLM:**
 - Fetches TraceImage objects by token
 - Converts binary data to Gemini Part objects
 - Appends to user message for LLM
 - Keeps references for later trace linking
+- Handles all images in chain regardless of position
 
 **Linking to Trace:**
 - After trace creation, links all images to the trace
 - Updates TraceImage.trace foreign key
 - Single save per image with update_fields optimization
 - Logs count of linked images
+- Works transparently with chained images
 
-#### 3. History Serialization (`views_students.py` - exercise detail view)
+#### 4. History Serialization (`views_students.py` - exercise detail view)
 
 **Loading Images with Traces:**
 - Queries all traces with related images
@@ -185,11 +272,17 @@ This specification documents the complete image upload feature for exercises, al
    - Accepts multipart/form-data
    - Resizes and optimizes image
    - Max size: 30MB input, resized to 2048x800
+   - **Returns:** `{'status': 'success', 'next_token': <token>}` if more photos allowed
+   - **Returns:** `{'status': 'success', 'next_token': null}` if chain limit reached (3 photos)
+   - Automatically determines chain_position from parent relationship
 
 4. **Check Status:** `GET /exercises/image/image-status/{token}/`
    - Authenticated endpoint
-   - Returns `{'status': 'pending'|'completed'|'expired'}`
-   - Used for polling from desktop
+   - Returns `{'status': 'pending'}` if image not yet uploaded
+   - Returns `{'status': 'completed', 'next_token': <token>}` if uploaded and more photos allowed
+   - Returns `{'status': 'completed'}` if uploaded and chain complete
+   - Returns `{'status': 'expired'}` if token expired
+   - Used for polling from desktop to detect both completion and chain continuation
 
 5. **Serve Image:** `GET /exercises/image/{token}`
    - Authenticated endpoint
@@ -212,140 +305,23 @@ This specification documents the complete image upload feature for exercises, al
 ### Rate Limiting
 - Token generation: 5 per minute per user
 - Prevents abuse of upload system
+- **Improved decorator** (2025-11-16): Simplified rate_limit function with clearer parameters
+- Uses Django cache backend for tracking
 
-### File Validation
-- Input: Max 30MB, must be image MIME type
-- Output: Resized to max 2048x800, optimized
-- Supports: JPEG, PNG, HEIF, WebP, GIF
-- Transparency preserved where possible
+### File Validation and Processing
+- **Input:** Max 30MB, must be image MIME type (enforced by nginx and application)
+- **Output:** Resized to max 2048x800 with aspect ratio preservation, optimized
+- **Supports:** JPEG, PNG, HEIF, WebP, GIF
+- **Transparency:** Preserved for PNG; converted to white background for formats without alpha
+- **Processing:** resize_and_convert_image() function handles:
+  - Image orientation from EXIF data
+  - Aspect ratio calculation and scaling
+  - Format conversion to JPEG/PNG
+  - Quality optimization (85% JPEG, optimize flag for PNG)
+  - Returns binary data, content type, and file size
 
-## User Experience
-
-### Upload Limits
-- **Maximum images per submission:** 3
-- **Rationale:** Balance between flexibility and performance
-- **UI behavior:** Button disappears at limit, reappears when image removed
-
-### Visual Feedback
-
-**States:**
-1. **No images:** "Upload a picture of your answer"
-2. **1-2 images:** "Upload another picture" + stacked preview
-3. **3 images:** Button hidden, all images previewed
-4. **Uploading:** "Waiting for upload..." with progress indicator
-5. **Success:** Image added to stack immediately
-
-### Responsive Behavior
-- **Textarea:** Shrinks from 10 rows to 3 rows when images present
-- **Submit button:** Enabled with images OR text (not both required)
-- **Remove buttons:** Individual X button on each preview
-- **All interactions disabled** while AI is processing
-
-## Testing Scenarios
-
-### Happy Path
-1. ✅ Upload 1 image → preview shows → submit → appears in history
-2. ✅ Upload 3 images → button disappears → submit → all in history
-3. ✅ Remove middle image → button reappears → can upload again
-4. ✅ Submit with only images (no text) → works
-5. ✅ Submit with only text (no images) → works
-6. ✅ Page refresh → images persist in conversation history
-
-### Edge Cases
-1. ✅ Token expiry → shows "Upload link expired"
-2. ✅ Upload failure → keeps existing images, shows error
-3. ✅ Close modal mid-upload → token expires, no harm
-4. ✅ Remove all images → back to initial state
-5. ✅ Rapid clicking → disabled during loading state
-6. ✅ Multiple images ordered → displayed by upload time
-
-### Error Handling
-1. ✅ Network failure during upload → error message, retry possible
-2. ✅ Invalid image format → rejected at client
-3. ✅ File too large → rejected with message
-4. ✅ Token not found → 404 response
-5. ✅ Image missing in TraceImage → warning logged, skipped
-
-## Performance Considerations
-
-### Database Optimization
-- **Single query per image:** Fetch once, reuse for LLM and trace linking
-- **Ordered query:** `tr.images.order_by('uploaded_at')` for consistent display
-- **Selective loading:** Only load images for visible traces
-
-### Image Processing
-- **Resize on upload:** Max 2048x800 preserves quality while reducing size
-- **Binary storage:** Images stored in database (PostgreSQL bytea)
-- **MIME type preservation:** Maintains original format when possible
-- **Optimization:** Pillow optimize flag reduces file size
-
-### Frontend Efficiency
-- **Polling interval:** 2 seconds (balance between responsiveness and load)
-- **Auto-stop polling:** Stops on success or modal close
-- **Preview URLs:** Use serve endpoint, avoid base64 bloat
-
-## Future Enhancements
-
-### Potential Improvements (Not Implemented)
-1. **LaTeX conversion:** Extract handwritten math to LaTeX (mentioned as future TODO)
-2. **Image annotation:** Allow students to draw on images before submission
-3. **Compression options:** Student choice of quality vs. size
-4. **Thumbnail generation:** Separate small thumbnails for history
-5. **Batch upload:** Multiple files from PC at once
-6. **Exercise-specific limits:** Different max images per exercise type
-7. **OCR integration:** Extract text from images automatically
-
-## Files Modified
-
-### Frontend
-- `frontend/open_question.ts` (85 lines changed)
-- `templates/exercises/students/open_question.html` (45 lines changed)
-- `frontend/ChatbotPanel.ts` (35 lines changed)
-
-### Backend
-- `exercises/logic.py` (25 lines changed)
-- `exercises/views_students.py` (5 lines changed)
-- `exercises/views_image_upload.py` (existing, no changes)
-
-### No Changes Required
-- Database schema (TraceImage model already existed)
-- URL routing (endpoints already existed)
-- Models (no migrations needed)
-
-## Configuration
-
-### Required Settings
-- No new Django settings required
-- Uses existing database configuration (PostgreSQL)
-- Uses existing CORS settings for API calls
-
-### Environment Variables
-- `GEMINI_API_KEY` - Required for LLM with vision capabilities
-
-## Deployment Notes
-
-### No Special Deployment Steps
-- TypeScript auto-compiles via `npm run watch`
-- No database migrations needed
-- No new dependencies
-- Backward compatible with existing exercises
-
-### Verification Checklist
-- [ ] Gemini API key configured
-- [ ] Image serve endpoint accessible
-- [ ] Mobile upload page loads on phones
-- [ ] QR code generation works
-- [ ] File upload size limits configured in nginx/uwsgi
-
-## Conclusion
-
-The image upload feature is fully integrated into the exercise workflow, providing students with a seamless way to submit visual work. The implementation prioritizes data persistence, clean UX, and efficient resource usage while maintaining security and performance standards.
-
-**Key Success Metrics:**
-- ✅ Images persist across sessions
-- ✅ Gemini receives and analyzes images
-- ✅ Clean, intuitive multi-image UI
-- ✅ No performance degradation
-- ✅ Zero database migrations required
-- ✅ Fully backward compatible
-
+### nginx Configuration
+- **General uploads:** Limited to 2MB (client_max_body_size)
+- **Image upload endpoint:** Special location block with 30MB limit
+- **Path:** `/exercises/upload/` location gets higher limit to accommodate smartphone photos
+- **Rationale:** Balance between security (small default) and usability (large enough for modern photos)
