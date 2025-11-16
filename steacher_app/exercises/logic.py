@@ -464,7 +464,22 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
 
     created_trace: Trace = create_trace_for(attempt, attempt.user, channel='exercise_guidance', **fields)
 
-    # 8. Prepare the data to be returned to the view
+    # 8. Link any uploaded images to the newly created trace
+    image_tokens = data.get('image_tokens', [])
+    if image_tokens:
+        try:
+            # Update TraceImage objects to link them to the created trace
+            updated_count = TraceImage.objects.filter(
+                upload_token__in=image_tokens,
+                trace__isnull=True  # Only update images that aren't already linked to a trace
+            ).update(trace=created_trace)
+            
+            if updated_count > 0:
+                logger.info(f"Linked {updated_count} TraceImage(s) to Trace {created_trace.id}")
+        except Exception as e:
+            logger.error(f"Failed to link TraceImage objects to Trace {created_trace.id}: {e}")
+
+    # 9. Prepare the data to be returned to the view
     response_data = {
         'guidance': answer,
         'user_submission': interaction_log['user_submission'],
