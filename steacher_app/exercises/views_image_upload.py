@@ -2,7 +2,7 @@ import logging
 import secrets
 import base64
 from io import BytesIO
-from datetime import timedelta
+from datetime import timedelta, datetime
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -108,18 +108,10 @@ def resize_and_convert_image(uploaded_file, max_width=2048, max_height=800):
     
     return resized_data, content_type, len(resized_data)
 
-
-@login_required
-@require_POST
-@rate_limit(user_limit=5, name='generate_upload_token')  # max 5 uploads per minute per user
-def generate_upload_token(request):
-    """Generate a short-lived upload token and TraceImage placeholder for the given attempt.
-    Returns JSON with token, upload URL and a QR code data URI.
-    """
-
-    # generate a secure random token that expires in 10 minutes (hardcoded)
-    token = secrets.token_urlsafe(32)
-    expires_at = timezone.now() + timedelta(minutes=10)
+def generate_upload_url() -> tuple[str, datetime] | tuple[None, None]:
+    """ Generate a secure random token that expires in 10 minutes (hardcoded) """
+    token: str = secrets.token_urlsafe(32)
+    expires_at: datetime = timezone.now() + timedelta(minutes=10)
 
     try:
         # single placeholder row is created to track token and expiry. will be updated when the image is uploaded.
@@ -129,10 +121,27 @@ def generate_upload_token(request):
         )
     except Exception:
         logger.exception('Failed to create TraceImage token')
+        return None, None
+
+    return token, expires_at
+
+
+@login_required
+@require_POST
+@rate_limit(user_limit=5, name='generate_upload_token')  # max 5 uploads per minute per user
+def generate_upload_token(request):
+    """Generate a short-lived upload token and TraceImage placeholder for the given attempt.
+    Returns JSON with token, upload URL and a QR code data URI.
+    """
+
+    token, expires_at = generate_upload_url()
+    if not token:
         return JsonResponse({'status': 'error', 'message': 'Failed to create upload token'}, status=500)
 
     upload_path = reverse('exercises:mobile_upload_page', args=[token])
     upload_url = request.build_absolute_uri(upload_path)
+    # TESTING HACK: Uncomment to use ngrok URL for mobile QR code testing. Use with `ngrok http 8000`
+    # upload_url = upload_url.replace('http://localhost:8000', 'https://3e9c8362cdea.ngrok-free.app')
 
     try:
         qr = qrcode.make(upload_url)
@@ -209,12 +218,28 @@ def mobile_upload_submit(request, token):
     try:
         image_data, content_type, file_size = resize_and_convert_image(uploaded_file)
         
+        # Determine chain position by looking for parent in chain
+        chain_position = 0
+        parent = TraceImage.objects.filter(next_token=token).first()
+        if parent:
+            chain_position = parent.chain_position + 1
+        
+        # Save image data
         image_record.image = image_data
         image_record.image_type = content_type
         image_record.file_size = file_size
         image_record.uploaded_at = timezone.now()
+        image_record.chain_position = chain_position
+        
+        # Generate next token only if under limit (3 photos max: positions 0, 1, 2)
+        next_token = None
+        if chain_position < 2:
+            next_token, expires = generate_upload_url()
+            if next_token:
+                image_record.next_token = next_token
+        
         image_record.save()
-        return JsonResponse({'status': 'success'})
+        return JsonResponse({'status': 'success', 'next_token': next_token})
     except Exception:
         logger.exception('Failed to save uploaded image')
         return JsonResponse({'error': 'Upload failed'}, status=500)
@@ -258,7 +283,10 @@ def image_status(request, token):
         return JsonResponse({'status': 'expired'}, status=403)
     
     if img.image:
-        return JsonResponse({'status': 'completed'})
+        response = {'status': 'completed'}
+        if img.next_token:
+            response['next_token'] = img.next_token
+        return JsonResponse(response)
     return JsonResponse({'status': 'pending'})
 
 

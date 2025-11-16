@@ -31,6 +31,8 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'dev-insecure-key')
 DEBUG = os.getenv('DJANGO_DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = [h for h in os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',') if h]
+# TESTING: Uncomment for ngrok testing (no https://, just hostname)
+# ALLOWED_HOSTS += ['3e9c8362cdea.ngrok-free.app']
 
 
 # Application definition

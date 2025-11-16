@@ -194,6 +194,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 this.queryError = null;
+                
+                // Stop polling for more photos since answer is being submitted
+                this.stopPolling();
+                
                 this.getGuidance('submit_answer');
             },
             giveHint() {
@@ -261,8 +265,21 @@ document.addEventListener('DOMContentLoaded', function() {
                                 image_token: this.uploadToken!,
                                 url: `/exercises/image/${this.uploadToken}`
                             });
-                            this.uploadToken = null;
-                            this.closeUploadModal();
+                            
+                            if (data.next_token) {
+                                // Continue polling for next photo in chain silently
+                                console.log('[Polling] Next token available, continuing chain:', data.next_token);
+                                this.uploadToken = data.next_token;
+                                // Close modal but keep polling
+                                this.showQRModal = false;
+                                this.qrCodeDataUri = null;
+                            } else {
+                                // No more photos expected in chain
+                                console.log('[Polling] No next token, stopping chain');
+                                this.uploadToken = null;
+                                // Close modal and stop polling
+                                this.closeUploadModal();
+                            }
                         }
                     } catch (error) {
                         console.error('[Polling] Error checking upload status:', error);

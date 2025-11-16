@@ -1,131 +1,541 @@
-{% extends "exercises/base.html" %}
-
-{% load static %}
-
-{% block head %}
-{{ block.super }}
-<script src="https://cdn.jsdelivr.net/npm/vue@3.5.22/dist/vue.global.prod.js"></script>
-{% endblock %}
-
-{% block content %}
-<div id="mobile-upload-app" class="container mt-5" v-cloak>
-    <div class="box">
-        <h1 class="title is-3">Upload Image of Your Answer</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Upload Photo</title>
+    
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js" as="script">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         
-        <div v-if="!imageSelected" class="content">
-            <label class="button is-large is-primary is-fullwidth" for="photo-input">
-                <span class="icon is-large"><i class="fas fa-camera fa-2x"></i></span>
-                <span class="ml-3">Take Photo or Choose File</span>
-            </label>
-            <input 
-                type="file" 
-                id="photo-input" 
-                accept="image/*" 
-                capture="environment"
-                style="display: none;"
-                @change="handleFileSelect">
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #app {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 16px;
+            overflow: hidden;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        /* Waiting state */
+        .waiting-view {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .waiting-view h1 {
+            font-size: 24px;
+            margin-bottom: 16px;
+            color: #333;
+        }
+        
+        .waiting-view p {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 24px;
+        }
+        
+        .logo-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 32px;
+            gap: 12px;
+        }
+        
+        .logo-container img {
+            height: 48px;
+        }
+        
+        .logo-container .brand-name {
+            font-size: 28px;
+            font-weight: 700;
+            color: #333;
+        }
+        
+        .camera-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #3273dc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 24px;
+            font-size: 40px;
+            color: white;
+        }
+        
+        /* Cropping state */
+        .cropping-view {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .crop-header {
+            text-align: center;
+            margin-bottom: 12px;
+        }
+        
+        .crop-header h2 {
+            font-size: 20px;
+            color: #333;
+            font-weight: 600;
+        }
+        
+        .crop-container {
+            flex: 1;
+            position: relative;
+            margin-bottom: 16px;
+            background: #000;
+            overflow: hidden;
+        }
+        
+        .crop-container img {
+            max-width: 100%;
+            max-height: 100%;
+            display: block;
+        }
+        
+        /* Make crop box border thicker and more visible */
+        .cropper-view-box {
+            outline: 4px solid #3273dc !important;
+            outline-offset: -4px;
+        }
+        
+        /* Make area outside crop box white instead of dark */
+        .cropper-modal {
+            background-color: rgba(255, 255, 255, 0.7) !important;
+        }
+        
+        .cropper-face {
+            background-color: transparent !important;
+        }
+        
+        .cropper-line {
+            background-color: #3273dc !important;
+            opacity: 1 !important;
+        }
+        
+        .cropper-line.line-e,
+        .cropper-line.line-w {
+            width: 4px !important;
+        }
+        
+        .cropper-line.line-n,
+        .cropper-line.line-s {
+            height: 4px !important;
+        }
+        
+        .cropper-point {
+            width: 14px !important;
+            height: 14px !important;
+            background-color: #3273dc !important;
+            opacity: 1 !important;
+        }
+        
+        .cropper-dashed {
+            border: 0 dashed #fff !important;
+            opacity: 0.5 !important;
+        }
+        
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .button-group.horizontal {
+            flex-direction: row;
+            gap: 8px;
+            justify-content: center;
+        }
+        
+        .button-group.horizontal button {
+            flex: 0 1 auto;
+            min-width: 120px;
+            max-width: 200px;
+        }
+        
+        button {
+            padding: 12px 10px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-height: 40px;
+            width: 100%;
+        }
+        
+        button:active {
+            transform: scale(0.98);
+        }
+        
+        .btn-primary {
+            background: #3273dc;
+            color: white;
+        }
+        
+        .btn-primary:active {
+            background: #2366d1;
+        }
+        
+        .btn-secondary {
+            background: white;
+            color: #333;
+            border: 2px solid #dbdbdb;
+        }
+        
+        .btn-secondary:active {
+            background: #f5f5f5;
+        }
+        
+        .btn-loading {
+            opacity: 0.7;
+            pointer-events: none;
+            position: relative;
+        }
+        
+        .btn-loading::after {
+            content: "";
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            top: 50%;
+            left: 50%;
+            margin-left: -10px;
+            margin-top: -10px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Success state */
+        .success-view {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .success-icon {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: #48c774;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 24px;
+            font-size: 60px;
+            color: white;
+        }
+        
+        .success-view h2 {
+            font-size: 24px;
+            margin-bottom: 12px;
+            color: #333;
+        }
+        
+        .success-view p {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 32px;
+        }
+        
+        /* Error message */
+        .error-message {
+            background: #f14668;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Waiting State -->
+        <div id="waiting-view" class="waiting-view">
+            <div class="logo-container">
+                <img src="/static/images/steacher_logo.png" alt="Steacher">
+                <span class="brand-name">Steacher</span>
+            </div>
+            <h1>Upload Your Answer</h1>
+            <p>Tap the button below to open your camera</p>
+            <button id="open-camera-btn" class="btn-primary" style="max-width: 400px;">Open Camera</button>
         </div>
         
-        <div v-if="imageSelected && !uploaded">
-            <figure class="image">
-                <img :src="imagePreview" alt="Preview">
-            </figure>
+        <!-- Cropping State -->
+        <div id="cropping-view" class="cropping-view hidden">
+            <div class="crop-header">
+                <h2>Crop Your Picture</h2>
+            </div>
             
-            <div id="cropper-container" class="my-4"></div>
+            <div class="crop-container">
+                <img id="crop-image" src="" alt="Photo to crop">
+            </div>
             
-            <div class="buttons mt-4">
-                <button @click="uploadImage" class="button is-primary is-large is-fullwidth" :class="{ 'is-loading': uploading }">
-                    <span class="icon"><i class="fas fa-upload"></i></span>
-                    <span>Upload</span>
-                </button>
-                <button @click="resetSelection" class="button is-light is-fullwidth">
-                    <span class="icon"><i class="fas fa-redo"></i></span>
-                    <span>Retake</span>
-                </button>
+            <div id="error-container"></div>
+            
+            <div class="button-group horizontal">
+                <button id="retake-btn" class="btn-secondary">Retake</button>
+                <button id="upload-btn" class="btn-primary">Send!</button>
             </div>
         </div>
         
-        <div v-if="uploaded" class="notification is-success is-light">
-            <span class="icon is-large"><i class="fas fa-check-circle fa-3x"></i></span>
-            <h2 class="title is-4 mt-3">Photo Successfully Sent!</h2>
-            <p>You can now return to your computer.</p>
+        <!-- Success State -->
+        <div id="success-view" class="success-view hidden">
+            <div class="success-icon">✓</div>
+            <h2>Photo Sent Successfully!</h2>
+            <p>Your answer has been uploaded. You can now return to your computer.</p>
+            
+            <div class="button-group">
+                <button id="another-btn" class="btn-primary">Take Another Photo</button>
+                <button id="close-btn" class="btn-secondary">Close</button>
+            </div>
         </div>
         
-        <div v-if="error" class="notification is-danger">
-            <p>[[ error ]]</p>
-        </div>
+        <!-- Hidden file input -->
+        <input type="file" id="photo-input" accept="image/*" capture="environment" class="hidden">
     </div>
-</div>
-{% endblock %}
-
-{% block scripts %}
-{{ block.super }}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const { createApp } = Vue;
-    const app = createApp({
-    delimiters: ['[[', ']]'],
-    data() {
-        return {
-            imageSelected: false,
-            imagePreview: null,
-            selectedFile: null,
-            croppedBlob: null,
-            uploading: false,
-            uploaded: false,
-            error: null,
-            token: '{{ token }}',
-            cropper: null,
-        };
-    },
-    methods: {
-        handleFileSelect(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            if (!file.type.startsWith('image/')) {
-                this.error = 'Please select an image file';
-                return;
+    
+    <script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+    <script>
+        (function() {
+            let currentToken = '{{ token }}';
+            let cropper = null;
+            let selectedFile = null;
+            
+            // Detect if mobile device
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            const views = {
+                waiting: document.getElementById('waiting-view'),
+                cropping: document.getElementById('cropping-view'),
+                success: document.getElementById('success-view')
+            };
+            
+            const elements = {
+                photoInput: document.getElementById('photo-input'),
+                cropImage: document.getElementById('crop-image'),
+                uploadBtn: document.getElementById('upload-btn'),
+                retakeBtn: document.getElementById('retake-btn'),
+                anotherBtn: document.getElementById('another-btn'),
+                closeBtn: document.getElementById('close-btn'),
+                openCameraBtn: document.getElementById('open-camera-btn'),
+                errorContainer: document.getElementById('error-container')
+            };
+            
+            function showView(viewName) {
+                Object.values(views).forEach(view => view.classList.add('hidden'));
+                views[viewName].classList.remove('hidden');
             }
-            if (file.size > 5 * 1024 * 1024) {
-                this.error = 'Image is too large. Maximum size is 5MB';
-                return;
+            
+            function showError(message) {
+                elements.errorContainer.innerHTML = `<div class="error-message">${message}</div>`;
+                setTimeout(() => {
+                    elements.errorContainer.innerHTML = '';
+                }, 5000);
             }
-            this.selectedFile = file;
-            this.imagePreview = URL.createObjectURL(file);
-            this.imageSelected = true;
-            this.error = null;
-        },
-        async uploadImage() {
-            this.uploading = true;
-            this.error = null;
-            try {
-                const formData = new FormData();
-                const fileToUpload = this.croppedBlob || this.selectedFile;
-                formData.append('image', fileToUpload, 'answer.jpg');
-                const resp = await fetch(`/exercises/upload/${this.token}/submit/`, {
-                    method: 'POST',
-                    body: formData,
+            
+            function triggerCamera() {
+                elements.photoInput.click();
+            }
+            
+            function destroyCropper() {
+                if (cropper) {
+                    cropper.destroy();
+                    cropper = null;
+                }
+            }
+            
+            function handleFileSelect(event) {
+                const file = event.target.files[0];
+                if (!file) {
+                    showView('waiting');
+                    return;
+                }
+                
+                if (!file.type.startsWith('image/')) {
+                    showError('Please select an image file');
+                    showView('waiting');
+                    return;
+                }
+                
+                if (file.size > 30 * 1024 * 1024) {
+                    showError('Image is too large. Maximum size is 30MB');
+                    showView('waiting');
+                    return;
+                }
+                
+                selectedFile = file;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    destroyCropper();
+                    elements.cropImage.src = e.target.result;
+                    showView('cropping');
+                    
+                    setTimeout(() => {
+                        cropper = new Cropper(elements.cropImage, {
+                            viewMode: 1,
+                            dragMode: 'crop',
+                            aspectRatio: NaN,
+                            autoCropArea: 0.95,
+                            responsive: true,
+                            movable: false,
+                            zoomable: false,
+                            zoomOnWheel: false,
+                            toggleDragModeOnDblclick: false,
+                            ready: function() {
+                                console.log('Cropper ready');
+                            }
+                        });
+                    }, 100);
+                };
+                reader.readAsDataURL(file);
+            }
+            
+            async function uploadImage() {
+                if (!cropper) {
+                    showError('No image to upload');
+                    return;
+                }
+                
+                elements.uploadBtn.classList.add('btn-loading');
+                elements.uploadBtn.textContent = 'Sending...';
+                
+                try {
+                    const canvas = cropper.getCroppedCanvas({
+                        maxWidth: 2048,
+                        maxHeight: 2048,
+                        imageSmoothingQuality: 'high'
+                    });
+                    
+                    const blob = await new Promise((resolve) => {
+                        canvas.toBlob(resolve, 'image/jpeg', 0.85);
+                    });
+                    
+                    const formData = new FormData();
+                    formData.append('image', blob, 'answer.jpg');
+                    
+                    const response = await fetch(`/exercises/upload/${currentToken}/submit/`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Upload failed');
+                    }
+                    
+                    if (data.status === 'success') {
+                        destroyCropper();
+                        
+                        // Vibration feedback on success
+                        if (navigator.vibrate) {
+                            navigator.vibrate(200);
+                        }
+                        
+                        // Update UI based on whether more photos allowed
+                        if (data.next_token) {
+                            currentToken = data.next_token;
+                            elements.anotherBtn.style.display = '';
+                        } else {
+                            currentToken = null;
+                            elements.anotherBtn.style.display = 'none';
+                        }
+                        
+                        showView('success');
+                    } else {
+                        throw new Error('Upload failed');
+                    }
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    showError(error.message || 'Upload failed. Please try again.');
+                } finally {
+                    elements.uploadBtn.classList.remove('btn-loading');
+                    elements.uploadBtn.textContent = 'Send!';
+                }
+            }
+            
+            function resetForNewPhoto() {
+                destroyCropper();
+                elements.photoInput.value = '';
+                selectedFile = null;
+                triggerCamera();
+            }
+            
+            // Adapt UI based on device type
+            if (isMobile) {
+                elements.openCameraBtn.textContent = 'Open Camera';
+                document.querySelector('.waiting-view p').textContent = 'Tap the button below to open your camera';
+                elements.retakeBtn.textContent = 'Retake';
+                elements.anotherBtn.textContent = 'Take Another Photo';
+                // Auto-trigger camera button on load (works on most modern mobile browsers)
+                window.addEventListener('load', () => {
+                    setTimeout(() => {
+                        elements.openCameraBtn.click();
+                    }, 300);
                 });
-                if (!resp.ok) throw new Error('Upload failed');
-                this.uploaded = true;
-            } catch (e) {
-                this.error = 'Upload failed. Please try again.';
-            } finally {
-                this.uploading = false;
+            } else {
+                elements.openCameraBtn.textContent = 'Upload Photo';
+                document.querySelector('.waiting-view p').textContent = 'Click the button below to select an image';
+                elements.retakeBtn.textContent = 'Choose Another';
+                elements.anotherBtn.textContent = 'Upload Another Photo';
+                elements.photoInput.removeAttribute('capture');
             }
-        },
-        resetSelection() {
-            this.imageSelected = false;
-            this.imagePreview = null;
-            this.selectedFile = null;
-            this.croppedBlob = null;
-            this.error = null;
-            document.getElementById('photo-input').value = '';
-        }
-    }
-});
-
-    app.mount('#mobile-upload-app');
-});
-</script>
-{% endblock %}
+            
+            // Event listeners
+            elements.photoInput.addEventListener('change', handleFileSelect);
+            elements.uploadBtn.addEventListener('click', uploadImage);
+            elements.retakeBtn.addEventListener('click', resetForNewPhoto);
+            elements.anotherBtn.addEventListener('click', resetForNewPhoto);
+            elements.openCameraBtn.addEventListener('click', triggerCamera);
+            elements.closeBtn.addEventListener('click', () => {
+                window.close();
+            });
+        })();
+    </script>
+</body>
+</html>

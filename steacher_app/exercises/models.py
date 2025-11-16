@@ -247,6 +247,16 @@ class TraceImage(models.Model):
         blank=True,
         help_text="Size in bytes"
     )
+    next_token = models.CharField(
+        max_length=128,
+        null=True,
+        blank=True,
+        help_text="Token for next photo in upload chain"
+    )
+    chain_position = models.IntegerField(
+        default=0,
+        help_text="Position in upload chain (0=first, max 2 for 3 photos total)"
+    )
 
     @property
     def image_bytes(self) -> bytes:
