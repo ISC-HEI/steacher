@@ -327,6 +327,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
 
     # 4. Use structured chat with history via Google genai Chats API
     llm_start_time = time.time()
+    trace_image_objects = []  # for later trace linking
     try:
         history_parts = []
         for tr in existing_traces:
@@ -353,25 +354,25 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         user_complete_input = [Part(text=user_prompt_content)]
 
         # Add uploaded images if present
-        image = data.get('image_tokens', [])
-        if image:
-            for token in image:
+        image_tokens = data.get('image_tokens', [])
+        if image_tokens:
+            for token in image_tokens:
                 try:
-                    trace_image = TraceImage.objects.get(upload_token=token)
-                    if trace_image.image:
+                    trace_image_obj = TraceImage.objects.get(upload_token=token)
+                    if trace_image_obj.image:
                         # Create a Part from the binary image data
                         image_part = genai.types.Part.from_bytes(
-                            data=trace_image.image_bytes,
-                            mime_type=trace_image.image_type or 'image/jpeg'
+                            data=trace_image_obj.image_bytes,
+                            mime_type=trace_image_obj.image_type or 'image/jpeg'
                         )
-                        user_complete_input.append(image_part)
+                        user_complete_input.append(image_part) # add to the user's message
+                        trace_image_objects.append(trace_image_obj) # keep reference for later trace linking
                 except TraceImage.DoesNotExist:
                     logger.warning(f"TraceImage with token {token} not found")
                 except Exception as e:
                     logger.error(f"Failed to load image with token {token}: {e}")
 
         gen_response = chat_session.send_message(user_complete_input)
-        #gen_response = chat_session.send_message([Part(text=user_prompt_content)])
 
     except Exception as e:
         logger.error(f"Gemini generate_content failed for exercise {exercise.id}: {e}")
@@ -465,24 +466,26 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     created_trace: Trace = create_trace_for(attempt, attempt.user, channel='exercise_guidance', **fields)
 
     # 8. Link any uploaded images to the newly created trace
-    image_tokens = data.get('image_tokens', [])
-    if image_tokens:
+    if trace_image_objects:
         try:
-            # Update TraceImage objects to link them to the created trace
-            updated_count = TraceImage.objects.filter(
-                upload_token__in=image_tokens,
-                trace__isnull=True  # Only update images that aren't already linked to a trace
-            ).update(trace=created_trace)
-            
-            if updated_count > 0:
-                logger.info(f"Linked {updated_count} TraceImage(s) to Trace {created_trace.id}")
+            for trace_image_obj in trace_image_objects:
+                if not trace_image_obj.trace_id:
+                    trace_image_obj.trace = created_trace
+                    trace_image_obj.save(update_fields=['trace'])
+            logger.info(f"Linked {len(trace_image_objects)} TraceImage(s) to Trace {created_trace.id}")
         except Exception as e:
             logger.error(f"Failed to link TraceImage objects to Trace {created_trace.id}: {e}")
 
     # 9. Prepare the data to be returned to the view
+    # Add images array to user_submission for ChatbotPanel display
+    user_submission_with_images = {
+        **interaction_log['user_submission'],
+        'images': [{'image_token': img.upload_token} for img in trace_image_objects]
+    }
+    
     response_data = {
         'guidance': answer,
-        'user_submission': interaction_log['user_submission'],
+        'user_submission': user_submission_with_images,
         'assistant_trace_id': created_trace.id,
         'thoughts': thoughts if thoughts else None,  # Will be filtered by view for non-teachers
     }    

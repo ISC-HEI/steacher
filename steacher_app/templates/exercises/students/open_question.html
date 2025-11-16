@@ -16,10 +16,34 @@
                          v-html="renderMarkdown(exercise.question)"
                          class="box content mb-3 initial-question">
                     </div>
+                    
+                    <!-- Upload Picture Button (only if allowed and under limit) -->
+                    <div v-if="exercise.allow_image_upload && pendingImages.length < 3" class="mb-3">
+                        <button @click="showUploadModal" class="button is-light" :disabled="loadingState !== 'idle'">
+                            <span class="icon"><i class="fas fa-camera"></i></span>
+                            <span v-if="pendingImages.length === 0">Upload a picture of your answer</span>
+                            <span v-else>Upload another picture</span>
+                        </button>
+                    </div>
+                    
+                    <!-- Pending Images Preview (stacked vertically) -->
+                    <div v-if="pendingImages.length > 0" class="mb-3">
+                        <div v-for="(img, idx) in pendingImages" :key="idx" class="box mb-2" style="padding: 0.75rem; position: relative;">
+                            <button class="delete is-small" 
+                                    style="position: absolute; top: 0.5rem; right: 0.5rem; z-index: 1;" 
+                                    @click="removePendingImage(idx)"
+                                    :disabled="loadingState !== 'idle'"
+                                    aria-label="Remove image"></button>
+                            <figure class="image" style="max-height: 200px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                                <img :src="img.url" alt="Pending upload" style="max-width: 100%; max-height: 200px; object-fit: contain;" />
+                            </figure>
+                        </div>
+                    </div>
+                    
                     <div class="field">
                         <label class="label">Your Answer</label>
                         <div class="control">
-                            <textarea class="textarea" v-model="userAnswer" placeholder="Write your answer here..." rows="10"></textarea>
+                            <textarea class="textarea" v-model="userAnswer" placeholder="Write your answer here..." :rows="pendingImages.length > 0 ? 3 : 10"></textarea>
                         </div>
                     </div>
                     
@@ -50,7 +74,7 @@
                             @click="submitAnswer"
                             class="button is-primary"
                             :class="{ 'is-loading': loadingState === 'getting-guidance' }"
-                            :disabled="!userAnswer.trim() || loadingState !== 'idle'">
+                            :disabled="(!userAnswer.trim() && pendingImages.length === 0) || loadingState !== 'idle'">
                             <span class="icon"><i class="fas fa-paper-plane"></i></span>
                             <span>Submit Answer</span>
                         </button>
@@ -91,10 +115,6 @@
                 ref="chatbotPanel"
                 :loading="loadingState === 'getting-guidance'"
                 :attempt-id="{{ attempt_id }}"
-                :allow-image-upload="exercise.allow_image_upload"
-                @open-upload-modal="showUploadModal"
-                :uploaded-images="uploadedImages"
-                @remove-image="removeImage"
                 next-exercise-url="{% if next_exercise %}{% url 'exercises:exercise_detail' next_exercise.pk %}{% endif %}"
                 :solution-unlocked-initial="{{ solution_unlocked|yesno:'true,false' }}"
                 @question-asked="handleQuestion"

@@ -6,8 +6,12 @@ import confetti from 'canvas-confetti';
 import type { Exercise } from './utils.js';
 import { csrfFetch, getCsrfToken } from './utils.js';
 
-interface ImageUpload {
-    token: string;
+interface ImageBeingUploaded {
+    /** An image that is being uploaded; will be added to the user's message.  */
+    
+    /** The upload token of the image. Maps to TraceImage.upload_token */
+    image_token: string;
+    url: string;
 }
 
 interface OpenQuestionDataContext {
@@ -20,7 +24,7 @@ interface OpenQuestionDataContext {
     uploadToken: string | null;
     qrCodeDataUri: string | null;
     isPolling: boolean;
-    uploadedImages: ImageUpload[];
+    pendingImages: ImageBeingUploaded[];
     pollingInterval: number | null;
 }
 
@@ -91,7 +95,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 uploadToken: null,
                 qrCodeDataUri: null,
                 isPolling: false,
-                uploadedImages: [],
+                pendingImages: [],
                 pollingInterval: null,
             };
         },
@@ -137,7 +141,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         question: details.question || null,
                         start_timestamp: this.start_timestamp,
                         submission_timestamp: new Date().toISOString(),
-                        image_tokens: this.uploadedImages.map(img => img.token),
+                        image_tokens: this.pendingImages.map(img => img.image_token),
                     };
 
                     const response = await csrfFetch(`/exercises/${this.exercise.id}/attempts/${attemptId}/guidance/`, {
@@ -171,6 +175,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (result.thoughts) assistantMsg.thoughts = result.thoughts;
                         chatbotPanel.displayMessage(assistantMsg);
                     }
+                    
+                    // Clear pending images after successful submission
+                    this.pendingImages = [];
                 } catch (error) {
                     this.queryError = `Error communicating with the server: ${error}`;
                 } finally {
@@ -182,8 +189,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Mark that student has submitted for quiz mode
                 (window as any).hasAlreadySubmittedThisQuestion = true;
                 
-                if (!this.userAnswer.trim()) {
-                    this.queryError = 'Please enter your answer before submitting.';
+                if (!this.userAnswer.trim() && this.pendingImages.length === 0) {
+                    this.queryError = 'Please enter your answer or upload an image before submitting.';
                     return;
                 }
                 this.queryError = null;
@@ -199,6 +206,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             async showUploadModal() {
                 try {
+                    console.log('[Upload] Requesting upload token...');
                     const response = await csrfFetch(`/exercises/image/upload-token/`, {
                         method: 'POST'
                     });
@@ -208,9 +216,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     const data = await response.json();
+                    console.log('[Upload] Received token:', data.token);
                     this.uploadToken = data.token;
                     this.qrCodeDataUri = data.qr_code_data_uri;
                     this.showQRModal = true;
+                    console.log('[Upload] Starting polling...');
                     this.startPolling();
                 } catch (error) {
                     console.error('Error getting upload token:', error);
@@ -220,37 +230,49 @@ document.addEventListener('DOMContentLoaded', function() {
 
             closeUploadModal() {
                 this.showQRModal = false;
-                this.uploadToken = null;
                 this.qrCodeDataUri = null;
                 this.stopPolling();
             },
 
             startPolling() {
+                console.log('[Polling] Starting polling, uploadToken:', this.uploadToken);
                 this.isPolling = true;
                 this.pollingInterval = window.setInterval(async () => {
+                    console.log('[Polling] Interval fired, uploadToken:', this.uploadToken, 'isPolling:', this.isPolling);
                     if (!this.uploadToken) {
+                        console.log('[Polling] No uploadToken, stopping polling');
                         this.stopPolling();
                         return;
                     }
 
                     try {
+                        console.log('[Polling] Checking status for token:', this.uploadToken);
                         const response = await csrfFetch(`/exercises/image/image-status/${this.uploadToken}/`);
                         if (!response.ok) {
+                            console.error('[Polling] Status check failed:', response.status, response.statusText);
                             throw new Error('Failed to check upload status');
                         }
 
                         const data = await response.json();
+                        console.log('[Polling] Status response:', data);
                         if (data.status === 'completed') {
-                            this.uploadedImages.push({ token: this.uploadToken });
+                            console.log('[Polling] Upload completed! Adding to pendingImages');
+                            this.pendingImages.push({
+                                image_token: this.uploadToken!,
+                                url: `/exercises/image/${this.uploadToken}`
+                            });
+                            this.uploadToken = null;
                             this.closeUploadModal();
                         }
                     } catch (error) {
-                        console.error('Error checking upload status:', error);
+                        console.error('[Polling] Error checking upload status:', error);
                     }
                 }, 2000); // Poll every 2 seconds
+                console.log('[Polling] setInterval created with ID:', this.pollingInterval);
             },
 
             stopPolling() {
+                console.log('[Polling] Stopping polling, interval ID:', this.pollingInterval);
                 this.isPolling = false;
                 if (this.pollingInterval !== null) {
                     window.clearInterval(this.pollingInterval);
@@ -258,8 +280,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             },
 
-            removeImage(index: number) {
-                this.uploadedImages.splice(index, 1);
+            removePendingImage(index: number) {
+                this.pendingImages.splice(index, 1);
             }
         },
         components: {

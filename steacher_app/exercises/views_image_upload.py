@@ -122,7 +122,7 @@ def generate_upload_token(request):
     expires_at = timezone.now() + timedelta(minutes=10)
 
     try:
-        # single placeholder row is created to track token and expiry
+        # single placeholder row is created to track token and expiry. will be updated when the image is uploaded.
         TraceImage.objects.create(
             upload_token=token,
             token_expires_at=expires_at,
@@ -162,7 +162,8 @@ def mobile_upload_page(request, token):
     image_record = TraceImage.objects.filter(upload_token=token).first()
     if not image_record:
         return HttpResponse('Invalid upload link', status=404)
-
+    if not image_record.token_expires_at:
+        return HttpResponse('Invalid upload link', status=404)
     if timezone.now() > image_record.token_expires_at:
         return HttpResponse('Upload link expired', status=403)
 
@@ -177,6 +178,7 @@ def mobile_upload_page(request, token):
 
 @csrf_exempt
 @require_POST
+@rate_limit(ip_limit=10, name='mobile_upload_submit')
 def mobile_upload_submit(request, token):
     """Handle the mobile image upload POST for the given token.
     This is a public endpoint that is used on a mobile device, so no authentication is required.
@@ -185,7 +187,8 @@ def mobile_upload_submit(request, token):
     image_record = TraceImage.objects.filter(upload_token=token).first()
     if not image_record:
         return JsonResponse({'error': 'Invalid token'}, status=404)
-
+    if not image_record.token_expires_at:
+        return JsonResponse({'error': 'Invalid token'}, status=404)
     if timezone.now() > image_record.token_expires_at:
         return JsonResponse({'error': 'Token expired'}, status=403)
 
@@ -221,11 +224,18 @@ def mobile_upload_submit(request, token):
 @require_GET
 def serve_trace_image(request, token):
     """Serve a trace image using its upload token."""  
-    # FIXME: where is this used and what security do we need here? 
-    # Proposition: only user that uploaded the image can see it & also teachers 
     img = get_object_or_404(TraceImage, upload_token=token)
+    
     if not img.image:
         return HttpResponse('No image', status=404)
+    
+    # Authorization: if linked to a trace, verify ownership or teacher status
+    # If not yet linked, any logged-in user with the token can view it. This happens 
+    # just for a short time, before the student sends the new message and creates a new trace.
+    if img.trace:
+        if img.trace.user != request.user and not request.user.is_teacher:
+            return HttpResponse('Unauthorized', status=403)
+    
     # Serve binary image data directly
     try:
         return HttpResponse(img.image, content_type=img.image_type)

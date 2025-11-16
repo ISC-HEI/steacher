@@ -22,8 +22,8 @@ interface ChatbotPanelData {
     isDarkMode: boolean;
     solutionUnlocked: boolean;
     _submissionsCount: number;
-  showAddMenu?: boolean;
-  previewImageUrl?: string | null;
+    showImageModal: boolean;
+    modalImageUrl: string | null;
 }
 
 export const ChatbotPanel = defineComponent({
@@ -46,15 +46,7 @@ export const ChatbotPanel = defineComponent({
         type: Boolean,
         default: false,
     },
-  uploadedImages: {
-    type: Array,
-    default: () => []
-  },
     confettiAlreadyShown: {
-        type: Boolean,
-        default: false,
-    },
-    allowImageUpload: {
         type: Boolean,
         default: false,
     }
@@ -66,10 +58,33 @@ export const ChatbotPanel = defineComponent({
         <!-- Chatbot Content. A list of messages exchanged between the user and the assistant. -->
         <div>
           <template v-for="(message, index) in processedMessages">
-            <div v-if="message.role === 'user' && message.content"
-                 v-html="renderMarkdown(formatUserMessage(message))"
+            <div v-if="message.role === 'user' && (message.content || (message.images && message.images.length > 0))"
                  class="box content mb-3 user-message"
-                 :key="'user-' + index"></div>
+                 :key="'user-' + index">
+              <!-- Create collapsible for all user messages with action metadata -->
+              <template v-if="message.metadata && message.metadata.action">
+                <details class="collapsible-message">
+                  <summary v-html="getMessageSummary(message)"></summary>
+                  <div class="mt-2">
+                    <div v-if="message.content" v-html="renderMarkdown(message.content)"></div>
+                    <div v-if="message.images && message.images.length > 0" class="mt-3" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                      <div v-for="(img, imgIdx) in message.images" 
+                           :key="imgIdx"
+                           style="width: 100%; max-width: 100%; cursor: pointer;"
+                           @click="openImageModal('/exercises/image/' + img.image_token)">
+                        <img :src="'/exercises/image/' + img.image_token" 
+                             alt="User uploaded image"
+                             style="width: 100%; max-width: 100%; height: auto; border: 1px solid #e6e6e6; border-radius: 4px; background: #fff;" />
+                      </div>
+                    </div>
+                  </div>
+                </details>
+              </template>
+              <!-- Messages without action metadata (shouldn't happen, but fallback) -->
+              <template v-else>
+                <div v-html="renderMarkdown(message.content)"></div>
+              </template>
+            </div>
 
             <template v-if="message.role === 'assistant'">
                 <div v-if="message.cleanedContent"
@@ -192,27 +207,6 @@ export const ChatbotPanel = defineComponent({
         </button>
       </div>
 
-  <!-- Hidden file input for the Add menu -->
-  <input type="file" ref="addFileInput" style="display:none" @change="handleAddFileChange" accept="image/*" />
-
-      <!-- Image Preview Box (above input area) -->
-      <div v-if="previewImageUrl || (uploadedImages && uploadedImages.length > 0)" class="box mb-2" style="position:relative;padding:0.75rem;">
-        <!-- If a local preview (file selected via add-menu) exists show it first -->
-        <button v-if="previewImageUrl" class="delete is-small" style="position:absolute;right:0.5rem;top:0.5rem;z-index:1;" 
-                @click.prevent="clearPreview" aria-label="Remove image"></button>
-        <div v-if="previewImageUrl" style="max-height:200px;overflow:hidden;display:flex;align-items:center;justify-content:center;">
-          <img :src="previewImageUrl" alt="Selected image" style="max-width:100%;max-height:200px;object-fit:contain;" />
-        </div>
-
-        <!-- Otherwise show uploaded images (from QR flow) above the question input -->
-        <div v-else style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;justify-content:center;">
-          <div v-for="(img, idx) in uploadedImages" :key="idx" style="position:relative;">
-            <img :src="'/exercises/image/' + img.token" style="max-height:160px;max-width:160px;object-fit:contain;border:1px solid #e6e6e6;background:#fff;padding:0.25rem;" />
-            <button class="delete is-small" style="position:absolute;top:-8px;right:-8px;" @click.prevent="removeUploadedImage(idx)"></button>
-          </div>
-        </div>
-      </div>
-
       <!-- Input area -->
       <div class="field has-addons mt-3">
         <!-- Single Input Field -->
@@ -238,23 +232,6 @@ export const ChatbotPanel = defineComponent({
             <span>Ask Question</span>
           </button>
         </p>
-
-        <!-- Add (+) menu control -->
-        <p v-if="allowImageUpload" class="control" style="position: relative;">
-          <button ref="addMenuButton" class="button is-light" @click.prevent="toggleAddMenu" :disabled="loading || pathwayLoading || pathwayData" title="Add">
-            <span class="icon"><i class="fas fa-plus"></i></span>
-          </button>
-
-          <!-- Small expanding menu (positioned relative to the + button) -->
-          <div ref="addMenu" v-if="showAddMenu" class="box" style="position: absolute; right: 0; bottom: calc(100% + 0.5rem); width: 14rem; padding: 0.5rem; z-index: 9999; background: white; box-shadow: 0 6px 18px rgba(0,0,0,0.12); max-height: 18rem; overflow: auto;">
-            <div style="display:flex;flex-direction:column;align-items:center;gap:0.5rem;">
-              <img src="/static/test-QR.png" alt="QR placeholder" style="max-width:100%;height:auto;max-height:12rem;object-fit:contain;border:1px solid #e6e6e6;background:#fff;padding:0.25rem;display:block;margin:0;" />
-              <button class="button is-small is-fullwidth is-light" @click.prevent="openFileDialog">upload from PC</button>
-            </div>
-          </div>
-
-        </p>
-
       </div>
 
        <!-- Course Completion Modal -->
@@ -278,6 +255,19 @@ export const ChatbotPanel = defineComponent({
           </div>
         </div>
 
+        <!-- Image Enlarge Modal -->
+        <div class="modal" :class="{ 'is-active': showImageModal }">
+          <div class="modal-background" @click="showImageModal = false"></div>
+          <div class="modal-content" style="max-width: 90vw; max-height: 90vh; display: flex; align-items: center; justify-content: center;">
+            <img v-if="modalImageUrl" 
+                 :src="modalImageUrl" 
+                 alt="Enlarged image" 
+                 @click="showImageModal = false"
+                 style="max-width: 100%; max-height: 90vh; object-fit: contain; cursor: pointer;" />
+          </div>
+          <button class="modal-close is-large" aria-label="close" @click="showImageModal = false"></button>
+        </div>
+
     </div>
   `,
   data(): ChatbotPanelData {
@@ -292,10 +282,8 @@ export const ChatbotPanel = defineComponent({
       isDarkMode: typeof window !== 'undefined' && window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : false,
       solutionUnlocked: false,
       _submissionsCount: 0,
-      // UI state for the small add-menu
-      showAddMenu: false,
-      // Preview URL for image selected via the add-menu
-      previewImageUrl: null,
+      showImageModal: false,
+      modalImageUrl: null,
     };
   },
   computed: {
@@ -319,17 +307,6 @@ export const ChatbotPanel = defineComponent({
     this.solutionUnlocked = !!this.$props.solutionUnlockedInitial;
     // Notify parent of initial state so it can show/hide the button in editors
     try { this.$emit('solution-unlocked', this.solutionUnlocked); } catch (_) { /* noop */ }
-
-    // Document click handler to close the add-menu when clicking outside
-    (this as any)._onDocClickHandler = (ev: Event) => this.onDocumentClick(ev);
-    document.addEventListener('click', (this as any)._onDocClickHandler as EventListener, true);
-  },
-  beforeUnmount(this: any) {
-    // Cleanup document listener
-    try {
-      const h = (this as any)._onDocClickHandler as EventListener | undefined;
-      if (h) document.removeEventListener('click', h, true);
-    } catch (_) { /* noop */ }
   },
   watch: {
     loading(this: any, newVal: boolean) {
@@ -570,70 +547,37 @@ export const ChatbotPanel = defineComponent({
       textarea.style.height = `${textarea.scrollHeight}px`;
     },
 
-    toggleAddMenu(this: any) {
-      // Previously toggled a small add-menu. Now emit an event so the parent
-      // can open the upload (QR) modal. This transfers the "Upload picture"
-      // behaviour to the + button as requested.
-      try { this.$emit('open-upload-modal'); } catch (_) { /* noop */ }
+    openImageModal(this: any, imageUrl: string) {
+      this.modalImageUrl = imageUrl;
+      this.showImageModal = true;
     },
 
-    openFileDialog(this: any) {
-      // Trigger the hidden file input to open the system file picker
-      try {
-        const input = this.$refs.addFileInput as HTMLInputElement | undefined;
-        if (input) {
-          input.click();
+    getMessageSummary(this: any, message: any) {
+        // Generate summary text for collapsible user messages
+        if (!message.metadata || !message.metadata.action) {
+            return 'User message';
         }
-      } catch (e) {
-        console.warn('Unable to open file dialog', e);
-      }
-    },
 
-    removeUploadedImage(this: any, index: number) {
-      try { this.$emit('remove-image', index); } catch (_) { /* noop */ }
-    },
+        const { action, question } = message.metadata;
 
-    handleAddFileChange(this: any, event: Event) {
-      const input = event.target as HTMLInputElement;
-      const file = input.files && input.files[0];
-      if (file) {
-        try {
-          if (file.type && file.type.startsWith('image/')) {
-            // Revoke previous blob URL if any
-            if (this.previewImageUrl && typeof this.previewImageUrl === 'string' && this.previewImageUrl.startsWith('blob:')) {
-              try { URL.revokeObjectURL(this.previewImageUrl); } catch (_) { /* noop */ }
-            }
-            this.previewImageUrl = URL.createObjectURL(file);
-            // Close the menu since preview will show above input
-            this.showAddMenu = false;
-          } else {
-            console.log('Selected non-image file from add-menu:', file);
-          }
-        } catch (err) {
-          console.warn('Error handling selected file', err);
+        if (action === 'ask_hint') {
+            return '<span class="icon ml-3"><i class="fas fa-lightbulb"></i></span> Hint requested';
         }
-      }
-      // Clear the input value so same file can be picked again if needed
-      if (input) input.value = '';
+        else if (action === 'ask_question') {
+            // Show the actual question text with icon
+            const questionText = question || 'Question asked';
+            return '<span class="icon ml-3"><i class="fas fa-question-circle"></i></span> ' + questionText;
+        }
+        else if (action === 'run_submission' || action === 'reveal_solution') {
+            return '<span class="icon ml-3"><i class="fas fa-code"></i></span> Code submitted to AI tutor';
+        }
+        else if (action === 'submit_answer') {
+            return '<span class="icon ml-3"><i class="fas fa-comment-dots"></i></span> Answer submitted';
+        }
+
+        return 'User message';
     },
 
-    clearPreview(this: any) {
-      if (this.previewImageUrl && this.previewImageUrl.startsWith('blob:')) {
-        try { URL.revokeObjectURL(this.previewImageUrl); } catch (_) { /* noop */ }
-      }
-      this.previewImageUrl = null;
-    },
-
-    onDocumentClick(this: any, ev: Event) {
-      if (!this.showAddMenu) return;
-      const target = ev.target as Node | null;
-      const menu = this.$refs.addMenu as HTMLElement | undefined;
-      const btn = this.$refs.addMenuButton as HTMLElement | undefined;
-      if (menu && menu.contains(target)) return; // click inside menu
-      if (btn && btn.contains(target)) return; // click on toggle button
-      // Click outside -> close the menu
-      this.showAddMenu = false;
-    },
     // Deprecated: Option buttons removed; no special parsing needed.
 
     formatUserMessage(message: any) {
@@ -668,15 +612,9 @@ export const ChatbotPanel = defineComponent({
         }
 
         else if (action === 'submit_answer') {
-            // Collapsible block for open-question free-form answers
-            const plainAnswer = (message.metadata && typeof message.metadata.answer === 'string') ? message.metadata.answer : '';
-            const detailsContent = (message.content && String(message.content).trim()) || plainAnswer || '';
-            const renderedDetailsContent = this.renderMarkdown(detailsContent);
-            return `
-<details class="collapsible-message">
-  <summary><span class="icon ml-3"><i class="fas fa-comment-dots"></i></span> Answer submitted</summary>
-  <div class="mt-2">${renderedDetailsContent}</div>
-  </details>`;
+            // This is now handled in the template to include images
+            // Return content as-is for rendering there
+            return message.content;
         }
 
         return message.content; // Fallback

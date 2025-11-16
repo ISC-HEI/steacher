@@ -505,6 +505,7 @@ def exercise_detail(request, pk):
                 'role': 'user',
                 'content': tr.user_content or '',
                 'metadata': tr.user_metadata or {},
+                'images': [{'image_token': img.upload_token} for img in tr.images.order_by('uploaded_at')],
             },
             'llm_response': llm_response,
         })
