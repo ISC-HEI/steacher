@@ -22,7 +22,7 @@ from .authz import rate_limit
 logger = logging.getLogger(__name__)
 
 
-def resize_and_convert_image(uploaded_file, max_width=2048, max_height=800):
+def resize_and_convert_image(uploaded_file, max_width=2000, max_height=768):
     """
     Resize uploaded image, preserving original format when possible.
     Handles transparency, palette modes, and various image formats.
