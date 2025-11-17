@@ -519,6 +519,10 @@ def generate_authoring_update(*, exercise_payload: dict, messages: list, course:
 Your task is to provide concise, actionable feedback as bullet points. 
 Focus on: clarity of question, ambiguity, prerequisite fit, alignment between question, hints, and unit tests, and pedagogy.
 
+You feedback should point to improvements, not to positive points.
+
+For example, check if the exercise is missing test cases, or if the hints are not clear, or if the different translations are not correct or out of sync.
+
 # Input 
 
 The exercise is provided to you as a JSON object under the 'Current Exercise Context' heading below.
@@ -596,7 +600,6 @@ Here is the current state of the exercise you are helping the teacher with:
 """
 
     messages_for_llm = [{"role": "system", "content": str(system_prompt)}]
-    logger.debug(f"System prompt: {system_prompt}, type: {type(system_prompt)}")
 
     # Append the short-lived in-page messages (user/assistant conversation)
     for m in messages:
@@ -609,12 +612,18 @@ Here is the current state of the exercise you are helping the teacher with:
     # 3) Ask for a JSON object in the response, without a strict schema
     try:
         start_time = time.time()
-        completion = client.chat.completions.create(
-            model=MODEL_PRO,
-            messages=messages_for_llm,
-            temperature=0.2,
-            response_format= {"type": "json_object"} if mode == 'edit' else {"type": "text"},
-        )
+        kwargs = {
+            "model": MODEL_PRO,
+            "messages": messages_for_llm,
+            "temperature": 0.2,
+        }
+        # important: do not use a response format {type: text} for feedback mode, it will not work
+        if mode == 'edit':
+            kwargs["response_format"] = {"type": "json_object"}
+            
+        completion = client.chat.completions.create(**kwargs)
+                
+            
         logger.debug(f"Completion time: {time.time() - start_time}, {completion}")
     except Exception as e:
         logger.error(f"Failed to create completion for authoring assistant: {e}, messages: {messages_for_llm}")
@@ -625,68 +634,73 @@ Here is the current state of the exercise you are helping the teacher with:
         }
 
     content = (completion.choices[0].message.content or '').strip()
-    # Strip accidental Markdown code fencing if any
-    content = _strip_markdown_fences(content)
 
-    # 4) Parse JSON response
-    def _looks_like_exercise(obj: dict) -> bool:
-        if not isinstance(obj, dict):
+    if mode == 'edit':
+        # Strip accidental Markdown code fencing if any
+        content = _strip_markdown_fences(content)
+
+        # 4) Parse JSON response
+        def _looks_like_exercise(obj: dict) -> bool:
+            if not isinstance(obj, dict):
+                return False
+            keys = set(obj.keys())
+            if 'exercise_type' in keys and 'exercise_data' in keys:
+                return True
+            if 'title' in keys and ('answer_data' in keys or 'exercise_data' in keys):
+                return True
             return False
-        keys = set(obj.keys())
-        if 'exercise_type' in keys and 'exercise_data' in keys:
-            return True
-        if 'title' in keys and ('answer_data' in keys or 'exercise_data' in keys):
-            return True
-        return False
 
-    parsed: dict
-    try:
-        parsed = json.loads(content)
-    except Exception:
-        parsed = {}
+        parsed: dict
+        try:
+            parsed = json.loads(content)
+        except Exception:
+            parsed = {}
 
-    assistant_message = ''
-    updated_exercise = None
+        assistant_message = ''
+        updated_exercise = None
 
-    if isinstance(parsed, dict):
-        # Handle common deviations gracefully
-        if 'assistant_message' in parsed:
-            assistant_message = parsed.get('assistant_message') or ''
-        elif 'message' in parsed:
-            assistant_message = parsed.get('message') or ''
+        if isinstance(parsed, dict):
+            # Handle common deviations gracefully
+            if 'assistant_message' in parsed:
+                assistant_message = parsed.get('assistant_message') or ''
+            elif 'message' in parsed:
+                assistant_message = parsed.get('message') or ''
 
-        if 'updated_exercise' in parsed and isinstance(parsed['updated_exercise'], dict):
-            updated_exercise = parsed['updated_exercise']
-        elif 'exercise' in parsed and isinstance(parsed['exercise'], dict):
-            updated_exercise = parsed['exercise']
-        elif _looks_like_exercise(parsed):
-            # Model returned the exercise object at top-level; adopt it
-            updated_exercise = parsed
+            if 'updated_exercise' in parsed and isinstance(parsed['updated_exercise'], dict):
+                updated_exercise = parsed['updated_exercise']
+            elif 'exercise' in parsed and isinstance(parsed['exercise'], dict):
+                updated_exercise = parsed['exercise']
+            elif _looks_like_exercise(parsed):
+                # Model returned the exercise object at top-level; adopt it
+                updated_exercise = parsed
 
-    if updated_exercise is None:
+        if updated_exercise is None:
+            updated_exercise = exercise_payload
+        if not assistant_message:
+            # As a last resort, show a generic note or echo raw content if short
+            assistant_message = "Proposed changes applied." if parsed else content[:300]
+
+        # Ensure updated_exercise remains a dict
+        if not isinstance(updated_exercise, dict):
+            updated_exercise = exercise_payload
+
+        # Normalize hints to be string[] for the form, as the AI might return objects
+        if 'answer_data' in updated_exercise and 'hints' in updated_exercise.get('answer_data', {}):
+            hints = updated_exercise['answer_data']['hints']
+            if isinstance(hints, list) and hints and isinstance(hints[0], dict):
+                # It's a list of objects, flatten it to a list of strings
+                updated_exercise['answer_data']['hints'] = "\n".join([
+                    str(h.get('hint', h)) for h in hints
+                ])
+            elif isinstance(hints, list):
+                updated_exercise['answer_data']['hints'] = "\n".join(hints)
+
+    
+    else: # feedback mode
+        # Enforce no-op updates in feedback mode
         updated_exercise = exercise_payload
-    if not assistant_message:
-        # As a last resort, show a generic note or echo raw content if short
-        assistant_message = "Proposed changes applied." if parsed else content[:300]
-
-    # Ensure updated_exercise remains a dict
-    if not isinstance(updated_exercise, dict):
-        updated_exercise = exercise_payload
-
-    # Normalize hints to be string[] for the form, as the AI might return objects
-    if 'answer_data' in updated_exercise and 'hints' in updated_exercise.get('answer_data', {}):
-        hints = updated_exercise['answer_data']['hints']
-        if isinstance(hints, list) and hints and isinstance(hints[0], dict):
-            # It's a list of objects, flatten it to a list of strings
-            updated_exercise['answer_data']['hints'] = "\n".join([
-                str(h.get('hint', h)) for h in hints
-            ])
-        elif isinstance(hints, list):
-            updated_exercise['answer_data']['hints'] = "\n".join(hints)
-
-    # Enforce no-op updates in feedback mode
-    if mode == 'feedback':
-        updated_exercise = exercise_payload
+        # use the content as the assistant message
+        assistant_message = content.strip() if content else ''
 
     return {
         'assistant_message': assistant_message,
