@@ -82,7 +82,7 @@ Do not provide the entire solution, but **give them enough to make meaningful pr
 ## Image input
 For this exercise, the student is gonna give you his solution input via a picture of his worksheet.
 If you encounter an error in the student's reasoning that seems to be fixed in the follow up (for example a sign error), consider it's a mistake on your side and ignore it.
-If you are not sure to read correctly an important line (for example where a mistake seems to be), you may ask the student to confirm what you think your read.
+If you are not sure to read correctly an important line (for example where a mistake seems to be), you must ask the student to confirm what you think your read.
 {% endif %}{# end image_answers #}
 
 ----
