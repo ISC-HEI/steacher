@@ -180,7 +180,7 @@ def mobile_upload_page(request, token):
     if image_record.image:
         return render(request, 'exercises/upload_already_used.html', status=400)
 
-    return render(request, 'exercises/mobile_upload.html', {
+    return render(request, 'exercises/students/mobile_upload.html', {
         'token': token,
     })
 
