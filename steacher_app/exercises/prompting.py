@@ -46,6 +46,7 @@ def build_system_prompt(*, action: str, exercise: Exercise, attempt: Attempt) ->
     expected_result = getattr(answer_data, 'expected_result', None) if answer_data else None
     hints = getattr(answer_data, 'hints', '') if answer_data else ''
     additional_context: str = getattr(answer_data, 'additional_context', '') if answer_data else ''
+    image_answers: bool = getattr(exercise, 'allow_image_upload', False)
 
     correct_answers: List[Dict[str, Any]] = []
     if answer_data and getattr(answer_data, 'correct_answers', None):
@@ -67,6 +68,7 @@ def build_system_prompt(*, action: str, exercise: Exercise, attempt: Attempt) ->
         'correct_answers': correct_answers,
         'hints': hints,
         'additional_context': additional_context,
+        'image_answers': image_answers
     }
 
     # If the course provides a full system prompt override, render it as a Django template string (strict, so we catch errors).
