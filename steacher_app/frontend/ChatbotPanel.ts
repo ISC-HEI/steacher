@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify';
 import confetti from 'canvas-confetti';
 import { getCsrfToken } from './utils.js';
 import { defineComponent } from "vue";
+import katex from 'katex';
 
 interface ProcessedMessage {
     cleanedContent: string;
@@ -49,6 +50,10 @@ export const ChatbotPanel = defineComponent({
     confettiAlreadyShown: {
         type: Boolean,
         default: false,
+    },
+    exercise: {
+        type: Object,
+        default: () => null,
     }
   },
   // language=HTML
@@ -647,7 +652,41 @@ export const ChatbotPanel = defineComponent({
     renderMarkdown(this: any, content: string) {
       if (!content) return '';
       // Sanitize the content to prevent XSS attacks, then parse Markdown
-      return DOMPurify.sanitize(marked.parse(content) as string);
+      let html = DOMPurify.sanitize(marked.parse(content) as string);
+
+      if (this.exercise.allow_image_upload){
+        // If the exercise allows images (means it's a math exercise)
+        // Then process KaTeX math expressions
+        // Handle display math ($$...$$)
+        html = html.replace(/\$\$([^$]+)\$\$/g, (match, math) => {
+            try {
+                return katex.renderToString(math, { 
+                    displayMode: true,
+                    strict: 'error', // Fail on bad input
+                    trust: false // Don't allow \href, etc.
+                });
+            } catch (e) {
+                console.error('KaTeX display math error:', e);
+                return match;
+            }
+        });
+
+        // Handle inline math ($...$) - be careful not to match $$ patterns
+        html = html.replace(/(?<!\$)\$([^$\n]+)\$(?!\$)/g, (match, math) => {
+            try {
+                return katex.renderToString(math, { 
+                    displayMode: false,
+                    strict: 'error', // Fail on bad input
+                    trust: false // Don't allow \href, etc.
+                });
+            } catch (e) {
+                console.error('KaTeX inline math error:', e);
+                return match;
+            }
+        });
+      }
+
+      return html;
     }
   }
 }); 

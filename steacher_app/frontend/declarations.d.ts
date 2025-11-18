@@ -17,4 +17,22 @@ declare module 'codemirror-bundle' {
 }
 
 declare module 'canvas-confetti';
-declare module 'pyodide'; 
+declare module 'pyodide';
+
+declare module 'katex' {
+    export interface KatexOptions {
+        displayMode?: boolean;
+        throwOnError?: boolean;
+        errorColor?: string;
+        macros?: any;
+        colorIsTextColor?: boolean;
+        strict?: boolean | string;
+        trust?: boolean | ((context: any) => boolean);
+        maxSize?: number;
+        maxExpand?: number;
+        globalGroup?: boolean;
+    }
+    
+    export function renderToString(tex: string, options?: KatexOptions): string;
+    export function render(tex: string, element: HTMLElement, options?: KatexOptions): void;
+} 

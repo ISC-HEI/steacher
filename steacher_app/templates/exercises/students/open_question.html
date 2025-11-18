@@ -117,6 +117,7 @@
                 :attempt-id="{{ attempt_id }}"
                 next-exercise-url="{% if next_exercise %}{% url 'exercises:exercise_detail' next_exercise.pk %}{% endif %}"
                 :solution-unlocked-initial="{{ solution_unlocked|yesno:'true,false' }}"
+                :exercise="exercise"
                 @question-asked="handleQuestion"
                 @solution-unlocked="solutionUnlocked = $event"
                 @reveal-solution="getGuidance('reveal_solution')">
@@ -136,7 +137,8 @@
     "canvas-confetti": "https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.module.mjs",
     "./ChatbotPanel.js": "{% static 'js/dist/ChatbotPanel.js' %}",
     "marked": "https://cdn.jsdelivr.net/npm/marked@16.0.0/lib/marked.esm.js",
-    "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs"
+    "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs",
+    "katex": "https://cdn.jsdelivr.net/npm/katex@0.16.25/dist/katex.mjs"
   }
 }
  </script>
