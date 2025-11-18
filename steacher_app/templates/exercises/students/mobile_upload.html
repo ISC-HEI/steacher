@@ -467,7 +467,8 @@
                     destroyCropper();
                     elements.cropImage.src = e.target.result;
                     showView('cropping');
-                    
+                    // page to play around with parameters to choose:
+                    // https://fengyuanchen.github.io/cropperjs/playground.html
                     setTimeout(() => {
                         cropper = new Cropper(elements.cropImage, {
                             viewMode: 1,
