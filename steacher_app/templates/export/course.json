@@ -1,0 +1,47 @@
+{
+  "courses": [
+    {
+      "name": "",
+      "description": "",
+      "chat_prompt": "",
+      "modules": [
+        {
+          "name": "",
+          "description": "",
+          "exercises": [
+            {
+              "title": {
+                "en": "",
+                "fr": ""
+              },
+              "description": {
+                "en": "",
+                "fr": ""
+              },
+              "exercise_type": "",
+              "visible": true,
+              "allow_image_upload": false,
+              "exercise_data": {
+                "question": {
+                  "en": "",
+                  "fr": ""
+                }
+              },
+              "answer_data": {
+                "correct_answers": [
+                  {
+                    "answer": "",
+                    "explanation": ""
+                  }
+                ],
+                "expected_result": [],
+                "hints": [],
+                "additional_context": ""
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
