@@ -217,7 +217,7 @@ class Command(BaseCommand):
             errors.extend(title_errors)
             
         # Validate optional i18n fields
-        for field in ['description']:
+        for field in ['description', 'question']:
             if field in exercise:
                 field_errors = self.validate_i18n_field(exercise[field], f"{path}.{field}", required=False)
                 errors.extend(field_errors)
@@ -409,6 +409,7 @@ class Command(BaseCommand):
                         module=module,
                         title_i18n=exercise_data['title'],
                         description_i18n=exercise_data.get('description', {}),
+                        question_i18n=exercise_data.get('question', {}),
                         exercise_type=exercise_data['exercise_type'],
                         order=exercise_order,
                         exercise_data=exercise_data.get('exercise_data', {}),

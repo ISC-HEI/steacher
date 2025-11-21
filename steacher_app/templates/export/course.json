@@ -18,14 +18,14 @@
                 "en": "",
                 "fr": ""
               },
+              "question": {
+                "en": "",
+                "fr": ""
+              },
               "exercise_type": "",
               "visible": true,
               "allow_image_upload": false,
               "exercise_data": {
-                "question": {
-                  "en": "",
-                  "fr": ""
-                }
               },
               "answer_data": {
                 "correct_answers": [

@@ -85,11 +85,9 @@ class Command(BaseCommand):
                     desc_preview = exercise.description_i18n[:50] + "..." if len(exercise.description_i18n) > 50 else exercise.description_i18n
                     legacy_items.append(f"Exercise '{exercise_title}' description: '{desc_preview}' (string instead of i18n dict)")
                 
-                # Check exercise_data question field
-                if (exercise.exercise_data and 
-                    'question' in exercise.exercise_data and 
-                    isinstance(exercise.exercise_data['question'], str)):
-                    question_preview = exercise.exercise_data['question'][:50] + "..." if len(exercise.exercise_data['question']) > 50 else exercise.exercise_data['question']
+                # Check question_i18n field
+                if isinstance(exercise.question_i18n, str) and exercise.question_i18n:
+                    question_preview = exercise.question_i18n[:50] + "..." if len(exercise.question_i18n) > 50 else exercise.question_i18n
                     legacy_items.append(f"Exercise '{exercise_title}' question: '{question_preview}' (string instead of i18n dict)")
         
         return legacy_items
@@ -175,18 +173,13 @@ class Command(BaseCommand):
                 exercise_data = {
                     'title': self.transform_to_i18n(exercise.title_i18n) if transform_legacy else exercise.title_i18n,
                     'description': self.transform_to_i18n(exercise.description_i18n) if transform_legacy else exercise.description_i18n,
+                    'question': self.transform_to_i18n(exercise.question_i18n) if transform_legacy else exercise.question_i18n,
                     'exercise_type': exercise.exercise_type,
                     'visible': exercise.visible,
                     'allow_image_upload': exercise.allow_image_upload,
                     'exercise_data': exercise.exercise_data or {},
                     'answer_data': exercise.answer_data or {}
                 }
-                
-                # Transform exercise_data question field if needed
-                if transform_legacy and 'question' in exercise_data['exercise_data']:
-                    exercise_data['exercise_data']['question'] = self.transform_to_i18n(
-                        exercise_data['exercise_data']['question']
-                    )
                 
                 module_data['exercises'].append(exercise_data)
             
