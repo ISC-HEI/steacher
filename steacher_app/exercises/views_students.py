@@ -500,6 +500,15 @@ def exercise_detail(request, pk):
         if can_edit and tr.assistant_metadata and 'thoughts' in tr.assistant_metadata:
             llm_response['thoughts'] = tr.assistant_metadata['thoughts']
         
+        # Extract debug fields from assistant_complete_content if present (only for teachers)
+        if can_edit and tr.assistant_complete_content:
+            llm_response['debug_fields'] = {
+                'transcript': tr.assistant_complete_content.get('transcript', ''),
+                'error_desc': tr.assistant_complete_content.get('error_desc', ''),
+                'help_text': tr.assistant_complete_content.get('help_text', ''),  # Note: space in key
+                'ambiguities': tr.assistant_complete_content.get('ambiguities', ''),
+            }
+        
         interactions.append({
             'user_submission': {
                 'role': 'user',
@@ -642,14 +651,16 @@ def get_guidance(request, exercise_id, attempt_id):
 
         response_data = fetch_ai_guidance(data, exercise, attempt)
         
-        # Filter reasoning (thoughts) from students - only teachers should see it
+        # Filter reasoning (thoughts) and debug fields from students - only teachers should see them
         try:
             user_can_edit = can_edit_course(request.user, exercise.module.course)
-            if not user_can_edit and 'thoughts' in response_data:
-                response_data.pop('thoughts')
+            if not user_can_edit:
+                response_data.pop('thoughts', None)
+                response_data.pop('debug_fields', None)
         except Exception:
-            # If permission check fails, err on the side of hiding reasoning
+            # If permission check fails, err on the side of hiding reasoning and debug fields
             response_data.pop('thoughts', None)
+            response_data.pop('debug_fields', None)
         
         return JsonResponse({'status': 'success', **response_data})
 

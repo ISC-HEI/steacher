@@ -19,7 +19,7 @@ gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 logger = logging.getLogger(__name__)
 MODEL_FAST = "gemini-2.5-flash"
 MODEL_PRO = "gemini-2.5-pro"
-
+MODEL_LATEST = "gemini-3-pro-preview"
 
 def _compute_uncertainty_from_logprobs(resp, first_k: int = 10, threshold_nll_nats: float = 4.8) -> dict:
     """
@@ -373,6 +373,20 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
                     logger.error(f"Failed to load image with token {token}: {e}")
 
         gen_response = chat_session.send_message(user_complete_input)
+        print("gen_response: ", gen_response)
+
+        text_out = (gen_response.text or '').strip()
+
+        # Remove markdown code fences before parsing JSON
+        text_out = _strip_markdown_fences(text_out)
+        print("text_out: ", text_out)
+
+        loaded_response = json.loads(text_out)
+
+        transcript = loaded_response["transcript"]
+        error_desc = loaded_response["error_desc"]
+        help_text = loaded_response["help_text"]  # Note: space in key, not underscore
+        ambiguities = loaded_response["ambiguities"]
 
     except Exception as e:
         logger.error(f"Gemini generate_content failed for exercise {exercise.id}: {e}")
@@ -387,7 +401,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         thoughts = []
     else:
         try:
-            answer = (gen_response.text or '').strip()
+            answer = help_text
         except Exception:
             answer = ''
         thoughts = _extract_thoughts_from_response(gen_response)
@@ -446,6 +460,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         'user_content': user_prompt_content,
         'user_metadata': data,
         'assistant_content': answer,
+        'assistant_complete_content': loaded_response,
         'assistant_metadata': {
             'model': interaction_log['llm_response']['metadata']['model'],
             'usage': interaction_log['llm_response']['metadata']['usage'],
@@ -488,6 +503,12 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         'user_submission': user_submission_with_images,
         'assistant_trace_id': created_trace.id,
         'thoughts': thoughts if thoughts else None,  # Will be filtered by view for non-teachers
+        'debug_fields': {  # Will be filtered by view for non-teachers
+            'transcript': loaded_response.get('transcript', '') if loaded_response else '',
+            'error_desc': loaded_response.get('error_desc', '') if loaded_response else '',
+            'help_text': loaded_response.get('help_text', '') if loaded_response else '',  # Note: space in key
+            'ambiguities': loaded_response.get('ambiguities', '') if loaded_response else '',
+        } if loaded_response else None,
     }    
     return response_data
 

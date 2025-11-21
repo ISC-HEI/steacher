@@ -500,6 +500,7 @@ class Trace(models.Model):
     # Assistant message
     assistant_content = models.TextField(blank=True, help_text="The assistant's response to the user's message.")
     assistant_metadata = models.JSONField(default=dict, blank=True, help_text="Metadata about the assistant's response, like the LLM response time, model, etc.")
+    assistant_complete_content = models.JSONField(default=dict, blank=True, help_text="Complete JSON response of the assistant.")
 
     # User message
     user_content = models.TextField(blank=True, help_text="The user's message to the assistant.")

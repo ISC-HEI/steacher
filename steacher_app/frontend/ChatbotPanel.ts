@@ -8,6 +8,12 @@ import katex from 'katex';
 interface ProcessedMessage {
     cleanedContent: string;
     thoughts?: string[];
+    debug_fields?: {
+        transcript: string;
+        error_desc: string;
+        help_text: string;
+        ambiguities: string;
+    };
     _isNew?: boolean;
     [key: string]: any;
 }
@@ -25,6 +31,7 @@ interface ChatbotPanelData {
     _submissionsCount: number;
     showImageModal: boolean;
     modalImageUrl: string | null;
+    activeDebugTabs: { [messageId: number]: string };
 }
 
 export const ChatbotPanel = defineComponent({
@@ -112,6 +119,44 @@ export const ChatbotPanel = defineComponent({
                             </div>
                         </div>
                     </details>
+                    
+                    <!-- Debug Fields Tabs - only shown to teachers -->
+                    <div v-if="message.debug_fields" class="mb-3" style="border-bottom: 1px solid #e0e0e0; padding-bottom: 0.75rem;">
+                        <p class="is-size-6 mb-2 has-text-grey">
+                            <span class="icon is-small"><i class="fas fa-bug"></i></span>
+                            Debug Information (only shown to teachers)
+                        </p>
+                        <div class="tabs is-small">
+                            <ul>
+                                <li :class="{ 'is-active': getActiveDebugTab(message._id) === 'help_text' }">
+                                    <a @click="setActiveDebugTab(message._id, 'help_text')">Help Text</a>
+                                </li>
+                                <li :class="{ 'is-active': getActiveDebugTab(message._id) === 'transcript' }">
+                                    <a @click="setActiveDebugTab(message._id, 'transcript')">Transcript</a>
+                                </li>
+                                <li :class="{ 'is-active': getActiveDebugTab(message._id) === 'error_desc' }">
+                                    <a @click="setActiveDebugTab(message._id, 'error_desc')">Error Description</a>
+                                </li>
+                                <li :class="{ 'is-active': getActiveDebugTab(message._id) === 'ambiguities' }">
+                                    <a @click="setActiveDebugTab(message._id, 'ambiguities')">Ambiguities</a>
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="box mt-2 has-background-light" 
+                             :style="{
+                                 'font-size': '0.85rem', 
+                                 'min-height': '60px',
+                                 'overflow-x': getActiveDebugTab(message._id) === 'transcript' ? 'auto' : 'visible',
+                                 'white-space': getActiveDebugTab(message._id) === 'transcript' ? 'pre' : 'pre-wrap'
+                             }">
+                            <div v-if="getDebugTabContent(message, getActiveDebugTab(message._id))" 
+                                 v-html="renderMarkdown(getDebugTabContent(message, getActiveDebugTab(message._id)))">
+                            </div>
+                            <div v-else class="has-text-grey-light">
+                                No data available
+                            </div>
+                        </div>
+                    </div>
                     
                     <div v-html="renderMarkdown(message.cleanedContent)"></div>
                     
@@ -289,11 +334,34 @@ export const ChatbotPanel = defineComponent({
       _submissionsCount: 0,
       showImageModal: false,
       modalImageUrl: null,
+      activeDebugTabs: {},
     };
   },
   computed: {
     processedMessages(): ProcessedMessage[] {
-      return this.internalMessages.map(message => ({ ...message, cleanedContent: message.content }));
+      return this.internalMessages.map(message => {
+        if (message.role === 'assistant') {
+          // Handle backward compatibility for assistant messages
+          if (message.debug_fields && typeof message.debug_fields === 'object') {
+            // New format - use debug_fields.help_text as default content
+            return {
+              ...message,
+              cleanedContent: message.debug_fields.help_text || '',
+              debug_fields: message.debug_fields
+            };
+          } else {
+            // Fallback to old format
+            return {
+              ...message,
+              cleanedContent: message.content || '',
+              debug_fields: null
+            };
+          }
+        } else {
+          // Non-assistant messages - no changes needed
+          return { ...message, cleanedContent: message.content || '' };
+        }
+      });
     }
   },
   mounted(this: any) {
@@ -372,6 +440,22 @@ export const ChatbotPanel = defineComponent({
       this.showJumpToLatest = false;
       this.$nextTick(() => this.scrollToBottom());
     },
+    
+    // Debug tab methods
+    getActiveDebugTab(this: any, messageId: number): string {
+      return this.activeDebugTabs[messageId] || 'help_text';
+    },
+    
+    setActiveDebugTab(this: any, messageId: number, tabName: string) {
+      this.activeDebugTabs = { ...this.activeDebugTabs, [messageId]: tabName };
+    },
+    
+    getDebugTabContent(this: any, message: any, tabName: string): string {
+      if (!message.debug_fields) return '';
+      const content = message.debug_fields[tabName];
+      return content || '';
+    },
+    
     displayMessage(message: any) {
         // Check if user is near bottom BEFORE adding the message
         const messagesEl = this.$refs.messagesContainer as HTMLElement | undefined;
