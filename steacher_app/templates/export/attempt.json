@@ -1,0 +1,43 @@
+{
+  "attempts": [
+    {
+      "exercise": "",
+      "user": "",
+      "cohort": "",
+      "complete": false,
+      "asked_for_solution": false,
+      "version": 1,
+      "created_at": "",
+      "updated_at": "",
+      "traces": [
+        {
+		  "object": "",
+          "user": "",
+          "channel": "",
+          "system_prompt": "",
+          "assistant_content": "",
+          "assistant_metadata": {},
+          "assistant_complete_content": {},
+          "user_content": "",
+          "user_metadata": {},
+          "rank_order": 0,
+          "created_at": "",
+		  "content_type": "",
+          "images": [
+            {
+              "image": "",
+			  "upload_token": "",
+			  "token_expires_at": "",
+			  "next_token": "",
+              "image_type": "",
+              "file_size": 0,
+              "chain_position": 0,
+              "uploaded_at": "",
+              "created_at": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
