@@ -381,12 +381,21 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         text_out = _strip_markdown_fences(text_out)
         print("text_out: ", text_out)
 
-        loaded_response = json.loads(text_out)
+        # FIXME: this is a little piece of tape to make sure the function works for the test, but the next version needs all LLM answers to 
+        #        be forwarded in JSON format with optionnal fields so this part can be much cleaner.
+        try:
+            # tries extracting the response as a JSON
+            loaded_response = json.loads(text_out)
+            transcript = loaded_response["transcript"]
+            error_desc = loaded_response["error_desc"]
+            ambiguities = loaded_response["ambiguities"]
 
-        transcript = loaded_response["transcript"]
-        error_desc = loaded_response["error_desc"]
-        help_text = loaded_response["help_text"]  # Note: space in key, not underscore
-        ambiguities = loaded_response["ambiguities"]
+        except:
+            # if the json deserialization failed, place the whole output in the only 
+            loaded_response = {"help_text":text_out}
+        
+        print("loaded_response: ", loaded_response)
+        help_text = loaded_response["help_text"]
 
     except Exception as e:
         logger.error(f"Gemini generate_content failed for exercise {exercise.id}: {e}")
@@ -497,7 +506,6 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         **interaction_log['user_submission'],
         'images': [{'image_token': img.upload_token} for img in trace_image_objects]
     }
-    
     response_data = {
         'guidance': answer,
         'user_submission': user_submission_with_images,
@@ -509,7 +517,8 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
             'help_text': loaded_response.get('help_text', '') if loaded_response else '',  # Note: space in key
             'ambiguities': loaded_response.get('ambiguities', '') if loaded_response else '',
         } if loaded_response else None,
-    }    
+    }
+
     return response_data
 
 
