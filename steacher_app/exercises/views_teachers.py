@@ -1077,6 +1077,10 @@ def exercise_form(request, course_pk, exercise_pk=None, module_pk=None):
 @login_required
 @require_POST
 def exercise_authoring_assistant(request):
+    """
+    Teacher-facing authoring assistant.
+    Handles a teacher's request for authoring assistance by calling the main authoring logic.
+    """
 
     nr.set_background_task(True)     # removes it from web Apdex
     nr.suppress_apdex_metric()       # belt-and-suspenders
@@ -1135,7 +1139,7 @@ def exercise_authoring_assistant(request):
             updated_exercise_payload = result.get('updated_exercise') or {}
             fields = {
                 'user_content': user_text,
-                'assistant_content': assistant_text,
+                'assistant_content': {'guidance_text': assistant_text},
                 'assistant_metadata': {
                     'updated_exercise': updated_exercise_payload,
                     'model': result.get('assistant_metadata', {}).get('model'),
@@ -1252,7 +1256,7 @@ def quiz_results_api(request, cohort_id: int, module_id: int, exercise_id: int):
         ).values('id'),
         assistant_content__isnull=False
     ).exclude(
-        assistant_content=''
+        assistant_content={}
     ).order_by('user_id', 'created_at').values('user_id', 'assistant_content')
     
     # Group by user_id, keep first trace per user
@@ -1264,7 +1268,7 @@ def quiz_results_api(request, cohort_id: int, module_id: int, exercise_id: int):
     
     # Count results
     submissions_count = len(user_first_traces)
-    correct_count = sum(1 for content in user_first_traces.values() if '<exercise_completed>' in content)
+    correct_count = sum(1 for content in user_first_traces.values() if '<exercise_completed>' in content.get('guidance_text', ''))
     incorrect_count = submissions_count - correct_count
     
     return JsonResponse({

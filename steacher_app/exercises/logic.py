@@ -19,7 +19,7 @@ gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 logger = logging.getLogger(__name__)
 MODEL_FAST = "gemini-2.5-flash"
 MODEL_PRO = "gemini-2.5-pro"
-MODEL_LATEST = "gemini-3-pro-preview"
+MODEL_LATEST = "gemini-3-pro-preview"  # TODO: thorough test before production use
 
 def _compute_uncertainty_from_logprobs(resp, first_k: int = 10, threshold_nll_nats: float = 4.8) -> dict:
     """
@@ -334,7 +334,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
             if tr.user_content:
                 history_parts.append(UserContent(parts=[Part(text=tr.user_content)]))
             if tr.assistant_content:
-                history_parts.append(ModelContent(parts=[Part(text=tr.assistant_content)]))
+                history_parts.append(ModelContent(parts=[Part(text=tr.assistant_content_text())]))
 
         # Reduce temperature for reveal_solution to increase determinism/compliance
         _temp = 0.2 if action == 'reveal_solution' else 0.7
@@ -381,21 +381,15 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         text_out = _strip_markdown_fences(text_out)
         print("text_out: ", text_out)
 
-        # FIXME: this is a little piece of tape to make sure the function works for the test, but the next version needs all LLM answers to 
-        #        be forwarded in JSON format with optionnal fields so this part can be much cleaner.
+        # loaded response from LLM
         try:
-            # tries extracting the response as a JSON
             loaded_response = json.loads(text_out)
-            transcript = loaded_response["transcript"]
-            error_desc = loaded_response["error_desc"]
-            ambiguities = loaded_response["ambiguities"]
-
-        except:
-            # if the json deserialization failed, place the whole output in the only 
-            loaded_response = {"help_text":text_out}
+        except Exception as e:
+            logger.error(f"Failed to load response as JSON: {e}")
+            loaded_response = {"guidance_text":text_out}
         
         print("loaded_response: ", loaded_response)
-        help_text = loaded_response["help_text"]
+        guidance_text = loaded_response["guidance_text"]
 
     except Exception as e:
         logger.error(f"Gemini generate_content failed for exercise {exercise.id}: {e}")
@@ -410,7 +404,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         thoughts = []
     else:
         try:
-            answer = help_text
+            answer = guidance_text
         except Exception:
             answer = ''
         thoughts = _extract_thoughts_from_response(gen_response)
@@ -468,8 +462,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     fields = {
         'user_content': user_prompt_content,
         'user_metadata': data,
-        'assistant_content': answer,
-        'assistant_complete_content': loaded_response,
+        'assistant_content': loaded_response,
         'assistant_metadata': {
             'model': interaction_log['llm_response']['metadata']['model'],
             'usage': interaction_log['llm_response']['metadata']['usage'],
@@ -514,8 +507,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         'debug_fields': {  # Will be filtered by view for non-teachers
             'transcript': loaded_response.get('transcript', '') if loaded_response else '',
             'error_desc': loaded_response.get('error_desc', '') if loaded_response else '',
-            'help_text': loaded_response.get('help_text', '') if loaded_response else '',  # Note: space in key
-            'ambiguities': loaded_response.get('ambiguities', '') if loaded_response else '',
+            'guidance_text': loaded_response.get('guidance_text', '') if loaded_response else '',
         } if loaded_response else None,
     }
 
@@ -829,7 +821,7 @@ def generate_learning_pathway_recommendation(attempt: Attempt, traces: list) -> 
         {tr.user_content.strip() or ''}
 
         **Assistant:** 
-        {tr.assistant_content.strip() or ''}
+        {tr.assistant_content_text() or ''}
 
         """
 
@@ -1042,7 +1034,7 @@ Based on all this context, please generate your response in the required JSON fo
         lp_fields = {
             'system_prompt': system_prompt,
             'user_content': user_prompt,
-            'assistant_content': '',
+            'assistant_content': {'guidance_text': ''},
             'assistant_metadata': {
                 'learning_pathway': response_data,
                 'usage_data': {

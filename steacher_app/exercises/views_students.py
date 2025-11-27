@@ -492,7 +492,7 @@ def exercise_detail(request, pk):
     for tr in traces:
         llm_response = {
             'role': 'assistant',
-            'content': tr.assistant_content or '',
+            'content': tr.assistant_content.get('guidance_text', '') or '',
             'trace_id': tr.id,
             'metadata': tr.assistant_metadata or {},
         }
@@ -500,13 +500,12 @@ def exercise_detail(request, pk):
         if can_edit and tr.assistant_metadata and 'thoughts' in tr.assistant_metadata:
             llm_response['thoughts'] = tr.assistant_metadata['thoughts']
         
-        # Extract debug fields from assistant_complete_content if present (only for teachers)
-        if can_edit and tr.assistant_complete_content:
+        # Extract debug fields from assistant_content if present (only for teachers)
+        if can_edit and tr.assistant_content:
             llm_response['debug_fields'] = {
-                'transcript': tr.assistant_complete_content.get('transcript', ''),
-                'error_desc': tr.assistant_complete_content.get('error_desc', ''),
-                'help_text': tr.assistant_complete_content.get('help_text', ''),  # Note: space in key
-                'ambiguities': tr.assistant_complete_content.get('ambiguities', ''),
+                'transcript': tr.assistant_content.get('transcript', ''),
+                'error_desc': tr.assistant_content.get('error_desc', ''),
+                'guidance_text': tr.assistant_content.get('guidance_text', ''),
             }
         
         interactions.append({
@@ -844,8 +843,8 @@ def chat_thread_detail(request, thread_id: int):
     for tr in traces:
         if (tr.user_content or '').strip():
             messages.append({'role': 'user', 'content': tr.user_content, 'created_at': tr.created_at.isoformat()})
-        if (tr.assistant_content or '').strip():
-            messages.append({'role': 'assistant', 'content': tr.assistant_content, 'trace_id': tr.id, 'created_at': tr.created_at.isoformat()})
+        if (tr.assistant_content.get('guidance_text', '') or '').strip():
+            messages.append({'role': 'assistant', 'content': tr.assistant_content.get('guidance_text', ''), 'trace_id': tr.id, 'created_at': tr.created_at.isoformat()})
     return JsonResponse({
         'status': 'success',
         'thread': {
@@ -890,8 +889,8 @@ def chat_thread_send(request, thread_id: int):
         for tr in existing_traces:
             if (tr.user_content or '').strip():
                 messages.append({'role': 'user', 'content': tr.user_content})
-            if (tr.assistant_content or '').strip():
-                messages.append({'role': 'assistant', 'content': tr.assistant_content})
+            if (tr.assistant_content.get('guidance_text', '') or '').strip():
+                messages.append({'role': 'assistant', 'content': tr.assistant_content.get('guidance_text', '')})
         # Append current user message
         messages.append({'role': 'user', 'content': user_text})
 
@@ -940,7 +939,7 @@ def chat_thread_send(request, thread_id: int):
         is_first = not thread.traces.filter(channel__in=['study_chat', 'exercise_guidance']).exists()
         fields = {
             'user_content': user_text,
-            'assistant_content': assistant_text,
+            'assistant_content': {'guidance_text': assistant_text},
             'assistant_metadata': {
                 'assistant_message': assistant_text,
             },

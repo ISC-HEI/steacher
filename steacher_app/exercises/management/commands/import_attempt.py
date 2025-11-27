@@ -112,7 +112,6 @@ class Command(BaseCommand):
                         system_prompt=trace_json['system_prompt'],
                         assistant_content=trace_json['assistant_content'],
                         assistant_metadata=trace_json['assistant_metadata'],
-                        assistant_complete_content=trace_json['assistant_complete_content'],
                         user_content=trace_json['user_content'],
                         user_metadata=trace_json['user_metadata'],
                         rank_order=trace_json['rank_order'],

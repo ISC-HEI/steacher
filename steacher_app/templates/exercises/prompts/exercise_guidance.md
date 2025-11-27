@@ -147,14 +147,11 @@ You will return your guidance in a json structured format with the following fie
 - In a single string.
 - A concise description of the mistakes made by the student that you spotted.
 
-"help_text" :
+"guidance_text" :
 - In a single string.
 - The guidance text to help the student with his exercise.
 - This is the only field that will be showed to the student.
 
-"ambiguities" :
-- In a single string
-- At least one thing that could be clarified about what was asked from you, or something that would help you in your task.
 
 {% endautoescape %}
 

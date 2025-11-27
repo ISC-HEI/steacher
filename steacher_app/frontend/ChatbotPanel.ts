@@ -11,8 +11,7 @@ interface ProcessedMessage {
     debug_fields?: {
         transcript: string;
         error_desc: string;
-        help_text: string;
-        ambiguities: string;
+        guidance_text: string;
     };
     _isNew?: boolean;
     [key: string]: any;
@@ -128,17 +127,14 @@ export const ChatbotPanel = defineComponent({
                         </p>
                         <div class="tabs is-small">
                             <ul>
-                                <li :class="{ 'is-active': getActiveDebugTab(message._id) === 'help_text' }">
-                                    <a @click="setActiveDebugTab(message._id, 'help_text')">Help Text</a>
+                                <li :class="{ 'is-active': getActiveDebugTab(message._id) === 'guidance_text' }">
+                                    <a @click="setActiveDebugTab(message._id, 'guidance_text')">Guidance Text</a>
                                 </li>
                                 <li :class="{ 'is-active': getActiveDebugTab(message._id) === 'transcript' }">
                                     <a @click="setActiveDebugTab(message._id, 'transcript')">Transcript</a>
                                 </li>
                                 <li :class="{ 'is-active': getActiveDebugTab(message._id) === 'error_desc' }">
                                     <a @click="setActiveDebugTab(message._id, 'error_desc')">Error Description</a>
-                                </li>
-                                <li :class="{ 'is-active': getActiveDebugTab(message._id) === 'ambiguities' }">
-                                    <a @click="setActiveDebugTab(message._id, 'ambiguities')">Ambiguities</a>
                                 </li>
                             </ul>
                         </div>
@@ -341,22 +337,11 @@ export const ChatbotPanel = defineComponent({
     processedMessages(): ProcessedMessage[] {
       return this.internalMessages.map(message => {
         if (message.role === 'assistant') {
-          // Handle backward compatibility for assistant messages
-          if (message.debug_fields && typeof message.debug_fields === 'object') {
-            // New format - use debug_fields.help_text as default content
-            return {
-              ...message,
-              cleanedContent: message.debug_fields.help_text || '',
-              debug_fields: message.debug_fields
-            };
-          } else {
-            // Fallback to old format
-            return {
-              ...message,
-              cleanedContent: message.content || '',
-              debug_fields: null
-            };
-          }
+          return {
+            ...message,
+            cleanedContent: message.debug_fields?.guidance_text || message.content || '',
+            debug_fields: message.debug_fields
+          };
         } else {
           // Non-assistant messages - no changes needed
           return { ...message, cleanedContent: message.content || '' };
@@ -443,7 +428,7 @@ export const ChatbotPanel = defineComponent({
     
     // Debug tab methods
     getActiveDebugTab(this: any, messageId: number): string {
-      return this.activeDebugTabs[messageId] || 'help_text';
+      return this.activeDebugTabs[messageId] || 'guidance_text';
     },
     
     setActiveDebugTab(this: any, messageId: number, tabName: string) {

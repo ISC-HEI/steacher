@@ -42,7 +42,6 @@ class Command(BaseCommand):
                 "system_prompt": trace.system_prompt,
                 "assistant_content": trace.assistant_content,
                 "assistant_metadata": trace.assistant_metadata,
-                "assistant_complete_content": trace.assistant_complete_content,
                 "user_content": trace.user_content,
                 "user_metadata": trace.user_metadata,
                 "rank_order": trace.rank_order,
@@ -51,7 +50,6 @@ class Command(BaseCommand):
                 "images": []
             }
             for image in trace.images.all().order_by('chain_position'):
-                print("image: ", str(image.image_bytes))
                 image_data = {
                     "image": str(image.image_bytes),
                     "upload_token": getattr(image, 'upload_token', ""),

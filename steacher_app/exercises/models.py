@@ -498,9 +498,12 @@ class Trace(models.Model):
     system_prompt = models.TextField(null=True, blank=True, help_text="The system prompt sent to the LLM for this trace. Only set on the first trace.")
 
     # Assistant message
-    assistant_content = models.TextField(blank=True, help_text="The assistant's response to the user's message.")
+    assistant_content = models.JSONField(default=dict, blank=True, help_text="""Complete JSON response of the assistant. Keys: 
+- transcript: string, optional (if the user uploaded a picture of his work), the complete LaTeX retranscription of the student worksheet picture that you received, **this must be written in valid LaTeX format**.
+- error_desc: string, a concise description of the mistakes made by the student that you spotted.
+- guidance_text: string, the guidance text to help the student with his exercise.
+""")
     assistant_metadata = models.JSONField(default=dict, blank=True, help_text="Metadata about the assistant's response, like the LLM response time, model, etc.")
-    assistant_complete_content = models.JSONField(default=dict, blank=True, help_text="Complete JSON response of the assistant.")
 
     # User message
     user_content = models.TextField(blank=True, help_text="The user's message to the assistant.")
@@ -508,6 +511,19 @@ class Trace(models.Model):
 
     rank_order = models.SmallIntegerField(default=0, help_text="The order of the trace within the owning entity's conversation.")
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def assistant_content_text(self) -> str:
+        """
+        Utility function to convert the assistant_content dictionary to a text string.
+        """
+        text = ""
+        if self.assistant_content.get('guidance_text'):
+            text += f"\n\nGuidance Text: {self.assistant_content['guidance_text']}"
+        if self.assistant_content.get('transcript'):
+            text += f"\n\nTranscript: {self.assistant_content['transcript']}"
+        if self.assistant_content.get('error_desc'):
+            text += f"\n\nError Description: {self.assistant_content['error_desc']}"
+        return text
 
     def __str__(self):
         return f"Trace for {self.user} on {self.content_type.app_label}.{self.content_type.model}#{self.object_id} (rank {self.rank_order})"

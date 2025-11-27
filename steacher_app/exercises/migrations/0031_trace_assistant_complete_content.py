@@ -3,6 +3,51 @@
 from django.db import migrations, models
 
 
+def migrate_assistant_content_to_json(apps, schema_editor):
+    """
+    Migrate existing TextField assistant_content to JSONField format.
+    Old: "some guidance text"
+    New: {"guidance_text": "some guidance text", "transcript": "", "error_desc": ""}
+    """
+    Trace = apps.get_model('exercises', 'Trace')
+    
+    # Process in batches to avoid memory issues
+    batch_size = 500
+    traces = Trace.objects.filter(assistant_content_old__isnull=False).exclude(assistant_content_old='')
+    
+    total = traces.count()
+    for i in range(0, total, batch_size):
+        batch = list(traces[i:i + batch_size])
+        for trace in batch:
+            old_text = trace.assistant_content_old or ''
+            trace.assistant_content_new = {
+                'guidance_text': old_text,
+                'transcript': '',
+                'error_desc': ''
+            }
+        Trace.objects.bulk_update(batch, ['assistant_content_new'])
+
+
+def reverse_migration(apps, schema_editor):
+    """
+    Reverse migration: extract guidance_text back to TextField
+    """
+    Trace = apps.get_model('exercises', 'Trace')
+    
+    batch_size = 500
+    traces = Trace.objects.filter(assistant_content_new__isnull=False)
+    
+    total = traces.count()
+    for i in range(0, total, batch_size):
+        batch = list(traces[i:i + batch_size])
+        for trace in batch:
+            if isinstance(trace.assistant_content_new, dict):
+                trace.assistant_content_old = trace.assistant_content_new.get('guidance_text', '')
+            else:
+                trace.assistant_content_old = ''
+        Trace.objects.bulk_update(batch, ['assistant_content_old'])
+
+
 class Migration(migrations.Migration):
 
     dependencies = [
@@ -10,9 +55,37 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Step 1: Rename old TextField to temporary name
+        migrations.RenameField(
+            model_name='trace',
+            old_name='assistant_content',
+            new_name='assistant_content_old',
+        ),
+        
+        # Step 2: Add new JSONField with temporary name
         migrations.AddField(
             model_name='trace',
-            name='assistant_complete_content',
-            field=models.JSONField(blank=True, default=dict, help_text='Complete JSON response of the assistant.'),
+            name='assistant_content_new',
+            field=models.JSONField(blank=True, default=dict, help_text="""Complete JSON response of the assistant. Keys: 
+- transcript: string, optional (if the user uploaded a picture of his work), the complete LaTeX retranscription of the student worksheet picture that you received, **this must be written in valid LaTeX format**.
+- error_desc: string, a concise description of the mistakes made by the student that you spotted.
+- guidance_text: string, the guidance text to help the student with his exercise.
+"""),
+        ),
+        
+        # Step 3: Migrate data from old TextField to new JSONField
+        migrations.RunPython(migrate_assistant_content_to_json, reverse_migration),
+        
+        # Step 4: Remove old TextField
+        migrations.RemoveField(
+            model_name='trace',
+            name='assistant_content_old',
+        ),
+        
+        # Step 5: Rename new JSONField to final name
+        migrations.RenameField(
+            model_name='trace',
+            old_name='assistant_content_new',
+            new_name='assistant_content',
         ),
     ]

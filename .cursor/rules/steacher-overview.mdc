@@ -5,69 +5,203 @@ description: "High-level overview of this codebase called Steacher, including it
 
 # Project Overview: Steacher
 
-**Steacher** is a web-based educational platform designed to help users learn and practice various subjects through interactive exercises. It features a Django backend, a PostgreSQL database, and a modern frontend built with TypeScript and Vue.js. The platform supports different types of exercises, including multiple-choice, SQL, and Python, and leverages the OpenAI API to provide AI-powered guidance and feedback to users.
+**Steacher** is a web-based educational platform for interactive exercises and AI-assisted learning. It uses a Django 5 backend with PostgreSQL, a modern TypeScript + Vue 3 multi-page frontend, and integrates LLMs (primarily Google Gemini, with OpenAI support) to guide learners through a Socratic approach.
 
 ## Key Files and Directories
 
-*   **Backend (Django)**
-    *   `exam_project/settings.py`: The main [settings file](mdc:exam_project/settings.py) for the Django project.
-    *   `exercises/models.py`: Defines the [database models](mdc:exercises/models.py) for courses, exercises, user traces, and AI guidance logs.
-    *   `exercises/views.py`: Contains the [application logic](mdc:exercises/views.py) for handling user requests, rendering templates, and interacting with the OpenAI API.
-    *   `exercises/urls.py`: Defines the [URL routing](mdc:exercises/urls.py) for the `exercises` app.
-    *   `templates/`: Contains the [Django templates](mdc:templates/) for rendering the HTML pages.
+### Backend (Django)
 
-*   **Frontend (TypeScript/Vue.js)**
-    *   `frontend/`: The main directory for all [frontend source code](mdc:frontend/).
-    *   `frontend/ChatbotPanel.ts`: Manages the user interface for the [AI tutor](mdc:frontend/ChatbotPanel.ts).
-    *   `frontend/CodeMirrorEditor.ts`: A reusable [CodeMirror component](mdc:frontend/CodeMirrorEditor.ts) for code editing.
-    *   `rollup.codemirror.config.mjs`: The [Rollup configuration](mdc:rollup.codemirror.config.mjs) for bundling CodeMirror dependencies.
+*   **Core Settings & Configuration**
+    *   `exam_project/settings.py`: Project [settings](mdc:exam_project/settings.py) (Django 5, CORS, DRF, Argon2 password hashing, email, logging, security, ASGI/WebSockets via Channels, Redis for quiz state)
+    *   `exam_project/urls.py`: Root [URL configuration](mdc:exam_project/urls.py)
+    *   `exam_project/asgi.py`: ASGI configuration for WebSocket support
 
-*   **Project Configuration**
-    *   `README.md`: The main [project documentation](mdc:README.md) with setup instructions and architectural overview.
-    *   `requirements.txt`: The [Python dependencies](mdc:requirements.txt) for the backend.
-    *   `package.json`: The [Node.js dependencies](mdc:package.json) for the frontend.
+*   **Domain Models & Business Logic**
+    *   `exercises/models.py`: [Domain models](mdc:exercises/models.py) (Course, Module, Exercise, Attempt, Trace, TraceImage, TraceEval, AttemptEval, Cohort, CohortMembership, CourseMembership, ExerciseAsset, UserInvite, ChatThread, QuizLog)
+    *   `exercises/logic.py`: [Core LLM logic](mdc:exercises/logic.py) and orchestration (Gemini client, uncertainty metrics from logprobs, authoring assistant, i18n translation)
+    *   `exercises/schemas.py`: [Pydantic schemas](mdc:exercises/schemas.py) for `exercise_data` and `answer_data` validation
+    *   `exercises/prompting.py`: System prompt building logic
+    *   `exercises/unit_testing.py`: [Unit-test helpers](mdc:exercises/unit_testing.py) for exercises (Python and Scala)
+    *   `exercises/authz.py`: Authorization helpers and rate limiting
 
-*   ** Django Models:**
-    *   `Course`: Represents a collection of exercises.
-    *   `Exercise`: Defines an individual exercise, with flexible data structures using JSON fields to support various exercise types.
-    *   `Trace`: Tracks a user's attempt at an exercise.
-    *   `GuidanceLog`: Stores the conversation history between the user and the AI tutor.
-    *   `TraceEval`: Stores evaluations of a user's trace.
-    *   `ExerciceAsset`: Manages files associated with exercises.
+*   **Views & API Endpoints**
+    *   `exercises/views_students.py`: [Student flows](mdc:exercises/views_students.py) (dashboard, exercise execution, guidance, study chat, QR-based image upload)
+    *   `exercises/views_teachers.py`: [Teacher flows](mdc:exercises/views_teachers.py) (course authoring, analytics, cohort management, assets, quiz control)
+    *   `exercises/views_annotations.py`: [Annotation views](mdc:exercises/views_annotations.py) for manual attempt evaluation by teachers
+    *   `exercises/views_image_upload.py`: [Image upload](mdc:exercises/views_image_upload.py) system (QR token generation, mobile upload, token chaining, serving images)
+    *   `exercises/urls.py`: [App routing](mdc:exercises/urls.py)
+    *   `exercises/serializers.py`: [DRF serializers](mdc:exercises/serializers.py)
+
+*   **Real-time Features**
+    *   `exercises/consumers.py`: WebSocket consumers for real-time quiz presence tracking
+    *   `exercises/routing.py`: WebSocket routing configuration
+
+*   **Other Apps**
+    *   `accounts/models.py`: Custom User model with `preferred_language` field and security constraints (single superuser)
+    *   `evaluation/models.py`: Model evaluation system (`ModelEvalExperiment`, `ModelComparisonEval`) for blind side-by-side comparisons of LLM outputs
+    *   `evaluation/views.py`: Evaluation experiment management and comparison interfaces
+
+*   **Templates**
+    *   `templates/`: [Django templates](mdc:templates/) organized by app
+    *   `templates/exercises/base.html`: Base template with shared navbar, messages, and assets
+    *   `templates/exercises/students/`: Student-facing pages
+    *   `templates/exercises/teacher/`: Teacher-facing pages
+
+### Frontend (TypeScript/Vue 3)
+
+*   **Source Code**
+    *   `frontend/`: [Source TypeScript](mdc:frontend/) components and page scripts
+    *   `frontend/ChatbotPanel.ts`: AI tutor UI [panel](mdc:frontend/ChatbotPanel.ts) (student chat, message rendering with Markdown/KaTeX, image support, thoughts extraction, confetti celebrations)
+    *   `frontend/CodeMirrorEditor.ts`: Reusable [CodeMirror v6 editor](mdc:frontend/CodeMirrorEditor.ts) Vue component with syntax highlighting
+    *   `frontend/python.ts`: Python exercise runtime (Pyodide WASM, Web Worker, REPL console)
+    *   `frontend/sql.ts`: SQL exercise runtime (PGlite WASM, database loading)
+    *   `frontend/turtle.ts`: Turtle graphics exercise runtime (Pyodide, canvas rendering, animation, pathfinding comparison)
+    *   `frontend/scala.ts`: Scala exercise runtime (external interpreter service)
+    *   `frontend/open_question.ts`: Open question exercise with image upload support
+    *   `frontend/ai_chat.ts`: Standalone study chat interface
+    *   `frontend/exercise_form.ts`: Teacher authoring interface with AI assistance
+    *   `frontend/teacher_course_details.ts`: Course analytics and management
+    *   `frontend/quiz_control.ts`: Real-time quiz control panel for teachers
+    *   `frontend/utils.ts`: Shared utilities (CSRF token, fetch helpers)
+    *   `frontend/python_worker.ts`: Web Worker for Python execution
+
+*   **Built Assets**
+    *   `static/js/dist/`: Compiled TypeScript output and CodeMirror bundle
+    *   `static/css/`: Stylesheets
+    *   `static/images/`: Images and icons
+
+### Project Configuration
+
+*   **Documentation**
+    *   `README.md`: [Setup and docs](mdc:README.md) (database setup, CodeMirror bundling, E2E tests)
+    *   `DEPLOY.md`: Deployment instructions (docker-compose, nginx, SSL, monitoring)
+    *   `docs/Teachers.md`: Teacher documentation
+    *   `specs/done/`: Completed feature specifications (image upload, turtle exercises, evaluation system, cost analysis, etc.)
+
+*   **Dependencies**
+    *   `requirements.txt`: [Python dependencies](mdc:requirements.txt) (Django 5, DRF, CORS, google-genai, OpenAI, Playwright, Channels, Redis, qrcode, newrelic, etc.)
+    *   `package.json`: [Frontend deps](mdc:package.json) (Vue 3, Pyodide, CodeMirror v6, PGlite, Bulma, Marked + DOMPurify, PrismJS, KaTeX, canvas-confetti) and watch scripts
+
+*   **Build Configuration**
+    *   `rollup.codemirror.config.mjs`: Rollup config for bundling CodeMirror dependencies into single file
+    *   `tsconfig.json`: TypeScript compiler configuration
+    *   `pytest.ini`: E2E test configuration (Playwright)
+
+## Django Models
+
+### Core Educational Entities
+
+*   **Course**: Top-level container; holds `llm_prompts` (JSON) per exercise type, optional `chat_prompt` for study chat, and `system_prompt` override. Has `visible` flag and i18n support via related models.
+*   **Module**: Ordered grouping of exercises within a course. Has `is_quiz` flag for quiz modules. Auto-assigns `order` on creation.
+*   **Exercise**: Fully i18n with `title_i18n`, `description_i18n`, `question_i18n` (JSON dicts keyed by language code). Has `exercise_type` (python, sql, scala, turtle, open_question), ordered within module. JSON `exercise_data` and `answer_data` validated via Pydantic schemas. Has `allow_image_upload` flag. Exposes `.title` and `.description` properties for legacy English access.
+*   **ExerciseAsset**: Binary asset files attached to a course (e.g., SQL datasets, images). Unique per (course, name).
+
+### User Progress & Interaction
+
+*   **Attempt**: A user's attempt at an exercise, with `version` tracking, `complete` flag, and `asked_for_solution`. Links to `cohort` for context. Related `Trace` rows store interaction history via polymorphic GenericForeignKey.
+*   **Trace**: Polymorphic log of interactions across channels (`exercise_guidance`, `study_chat`, `authoring`, `learning_pathway`). Stores `system_prompt` (first trace only), `user_content`/`user_metadata`, `assistant_content`/`assistant_metadata` (including uncertainty metrics from logprobs). Has stable `rank_order` for sequential conversation. Links to owner via ContentType (Attempt, ChatThread, Course, Exercise).
+*   **TraceImage**: Binary image storage for traces. Used for mobile upload via QR code. Has `upload_token` (unique, expires), `next_token` for chaining (up to 3 images), `chain_position` (0-2), and `image_bytes` property handling memoryview conversion.
+
+### Evaluation & Feedback
+
+*   **TraceEval**: Evaluation of AI responses (thumbs up/down from students, or teacher feedback). Linked to `Trace`.
+*   **AttemptEval**: Teacher manual annotation of student attempts. Has `is_ok` (good/bad/unknown), `feedback` text, and `annotator`. Unique per (attempt, annotator).
+
+### Organization & Access Control
+
+*   **Cohort**: Groups students within a course. Has optional join `code`. Links to students/teachers via `CohortMembership`.
+*   **CohortMembership**: User membership in cohort with role (`student`, `teacher`, `assistant`, `owner` - single owner per cohort enforced by constraint) and `status` (active/inactive). Has `added_by` for audit trail.
+*   **CourseMembership**: Course-level authoring roles (`owner` single, `editor`, `viewer`). Used for permissions at course scope.
+*   **UserInvite**: Email invitation system with optional cohort auto-assignment on registration. Has `used` flag and `registered_at` timestamp.
+
+### Communication & Quizzes
+
+*   **ChatThread**: Standalone student chat per course. Stores title and links to `Trace` rows for conversation history via polymorphic relation.
+*   **QuizLog**: Audit log of completed quiz sessions. Records `cohort`, `module`, `teacher`, `student_count`, `completed_at`.
+
+### Model Evaluation System
+
+*   **ModelEvalExperiment** (evaluation app): Configuration for blind side-by-side model comparisons. Defines exercises to sample and AI models to compare. Locks after first comparison.
+*   **ModelComparisonEval** (evaluation app): Single blind evaluation comparing 4 responses (original + 3 random from experiment config). Stores conversation history, model responses (with reasoning/metadata), rankings, and comments. Unique per (experiment, original_trace).
+
+### Custom User Model
+
+*   **User** (accounts app): Extends AbstractUser with `preferred_language` (en/fr/de). Has `get_display_name()` method. Security constraints enforce single superuser and superuser==staff equivalence.
 
 ## Key Project Features
 
-*   **Interactive Exercises:** Supports various exercise formats, including multiple-choice questions and coding challenges.
-*   **AI-Powered Guidance:** Integrates with the OpenAI API to provide hints, feedback, and answers to user questions.
-*   **Socratic Method:** The AI tutor uses the socratic method to guide the user through the exercise. It never gives the answer directly, but asks questions to help the user find the answer by himself.
-*   **User Progress Tracking:** Records user attempts and conversation history for each exercise.
-*   **Flexible Architecture:** The use of JSON fields for exercise data makes it easy to add new exercise types without significant backend changes.
+*   **Interactive Exercises**: Python, SQL, Scala, Turtle, and Open Question types. All run client-side except Scala (external interpreter service).
+*   **AI-Powered Guidance**: Google Gemini 2.5 Flash/Pro (primary) and OpenAI support. Socratic method prompting. Per-course and per-exercise-type prompt customization. Uncertainty metrics (perplexity, entropy, etc.) computed from logprobs and stored in trace metadata.
+*   **Study Chat**: Persistent per-course chat threads (`ChatThread`) separate from exercise attempts. Uses course-specific chat prompt.
+*   **Image Upload System**: QR-based mobile upload with token chaining (up to 3 images per submission). Images stored as binary in DB, sent to Gemini Vision API, displayed in conversation history.
+*   **Progress & Analytics**: Teacher dashboard with perplexity-based exercise difficulty metrics, completion rates, time-to-complete, iteration counts. Student dashboard with per-course progress tracking.
+*   **Assets & Authoring**: Binary asset storage (SQL databases, images, etc.). AI authoring assistant with feedback generation. i18n translation helper. Role-based permissions (owner/editor/viewer). Unit test execution for Python/Scala exercises.
+*   **Cohort Management**: Student grouping within courses. Bulk invites. Join codes. Analytics filtered by cohort.
+*   **Real-time Quizzes**: WebSocket-based presence tracking. Teacher control panel. Redis state storage. Quiz logs for analytics.
+*   **Model Evaluation**: Blind side-by-side comparisons of AI model outputs for research and quality assessment.
+*   **Manual Annotation**: Teacher workflow for rating student attempts. Supports inter-annotator agreement analysis.
 
 ## Exercise Types
 
-*   **Python:** A Python code to be executed. This is the most mature exercise type. Uses frontend python execution with WASM.
-*   **Multiple Choice:** A multiple-choice question with a set of options.
-*   **SQL:** A SQL query to be executed on a database. Uses frontend SQL execution with WASM.
-*   **Turtle:** A Turtle graphics exercise. WIP
-
+*   **Python**: Executed in-browser via Pyodide WASM in Web Worker (8s timeout, restartable). CodeMirror v6 editor with syntax highlighting. REPL console for testing. Unit tests with detailed failure messages.
+*   **SQL**: Executed in-browser via `@electric-sql/pglite` (embedded Postgres-like WASM). CodeMirror v6 SQL mode. Database loaded from base64-encoded asset. Result table display.
+*   **Scala**: Runs against external interpreter service at `SCALA_INTERPRETER_URL`. HTTP POST with timeout. CodeMirror v6 Scala mode.
+*   **Turtle**: Graphics programming with canvas rendering. Pyodide execution in Web Worker. Path comparison between user and expected solution. Animation with speed control (exponential scale). Line highlighting during animation. Instruction log for debugging. Goal checking with confetti on success.
+*   **Open Question**: Free-form text responses with Markdown rendering. Optional image upload (up to 3 via token chain). Gemini Vision API for image analysis.
 
 ## Architecture and Technologies
 
-*   **Backend:**
-    *   Django
-    *   PostgreSQL (database is called `steacher`)
-    *   Django Rest Framework
-    *   OpenAI API
-*   **Frontend:**
-    *   TypeScript
-    *   Vue.js (in a multi-page application setup. NOT a SPA, don't offer to use a SPA)
-    *   Bulma (CSS Framework)
-    *   CodeMirror (Code Editor, as a vue component in [CodeMirrorEditor.ts](mdc:frontend/CodeMirrorEditor.ts))
+### Backend
 
+*   **Framework**: Django 5 with Django Rest Framework
+*   **Database**: PostgreSQL (default DB name `steacher`)
+*   **Authentication**: Django built-in with Argon2 password hashing
+*   **LLM Providers**: Google Gemini API (primary via `google-genai` SDK), OpenAI API (fallback/legacy)
+*   **Real-time**: Django Channels + Redis for WebSocket support (quiz presence)
+*   **Security**: CSRF protection, CORS headers, HTTPS-only cookies in production, single superuser constraint
+*   **Monitoring**: New Relic APM (optional via env var)
+*   **Rate Limiting**: Custom decorator-based rate limiting by user/IP
+*   **Logging**: File (`logs/steacher.log`) and console output
 
+### Frontend
+
+*   **Architecture**: MPA (Multi-Page Application) - each page is a Django template with embedded Vue 3 app. NOT a SPA.
+*   **Framework**: Vue 3 (Composition API via `defineComponent`)
+*   **Editor**: CodeMirror v6, bundled via Rollup into single file to avoid import map complexity
+*   **UI Toolkit**: Bulma CSS framework, Font Awesome icons
+*   **Content Rendering**: Marked (Markdown), DOMPurify (XSS protection), KaTeX (math), PrismJS (syntax highlighting)
+*   **In-browser Runtimes**: 
+    *   Pyodide 0.28 for Python (WASM)
+    *   PGlite 0.3.4 for SQL (WASM)
+*   **Other Libraries**: canvas-confetti for celebrations, qrcode for upload tokens
+
+### Deployment
+
+*   **Containerization**: Docker + docker-compose (nginx reverse proxy, Let's Encrypt SSL)
+*   **ASGI Server**: Daphne (for WebSocket support) or Uvicorn
+*   **Static Files**: Served by nginx in production
+*   **Environment**: `.env` file for secrets (DATABASE_URL, GEMINI_API_KEY, OPENAI_API_KEY, DJANGO_SECRET_KEY, etc.)
+
+## Template Structure
+
+`templates/exercises/base.html` provides the shared layout (navbar, messages, common assets, import maps) that per-page templates extend. Student pages in `templates/exercises/students/*.html` and teacher pages in `templates/exercises/teacher/*.html` typically use `{% extends "exercises/base.html" %}` and fill blocks (e.g., content, scripts). Page-specific JavaScript from `static/js/dist/*.js` (built from `frontend/*.ts`) is included by each page template to initialize the correct UI behavior.
+
+## Prompt Sources and Composition
+
+The base tutor instructions come from:
+*   `exercises/prompts/general_prompt.md` - for exercise guidance
+*   `exercises/prompts/chat_mode_prompt.md` - for study chat
+*   `exercises/prompts/authoring_system_prompt.md` - for AI authoring assistant
+*   `exercises/prompts/i18n_translation_prompt.md` - for i18n translation helper
+
+All remaining context (exercise text, course-specific details, prior attempts, and guidance history) is loaded from the database and composed at runtime by `exercises/logic.py` and `exercises/prompting.py`. Course-level customization is available via `Course.chat_prompt`, `Course.system_prompt`, and `Course.llm_prompts` (JSON dict per exercise type). Conversations persist as `Trace` rows under distinct channels; exercise guidance attaches to `Attempt`, study chat attaches to `ChatThread`, authoring attaches to `Exercise` or `Course`.
 
 
 ## Project Development Context for AI Assistant
+
+### Deployment
+
+Deployment is handled in the parent project using docker-compose. You don't need to know or worry about it in this context.
 
 ### TypeScript Compilation
 
@@ -77,10 +211,19 @@ The TypeScript code in the `frontend/` directory is automatically recompiled whe
 
 ### Django Development
 
-The user runs by himself the following command to start the development server:
+The user runs the following command to start the development server on his own machine:
 ```bash
 python manage.py runserver
 ```
 
-**You do not need to ask to run the Django development server.** Just assume it is running and you can use the API to get the data.
+**You do not need to ask to run the Django development server.** Just assume it is running and the server is available at `http://127.0.0.1:8000/`.
+
+### Preferred Code Formatting Style
+
+Indent with 4 spaces (no tabs).
+
+### Preferred Approach in General
+
+*   Concise and KISS (Keep It Simple, Stupid) approaches are preferred. Maintaining many lines of code is a burden, so try to keep it minimal.
+*   The user often dictates text via voice-to-text, so transcription errors may occur. If anything is unclear, ask for clarification.
 
