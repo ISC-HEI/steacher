@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Steacher</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
+    <style>
+        body {
+            background: whitesmoke;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .login-container {
+            width: 100%;
+            max-width: 400px;
+        }
+        .login-box {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+        #email-input {
+            background: white;
+            color: black;
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .logo img {
+            height: 48px;
+        }
+        .logo h1 {
+            margin-top: 12px;
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <div class="logo">
+                <img src="/static/images/steacher_logo.png" alt="Steacher">
+                <h1>Steacher Mobile</h1>
+            </div>
+
+            
+            <form id="login-form">
+
+                <div class="content">
+                    <p style="color: black;">Enter your email to receive a login link.</p>
+                </div>
+
+                <div class="field">
+                    <div class="control">
+                        <input 
+                            class="input" 
+                            type="email" 
+                            id="email-input"
+                            placeholder="your.email@example.com" 
+                            required
+                            autocomplete="email"
+                        >
+                    </div>
+                </div>
+                
+                <div class="field">
+                    <button class="button is-primary is-fullwidth" type="submit" id="submit-button">
+                        Send Login Link
+                    </button>
+                </div>
+                
+            </form>
+            <div id="message-box" style="display: none;"></div>
+        </div>
+    </div>
+    
+    <script>
+        const form = document.getElementById('login-form');
+        const emailInput = document.getElementById('email-input');
+        const submitButton = document.getElementById('submit-button');
+        const messageBox = document.getElementById('message-box');
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = emailInput.value.trim();
+            if (!email) return;
+            
+            submitButton.classList.add('is-loading');
+            submitButton.disabled = true;
+            
+            try {
+                const formData = new FormData();
+                formData.append('email', email);
+                
+                const response = await fetch('{% url "exercises:mobile_auth_send_link" %}', {
+                    method: 'POST',
+                    body: formData,
+                });
+                
+                const data = await response.json();
+                
+                // Hide the form
+                form.style.display = 'none';
+                
+                // Show success message
+                messageBox.style.display = 'block';
+                messageBox.className = 'notification is-success';
+                messageBox.textContent = 'Check your emails for the login link.';
+                
+            } catch (error) {
+                messageBox.style.display = 'block';
+                messageBox.className = 'notification is-danger';
+                messageBox.textContent = 'An error occurred. Please try again.';
+            } finally {
+                submitButton.classList.remove('is-loading');
+                submitButton.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
+

@@ -1,8 +1,29 @@
 from django.urls import path
 from django.views.generic import TemplateView
-from . import views_students, views_teachers, views_annotations, views_image_upload
+from . import views_students, views_teachers, views_annotations, views_image_upload, views_mobile
 
 app_name = 'exercises'
+
+# Mobile URL patterns (PWA)
+mobile_urlpatterns = [
+    # Main mobile views
+    # dashboard
+    path('mobile/', views_mobile.mobile_dashboard, name='mobile_dashboard'),
+    # install instructions
+    path('mobile/install/', views_mobile.mobile_install, name='mobile_install'),
+    # exercise
+    path('mobile/exercise/<int:exercise_id>/', views_mobile.mobile_exercise, name='mobile_exercise'),
+    # voice transcription
+    # Voice transcription
+    path('mobile/voice-transcribe/', views_mobile.mobile_voice_transcribe, name='mobile_voice_transcribe'),
+    # Authentication (Magic Link Only)
+    # endpoint to request the magic link to the user's email
+    path('mobile/auth/request-link/', views_mobile.mobile_auth_request_link, name='mobile_auth_request_link'),
+    # endpoint to send the magic link to the user's email
+    path('mobile/auth/send-link/', views_mobile.mobile_auth_send_link, name='mobile_auth_send_link'),
+    # the link send in the registration email
+    path('reg/<str:token>/', views_mobile.mobile_magic_login, name='mobile_magic_login'),
+]
 
 # Students' URL patterns
 students_urlpatterns = [
@@ -76,4 +97,4 @@ teachers_urlpatterns = [
 ]
 
 # Default export keeps backward compatibility (student-facing by default)
-urlpatterns = students_urlpatterns
+urlpatterns = mobile_urlpatterns + students_urlpatterns

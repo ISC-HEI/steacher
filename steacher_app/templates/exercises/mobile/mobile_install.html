@@ -1,0 +1,146 @@
+{% extends "exercises/mobile/mobile_base.html" %}
+
+{% block title %}Install App - Steacher Mobile{% endblock %}
+
+{% block header_title %}Install App{% endblock %}
+
+{% block content %}
+<div class="p-4">
+    <!-- Quick Overview -->
+    <div class="box mb-4">
+        <h2 class="title is-4">
+            <span class="icon-text">
+                <span class="icon"><i class="fas fa-mobile-alt"></i></span>
+                <span>Install Steacher</span>
+            </span>
+        </h2>
+        <p class="mb-4">Add Steacher to your home screen for a faster, app-like experience. No app store required!</p>
+        
+        <!-- Native Install Button (Android Chrome only) -->
+        <div id="native-install-container" style="display: none;">
+            <button id="native-install-button" class="button is-primary is-fullwidth">
+                <span class="icon"><i class="fas fa-download"></i></span>
+                <span>Install Now</span>
+            </button>
+            <p class="has-text-centered mt-2 is-size-7 has-text-grey">Or follow the manual instructions below</p>
+        </div>
+    </div>
+
+    <!-- iOS Safari Instructions -->
+    <div class="box mb-4">
+        <h3 class="title is-5 mb-4">
+            <span class="icon-text">
+                <span class="icon"><i class="fab fa-apple"></i></span>
+                <span>iOS (iPhone/iPad)</span>
+            </span>
+        </h3>
+        
+        <div class="content">
+            <p><strong>1. Open in Safari</strong><br>
+            Make sure you're viewing this page in Safari</p>
+            
+            <p><strong>2. Tap the Share button</strong><br>
+            Tap the <i class="fas fa-square-arrow-up-right"></i> Share icon at the bottom</p>
+            
+            <p><strong>3. Select "Add to Home Screen"</strong><br>
+            Scroll down in the share menu and tap "Add to Home Screen"</p>
+            
+            <p><strong>4. Confirm installation</strong><br>
+            Tap "Add" in the top right corner</p>
+            
+            <p class="mb-0"><strong>5. Launch from home screen</strong><br>
+            Find the Steacher icon on your home screen and tap it</p>
+        </div>
+    </div>
+
+    <!-- Android Chrome Instructions -->
+    <div class="box mb-4">
+        <h3 class="title is-5 mb-4">
+            <span class="icon-text">
+                <span class="icon"><i class="fab fa-android"></i></span>
+                <span>Android (Chrome)</span>
+            </span>
+        </h3>
+        
+        <div class="content">
+            <p><strong>1. Open Chrome menu</strong><br>
+            Tap the three-dot menu <i class="fas fa-ellipsis-vertical"></i> in the top right</p>
+            
+            <p><strong>2. Tap "Install app"</strong><br>
+            Look for "Install app" or "Add to Home Screen" in the menu</p>
+            
+            <p><strong>3. Confirm installation</strong><br>
+            Tap "Install" in the popup dialog</p>
+            
+            <p class="mb-0"><strong>4. Launch from home screen</strong><br>
+            Find the Steacher icon on your home screen and tap it</p>
+        </div>
+    </div>
+
+    <!-- Need Help -->
+    <div class="box mb-4">
+        <h3 class="title is-5 mb-4">
+            <span class="icon-text">
+                <span class="icon"><i class="fas fa-question-circle"></i></span>
+                <span>Need Help?</span>
+            </span>
+        </h3>
+        <div class="content">
+            <p><strong>Can't find "Add to Home Screen"?</strong><br>
+            Make sure you're using Safari on iOS or Chrome on Android</p>
+            
+            <p><strong>Already installed but can't find it?</strong><br>
+            Check your home screen or app drawer for the Steacher icon</p>
+            
+            <p class="mb-0"><strong>Still having issues?</strong><br>
+            Contact <a href="mailto:renaud.richardet@hevs.ch">renaud.richardet@hevs.ch</a></p>
+        </div>
+    </div>
+
+    <!-- Back Button -->
+    <a href="{% url 'exercises:mobile_dashboard' %}" class="button is-light is-fullwidth">
+        <span class="icon"><i class="fas fa-arrow-left"></i></span>
+        <span>Back to Dashboard</span>
+    </a>
+</div>
+
+<script>
+// Handle native install prompt (Android Chrome)
+(function() {
+    let deferredPrompt = null;
+    const installContainer = document.getElementById('native-install-container');
+    const installButton = document.getElementById('native-install-button');
+
+    // Check if already installed
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches 
+        || window.navigator.standalone 
+        || document.referrer.includes('android-app://');
+
+    if (isStandalone) return;
+
+    // Listen for beforeinstallprompt event
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        installContainer.style.display = 'block';
+    });
+
+    // Handle install button click
+    if (installButton) {
+        installButton.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') installContainer.style.display = 'none';
+            deferredPrompt = null;
+        });
+    }
+
+    // Listen for successful installation
+    window.addEventListener('appinstalled', () => {
+        installContainer.style.display = 'none';
+    });
+})();
+</script>
+{% endblock %}
+

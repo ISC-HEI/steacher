@@ -772,3 +772,23 @@ def localized_name(obj, field_name: str, user, lang: str=None) -> str:
         if isinstance(getattr(obj, field_name), dict):
             return getattr(obj, field_name).get('en', '')
         return ''
+
+
+class MobileAuthToken(models.Model):
+    """
+    Token for mobile authentication via magic link email.
+    """
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='mobile_auth_tokens')
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['token', 'used', 'expires_at']),
+        ]
+    
+    def __str__(self):
+        return f"Magic link token for {self.user.username}"

@@ -4,10 +4,9 @@ import { ChatbotPanel } from './ChatbotPanel.js';
 import { CodeMirrorEditor } from './CodeMirrorEditor.js';
 import { createApp, defineComponent } from 'vue';
 import confetti from 'canvas-confetti';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
 import type { Exercise } from './utils.js';
 import { csrfFetch } from './utils.js';
+import { renderMarkdown } from './markdown_utils.js';
 
 interface TurtleState {
     x: number;
@@ -251,8 +250,7 @@ document.addEventListener('DOMContentLoaded', function() {
             },
 
             renderMarkdown(this: any, content: string) {
-                if (!content) return '';
-                return DOMPurify.sanitize(marked.parse(content) as string);
+                return renderMarkdown(content, false);
             },
 
             checkBounds(state: TurtleState): boolean {

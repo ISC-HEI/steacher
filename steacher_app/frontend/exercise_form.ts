@@ -1,7 +1,6 @@
 import { createApp, defineComponent } from 'vue';
 import { csrfFetch, getCsrfToken } from './utils.js';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
+import { renderMarkdown } from './markdown_utils.js';
 
 interface TestCase {
     description: string;
@@ -319,8 +318,7 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             renderMarkdown(content: string): string {
                 try {
-                    const rawHtml = marked.parse(content) as string;
-                    return DOMPurify.sanitize(rawHtml);
+                    return renderMarkdown(content, false);
                 } catch (err) {
                     console.error('Markdown rendering failed:', err);
                     return content;

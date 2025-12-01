@@ -1,0 +1,120 @@
+{% extends "exercises/mobile/mobile_base.html" %}
+{% load static %}
+
+{% block title %}Dashboard - Steacher{% endblock %}
+{% block header_logo %}<img src="{% static 'images/steacher_logo.png' %}" alt="Steacher" style="height: 40px; margin-right: 10px;">{% endblock %}
+{% block header_title %}Steacher{% endblock %}
+
+{% block content %}
+<div class="dashboard-content">
+    {% if last_exercise %}
+    <div class="box" style="background: #3a3a3a; color: white; margin-bottom: 16px;">
+        <h3 style="margin-top: 0; font-size: 14px; opacity: 0.9;">Continue where you left off</h3>
+        <p style="font-size: 18px; font-weight: 600; margin: 8px 0;">{{ last_exercise.localized_title|default:last_exercise.title }}</p>
+        <a href="{% url 'exercises:mobile_exercise' last_exercise.id %}" class="button" style="margin-top: 12px; background: #48c774; color: white; border: none;">
+            <span class="icon"><i class="fas fa-play"></i></span>
+            <span>Resume exercise</span>
+        </a>
+    </div>
+    {% endif %}
+    
+    {% if recent_exercises %}
+    <h2 class="mobile-section-title">Recent exercises</h2>
+    {% for exercise in recent_exercises %}
+    <a href="{% url 'exercises:mobile_exercise' exercise.id %}" class="mobile-list-item">
+        <div class="mobile-list-item-icon {% if exercise.is_complete %}completed{% endif %}">
+            {% if exercise.is_complete %}
+                <i class="fas fa-check"></i>
+            {% endif %}
+        </div>
+        <div class="mobile-list-item-content">
+            <div class="mobile-list-item-title">{{ exercise.localized_title|truncatechars:80 }}</div>
+        </div>
+        <div class="mobile-list-item-action">
+            <i class="fas fa-chevron-right"></i>
+        </div>
+    </a>
+    {% endfor %}
+    {% else %}
+    <div style="text-align: center; padding: 24px; color: #999; font-size: 14px;">
+        Start an exercise below
+    </div>
+    {% endif %}
+    
+    <h2 class="mobile-section-title">Courses</h2>
+    
+    {% if course_data %}
+        {% for item in course_data %}
+        <div class="mobile-accordion-item">
+            <button class="mobile-accordion-header" data-target="course-{{ item.course.id }}">
+                <div class="mobile-accordion-title">
+                    <span>{{ item.course.name }}</span>
+                    <span class="mobile-accordion-progress">({{ item.completed }}/{{ item.total }})</span>
+                </div>
+                <i class="fas fa-chevron-down mobile-accordion-icon"></i>
+            </button>
+            <div class="mobile-accordion-content" id="course-{{ item.course.id }}">
+                {% for module_item in item.modules %}
+                <div class="mobile-accordion-item mobile-accordion-nested">
+                    <button class="mobile-accordion-header" data-target="module-{{ module_item.module.id }}">
+                        <div class="mobile-accordion-title">
+                            <span>{{ module_item.module.name }}</span>
+                            <span class="mobile-accordion-progress">({{ module_item.completed }}/{{ module_item.total }})</span>
+                        </div>
+                        <i class="fas fa-chevron-down mobile-accordion-icon"></i>
+                    </button>
+                    <div class="mobile-accordion-content" id="module-{{ module_item.module.id }}">
+                        {% for exercise in module_item.exercises %}
+                        <a href="{% url 'exercises:mobile_exercise' exercise.id %}" class="mobile-list-item">
+                            <div class="mobile-list-item-icon {% if exercise.is_complete %}completed{% endif %}">
+                                {% if exercise.is_complete %}
+                                    <i class="fas fa-check"></i>
+                                {% endif %}
+                            </div>
+                            <div class="mobile-list-item-content">
+                                <div class="mobile-list-item-title">{{ exercise.localized_title|truncatechars:80 }}</div>
+                            </div>
+                            <div class="mobile-list-item-action">
+                                <i class="fas fa-chevron-right"></i>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="mobile-empty-state">
+            <div class="mobile-empty-state-icon">
+                <i class="fas fa-tasks"></i>
+            </div>
+            <div class="mobile-empty-state-text">
+                No courses yet. Contact your teacher to get started.
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+// Simple accordion toggle
+document.querySelectorAll('.mobile-accordion-header').forEach(button => {
+    button.addEventListener('click', function(e) {
+        e.preventDefault();
+        const targetId = this.getAttribute('data-target');
+        const content = document.getElementById(targetId);
+        const icon = this.querySelector('.mobile-accordion-icon');
+        
+        if (content.style.display === 'block') {
+            content.style.display = 'none';
+            icon.style.transform = 'rotate(0deg)';
+        } else {
+            content.style.display = 'block';
+            icon.style.transform = 'rotate(180deg)';
+        }
+    });
+});
+</script>
+{% endblock %}
+

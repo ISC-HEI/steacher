@@ -1,0 +1,242 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Steacher">
+    <meta name="theme-color" content="#3a3a3a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    
+    <title>{% block title %}Steacher Mobile{% endblock %}</title>
+    
+    <!-- Favicons -->
+    <link rel="icon" type="image/x-icon" href="{% static 'images/favicon/favicon.ico' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'images/favicon/favicon-16x16.png' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon/favicon-32x32.png' %}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{% static 'images/favicon/favicon-192x192.png' %}">
+    <link rel="icon" type="image/png" sizes="512x512" href="{% static 'images/favicon/favicon-512x512.png' %}">
+    <link rel="apple-touch-icon" href="{% static 'images/favicon/apple-touch-icon.png' %}">
+    
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/mobile.css">
+    
+    <script>
+        // Capture console logs for debugging on mobile
+        (function() {
+            var oldLog = console.log;
+            var oldError = console.error;
+            var oldWarn = console.warn;
+            var oldInfo = console.info;
+            var logs = [];
+
+            function formatArgs(args) {
+                return Array.from(args).map(arg => {
+                    try {
+                        return typeof arg === 'object' ? JSON.stringify(arg) : String(arg);
+                    } catch (e) {
+                        return String(arg);
+                    }
+                }).join(' ');
+            }
+
+            function capture(type, args) {
+                var msg = '[' + new Date().toISOString() + '] [' + type.toUpperCase() + '] ' + formatArgs(args);
+                logs.push(msg);
+                if (logs.length > 1000) logs.shift(); // Keep last 1000 logs
+            }
+
+            console.log = function() { capture('log', arguments); oldLog.apply(console, arguments); };
+            console.error = function() { capture('error', arguments); oldError.apply(console, arguments); };
+            console.warn = function() { capture('warn', arguments); oldWarn.apply(console, arguments); };
+            console.info = function() { capture('info', arguments); oldInfo.apply(console, arguments); };
+
+            window.__copyLogs = function() {
+                var text = logs.join('\n');
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(function() {
+                        alert('Logs copied to clipboard (' + logs.length + ' lines)');
+                    }).catch(function(err) {
+                        // Fallback if writeText fails
+                        fallbackCopy(text);
+                    });
+                } else {
+                    fallbackCopy(text);
+                }
+            };
+
+            function fallbackCopy(text) {
+                var ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed'; // Avoid scrolling to bottom
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                    document.execCommand('copy');
+                    alert('Logs copied to clipboard (' + logs.length + ' lines)');
+                } catch (err) {
+                    alert('Failed to copy logs: ' + err);
+                }
+                document.body.removeChild(ta);
+            }
+        })();
+    </script>
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- Hamburger Menu -->
+    <nav class="mobile-nav" id="mobile-nav">
+        <div class="mobile-nav-header">
+            <div class="mobile-nav-logo">
+                <img src="/static/images/steacher_logo.png" alt="Steacher" height="32">
+                <span>Steacher</span>
+            </div>
+            <button class="mobile-nav-close" id="mobile-nav-close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="mobile-nav-content">
+            <a href="{% url 'exercises:mobile_dashboard' %}" class="mobile-nav-item">
+                <i class="fas fa-th-large"></i> Dashboard
+            </a>
+            <hr class="mobile-nav-divider">
+            <a href="{% url 'exercises:mobile_install' %}" class="mobile-nav-item" id="install-menu-item">
+                <i class="fas fa-download"></i> Install App
+            </a>
+            <a href="mailto:renaud.richardet@hevs.ch" class="mobile-nav-item">
+                <i class="fas fa-question-circle"></i> Help & Support
+            </a>
+            <a href="#" onclick="window.__copyLogs(); return false;" class="mobile-nav-item">
+                <i class="fas fa-info-circle"></i> Logs
+            </a>
+            <form method="post" action="{% url 'logout' %}" style="margin: 0;">
+                {% csrf_token %}
+                <button type="submit" class="mobile-nav-item" style="width: 100%; text-align: left; background: none; border: none; cursor: pointer; font-size: inherit; font-family: inherit; padding: 12px 20px;">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </form>
+        </div>
+    </nav>
+    
+    <!-- Overlay -->
+    <div class="mobile-nav-overlay" id="mobile-nav-overlay"></div>
+    
+    <!-- Main Container -->
+    <div class="mobile-container">
+        <!-- Header -->
+        <header class="mobile-header">
+            <button class="mobile-menu-button" id="mobile-menu-button">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="mobile-header-center">
+                {% block header_logo %}{% endblock %}
+                <h1 class="mobile-header-title">{% block header_title %}Steacher{% endblock %}</h1>
+            </div>
+            <div class="mobile-header-actions">
+                {% block header_actions %}{% endblock %}
+            </div>
+        </header>
+        
+        <!-- Content -->
+        <main class="mobile-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    
+    <script>
+        // Fix viewport height on mobile (account for browser bars)
+        function setViewportHeight() {
+            let vh = window.innerHeight * 0.01;
+            document.documentElement.style.setProperty('--vh', `${vh}px`);
+        }
+        setViewportHeight();
+        window.addEventListener('resize', setViewportHeight);
+        window.addEventListener('orientationchange', setViewportHeight);
+        
+        // Hide "Install App" menu item if already installed
+        (function() {
+            const installMenuItem = document.getElementById('install-menu-item');
+            if (!installMenuItem) return;
+            
+            // Check if running in standalone mode (already installed)
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches 
+                || window.navigator.standalone 
+                || document.referrer.includes('android-app://');
+            
+            if (isStandalone) {
+                installMenuItem.style.display = 'none';
+                console.log('App is installed - hiding install menu item');
+            }
+        })();
+        
+        // Mobile navigation
+        const menuButton = document.getElementById('mobile-menu-button');
+        const nav = document.getElementById('mobile-nav');
+        const navClose = document.getElementById('mobile-nav-close');
+        const overlay = document.getElementById('mobile-nav-overlay');
+        
+        function openNav() {
+            nav.classList.add('active');
+            overlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function closeNav() {
+            nav.classList.remove('active');
+            overlay.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+        
+        if (menuButton) menuButton.addEventListener('click', openNav);
+        if (navClose) navClose.addEventListener('click', closeNav);
+        if (overlay) overlay.addEventListener('click', closeNav);
+        
+        // Hide/show header on scroll
+        (function() {
+            const header = document.querySelector('.mobile-header');
+            let lastScrollY = window.scrollY;
+            let ticking = false;
+            
+            function updateHeader() {
+                const currentScrollY = window.scrollY;
+                
+                // Only hide if scrolled down more than 50px
+                if (currentScrollY > 50) {
+                    if (currentScrollY > lastScrollY) {
+                        // Scrolling down
+                        header.classList.add('hidden');
+                    } else {
+                        // Scrolling up
+                        header.classList.remove('hidden');
+                    }
+                } else {
+                    // Near top, always show
+                    header.classList.remove('hidden');
+                }
+                
+                lastScrollY = currentScrollY;
+                ticking = false;
+            }
+            
+            window.addEventListener('scroll', function() {
+                if (!ticking) {
+                    window.requestAnimationFrame(updateHeader);
+                    ticking = true;
+                }
+            });
+        })();
+    </script>
+    
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>
+

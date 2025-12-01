@@ -1,0 +1,177 @@
+{% extends "exercises/mobile/mobile_base.html" %}
+{% load static %}
+
+{% block title %}{{ exercise_json.title }} - Steacher{% endblock %}
+{% block header_title %}{{ exercise_json.title|truncatechars:30 }}{% endblock %}
+
+{% block content %}
+<div id="mobile-exercise-app" v-cloak style="display: flex; flex-direction: column; height: 100%;">
+    <!-- Chat Messages -->
+    <div class="mobile-chat-messages" ref="messagesContainer" @click="handleImageClick" style="flex: 1; overflow-y: auto; padding-bottom: 16px;">
+        <!-- Exercise Question -->
+        {% if exercise_json.question %}
+        <div class="mobile-exercise-question" v-html="renderedQuestion">
+        </div>
+        {% endif %}
+        
+        <!-- Message History -->
+        <template v-for="(message, index) in messages" :key="index">
+            <!-- User Message -->
+            <div v-if="message.role === 'user'" class="mobile-chat-message user">
+                <div class="mobile-chat-message-bubble">
+                    <span v-text="message.content"></span>
+                    
+                    <div v-if="message.images && message.images.length > 0" style="margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap;">
+                        <img v-for="(img, imgIdx) in message.images" 
+                             :key="imgIdx"
+                             :src="img.url" 
+                             style="max-width: 120px; border-radius: 4px;" 
+                             alt="Uploaded image">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- AI Message -->
+            <div v-if="message.role === 'assistant'" class="mobile-chat-message ai">
+                <div class="mobile-chat-message-bubble" v-html="renderMarkdown(message.content)"></div>
+            </div>
+        </template>
+        
+        <!-- Typing Indicator -->
+        <div v-if="isLoading" class="mobile-chat-message ai">
+            <div class="mobile-chat-message-bubble">
+                <div class="typing-indicator">
+                    <span class="dot" style="--ti-delay: 0ms;"></span>
+                    <span class="dot" style="--ti-delay: 150ms;"></span>
+                    <span class="dot" style="--ti-delay: 300ms;"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Full Screen Image Modal -->
+    <div v-if="fullScreenImage" class="mobile-fullscreen-modal" @click="closeFullScreen">
+        <div class="mobile-fullscreen-scroller" :class="{ 'is-zoomed': isZoomed }">
+            <img :src="fullScreenImage" :class="{ 'is-zoomed': isZoomed }">
+        </div>
+        <button class="mobile-fullscreen-close" @click="closeFullScreen">
+            <i class="fas fa-times"></i>
+        </button>
+        <button class="mobile-fullscreen-zoom" @click.stop="toggleZoom">
+            <i class="fas" :class="isZoomed ? 'fa-search-minus' : 'fa-search-plus'"></i>
+        </button>
+    </div>
+
+    <!-- Input Area -->
+    <div class="mobile-chat-input-container" style="flex-shrink: 0;">
+        <!-- Image Thumbnails -->
+        <div class="mobile-chat-images" v-if="pendingImages.length > 0">
+            <div v-for="img in pendingImages" :key="img.id" class="mobile-chat-image-thumb">
+                <img :src="img.url">
+                <button class="mobile-chat-image-remove" @click="removeImage(img.id)">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Recording/Transcribing Indicator -->
+        <div v-if="isRecording" class="recording-indicator">
+            <div class="recording-pulse"></div>
+            <span>Recording...</span>
+        </div>
+        <div v-else-if="isTranscribing" class="recording-indicator">
+            <div class="recording-pulse"></div>
+            <span>Transcribing...</span>
+        </div>
+        
+        <!-- Input Row -->
+        <div class="mobile-chat-input-wrapper">
+            <div class="mobile-chat-input-actions">
+                <button class="mobile-chat-input-button" 
+                        @click="openCamera" 
+                        :disabled="isRecording || isTranscribing"
+                        title="Take photo">
+                    <i class="fas fa-camera"></i>
+                </button>
+                <button class="mobile-chat-input-button" 
+                        @click="toggleRecording" 
+                        :style="{ background: isRecording ? '#f14668' : '' }"
+                        :disabled="isTranscribing"
+                        title="Record voice">
+                    <i class="fas fa-microphone"></i>
+                </button>
+            </div>
+            <textarea 
+                ref="messageInput"
+                class="mobile-chat-input-field" 
+                v-model="messageText"
+                @input="updateSendButton"
+                @keydown.enter.exact.prevent="sendMessage"
+                :disabled="isTranscribing"
+                placeholder="Type your answer..."
+                rows="1"
+            ></textarea>
+            <button class="mobile-chat-send-button" 
+                    @click="sendMessage" 
+                    :disabled="isTranscribing || (!messageText.trim() && pendingImages.length === 0)">
+                <i class="fas fa-arrow-up"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Hidden file input for camera -->
+    <input type="file" ref="cameraInput" accept="image/*" capture="environment" @change="handleCameraCapture" style="display: none;">
+
+    <!-- Cropper Modal -->
+    <div v-if="showCropper" class="modal is-active" style="z-index: 9999;">
+        <div class="modal-background" style="background: rgba(0,0,0,0.9);" @click.stop="cancelCrop"></div>
+        <div class="modal-content" style="width: 100%; height: 100%; max-height: 100%; margin: 0; display: flex; flex-direction: column; background: black; position: relative; z-index: 10000;">
+            <div style="padding: 16px; text-align: center; background: transparent;">
+                <h2 style="color: white; font-size: 20px; font-weight: 600; margin: 0;">Crop Photo</h2>
+            </div>
+            
+            <div style="flex: 1; position: relative; overflow: hidden; background: black; display: flex; align-items: center; justify-content: center; min-height: 200px;">
+                <img ref="cropperImage" :src="cropperImageSrc" style="max-width: 100%; max-height: 100%; display: block;" v-show="cropperImageSrc">
+            </div>
+            
+            <div style="padding: 20px; display: flex; gap: 16px; justify-content: center; background: black; position: relative; z-index: 10001;">
+                <button class="button is-white is-outlined" @click.stop="cancelCrop" style="flex: 1; max-width: 150px; pointer-events: auto;">
+                    <span class="icon"><i class="fas fa-redo"></i></span>
+                    <span>Retake</span>
+                </button>
+                <button class="button is-primary" @click.stop="confirmCrop" style="flex: 1; max-width: 150px; pointer-events: auto;">
+                    <span class="icon"><i class="fas fa-check"></i></span>
+                    <span>Use Photo</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- Cropper.js -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="/static/js/dist/mobile_chat.bundle.js"></script>
+<script>
+    // Initialize Vue app with initial messages from backend
+    const initialMessages = {{ interactions_json|safe }};
+    console.log('Initial messages from backend:', initialMessages);
+    console.log('Exercise ID:', {{ exercise_json.id }}, 'Attempt ID:', {{ attempt_id }});
+    
+    window.mobileChat = MobileChat.createApp('#mobile-exercise-app', {
+        exerciseId: {{ exercise_json.id }},
+        attemptId: {{ attempt_id }},
+        initialMessages: initialMessages,
+        transcribeUrl: '{{ transcribe_url }}',
+        exerciseQuestion: '{{ exercise_json.question|escapejs }}',
+    });
+</script>
+{% endblock %}
+

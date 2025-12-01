@@ -1,9 +1,7 @@
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
 import confetti from 'canvas-confetti';
 import { getCsrfToken } from './utils.js';
 import { defineComponent } from "vue";
-import katex from 'katex';
+import { renderMarkdown } from './markdown_utils.js';
 
 interface ProcessedMessage {
     cleanedContent: string;
@@ -720,42 +718,9 @@ export const ChatbotPanel = defineComponent({
     },
     renderMarkdown(this: any, content: string) {
       if (!content) return '';
-      // Sanitize the content to prevent XSS attacks, then parse Markdown
-      let html = DOMPurify.sanitize(marked.parse(content) as string);
-
-      if (this.exercise.allow_image_upload){
-        // If the exercise allows images (means it's a math exercise)
-        // Then process KaTeX math expressions
-        // Handle display math ($$...$$)
-        html = html.replace(/\$\$([^$]+)\$\$/g, (match, math) => {
-            try {
-                return katex.renderToString(math, { 
-                    displayMode: true,
-                    strict: 'error', // Fail on bad input
-                    trust: false // Don't allow \href, etc.
-                });
-            } catch (e) {
-                console.error('KaTeX display math error:', e);
-                return match;
-            }
-        });
-
-        // Handle inline math ($...$) - be careful not to match $$ patterns
-        html = html.replace(/(?<!\$)\$([^$\n]+)\$(?!\$)/g, (match, math) => {
-            try {
-                return katex.renderToString(math, { 
-                    displayMode: false,
-                    strict: 'error', // Fail on bad input
-                    trust: false // Don't allow \href, etc.
-                });
-            } catch (e) {
-                console.error('KaTeX inline math error:', e);
-                return match;
-            }
-        });
-      }
-
-      return html;
+      // Enable math rendering only if exercise allows image upload (indicates math exercise)
+      const enableMath = this.exercise?.allow_image_upload || false;
+      return renderMarkdown(content, enableMath);
     }
   }
 }); 

@@ -4,9 +4,11 @@
   "description": "Frontend dependencies for exam_project",
   "scripts": {
     "build:codemirror": "rollup --config rollup.codemirror.config.mjs",
+    "build:mobile": "rollup --config rollup.mobile.config.mjs",
     "watch:codemirror": "rollup --config rollup.codemirror.config.mjs --watch",
+    "watch:mobile": "rollup --config rollup.mobile.config.mjs --watch",
     "watch:ts": "tsc --watch",
-    "watch": "npm run watch:ts & npm run watch:codemirror",
+    "watch": "npm run watch:ts & npm run watch:codemirror & npm run watch:mobile",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -37,8 +39,10 @@
   "devDependencies": {
     "@rollup/plugin-commonjs": "^28.0.6",
     "@rollup/plugin-node-resolve": "^16.0.1",
+    "@rollup/plugin-typescript": "^12.1.2",
     "@types/canvas-confetti": "^1.9.0",
     "rollup": "^4.44.2",
+    "tslib": "^2.8.1",
     "typescript": "^5.4.5"
   }
 }

@@ -635,7 +635,40 @@ def get_guidance(request, exercise_id, attempt_id):
     from pydantic import ValidationError
 
     try:
-        data = json.loads(request.body)
+        # Handle both JSON body (desktop) and FormData (mobile)
+        if request.content_type and 'multipart/form-data' in request.content_type:
+            # Mobile: data is in FormData
+            data_str = request.POST.get('data', '{}')
+            data = json.loads(data_str)
+            
+            # Handle uploaded images from request.FILES (mobile direct upload)
+            # Create TraceImage objects for them and add their tokens to data
+            if request.FILES:
+                from .models import TraceImage
+                import secrets
+                
+                image_tokens = data.get('image_tokens', [])
+                
+                for key, file in request.FILES.items():
+                    if key.startswith('image_'):
+                        # Create TraceImage
+                        token = secrets.token_urlsafe(16)
+                        TraceImage.objects.create(
+                            upload_token=token,
+                            image=file.read(), # Read binary content
+                            image_type=file.content_type or 'image/jpeg',
+                            chain_position=0, # Simple upload, no chaining needed yet
+                            token_expires_at=timezone.now() + timedelta(hours=1),
+                            uploaded_at=timezone.now(),
+                        )
+                        image_tokens.append(token)
+                
+                data['image_tokens'] = image_tokens
+                
+        else:
+            # Desktop: data is in body as JSON
+            data = json.loads(request.body)
+        
         attempt = get_object_or_404(Attempt, id=attempt_id, exercise=exercise, user=request.user)
 
         # Enforce spoiler unlock if user requests to reveal the solution. Prevents students from forging UI and ask for solution prematurely.
@@ -861,6 +894,7 @@ def chat_thread_detail(request, thread_id: int):
 
 @login_required
 @require_POST
+@rate_limit(user_limit=20, ip_limit=50, name='chat_thread_send')
 def chat_thread_send(request, thread_id: int):
     """
     Append a user message, call the AI, append assistant reply, and return updated messages.

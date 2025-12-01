@@ -331,6 +331,26 @@ Here is how to proceed:
 
 Let's Encrypt certificates expire every 90 days. To avoid having to renew them manually, you can set up a cron job on your server to run the renewal command automatically.
 
+**Prerequisites:**
+- The certbot service in `docker-compose.yml` must have a `/tmp` tmpfs mount (required for certbot to create temporary files in read-only container)
+- The `./certbot_data/etc` directory must be writable by root (certbot runs as root inside container)
+
+**Fix permissions if needed:**
+```bash
+cd ~/dev/steacher_app
+sudo chown -R root:root certbot_data/etc
+sudo chmod -R 755 certbot_data/etc
+```
+
+**Manual renewal (for testing):**
+```bash
+cd ~/dev/steacher_app
+docker compose run --rm certbot renew
+docker compose restart proxy
+```
+
+**Set up automatic renewal:**
+
 1.  **Open your crontab editor:**
     ```bash
     crontab -e
@@ -340,12 +360,17 @@ Let's Encrypt certificates expire every 90 days. To avoid having to renew them m
     This will run the renewal command every day at 3:30 AM. Certbot will only renew the certificate if it's close to expiration.
 
     ```
-    30 3 * * * /usr/bin/docker-compose -f /path/to/your/project/docker-compose.yml run --rm certbot renew --quiet && /usr/bin/docker-compose -f /path/to/your/project/docker-compose.yml restart proxy
+    30 3 * * * cd /home/ubuntu/dev/steacher_app && /usr/bin/docker compose run --rm certbot renew --quiet && /usr/bin/docker compose restart proxy >> /home/ubuntu/certbot-renew.log 2>&1
     ```
 
     **Important:**
-    *   Replace `/path/to/your/project/` with the absolute path to your project directory (where `docker-compose.yml` is located).
-    *   Make sure the path to `docker-compose` is correct for your system (you can find it with `which docker-compose`).
+    *   Replace `/home/ubuntu/dev/steacher_app` with the absolute path to your project directory (where `docker-compose.yml` is located).
+    *   Note: Use `docker compose` (with space), not `docker-compose` (with dash) - this is the Docker Compose plugin syntax.
+
+**Check certificate expiry:**
+```bash
+docker compose run --rm certbot certificates
+```
 
 This setup automates both the initial certificate acquisition and the renewal process, making it much easier to manage HTTPS for your site.
 

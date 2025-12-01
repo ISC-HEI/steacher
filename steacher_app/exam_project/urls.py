@@ -20,11 +20,9 @@ from django.contrib.auth import views as auth_views
 from django.urls import reverse_lazy
 from exercises import urls as exercises_urls
 from exercises.views_students import register
-from django.shortcuts import redirect
-from django.contrib.auth.decorators import login_required
-from exercises.views_students import dashboard
 from django.conf import settings
 from django.conf.urls.static import static
+from .views import home
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -42,10 +40,10 @@ urlpatterns = [
         name='password_change',
     ),
     path('accounts/', include('django.contrib.auth.urls')),
-    path('exercises/', include((exercises_urls.students_urlpatterns, 'exercises'), namespace='exercises')),
+    path('exercises/', include((exercises_urls.urlpatterns, 'exercises'), namespace='exercises')),
     path('teachers/', include((exercises_urls.teachers_urlpatterns, 'teachers'), namespace='teachers')),
     path('evaluation/', include('evaluation.urls')),
-    path('', login_required(dashboard), name='dashboard_root'),  # Root shows student dashboard (requires login)
+    path('', home, name='dashboard_root'),  # Root auto-detects mobile and redirects accordingly
 ]
 
 # Serve static files during development FIXME make serving static files work in production

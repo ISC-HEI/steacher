@@ -1,11 +1,9 @@
 import { ChatbotPanel } from './ChatbotPanel.js';
 import { createApp, defineComponent } from 'vue';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
 import confetti from 'canvas-confetti';
-import katex from 'katex';
 import type { Exercise } from './utils.js';
 import { csrfFetch, getCsrfToken } from './utils.js';
+import { renderMarkdown } from './markdown_utils.js';
 
 interface ImageBeingUploaded {
     /** An image that is being uploaded; will be added to the user's message.  */
@@ -129,46 +127,9 @@ document.addEventListener('DOMContentLoaded', function() {
         methods: {
             renderMarkdown(this: any, content: string) {
                 if (!content) return '';
-                
-                // First, render markdown and sanitize it
-                let html = marked.parse(content) as string; 
-                html = DOMPurify.sanitize(html);
-
-                // TODO: (Maybe?) we could probably find a cleaner way to indicate that an exercise is a math one without "allow_image_upload", if we were
-                // to add non-math exercises that need picture input, the following bit could mess the text a little (it's a very edge case, so it will be Renaud's call)
-                if (exerciseData.allow_image_upload){
-                    // If the exercise allows images (means it's a math exercise)
-                    // Then process KaTeX math expressions
-                    // Handle display math ($$...$$)
-                    html = html.replace(/\$\$([^$]+)\$\$/g, (match, math) => {
-                        try {
-                            return katex.renderToString(math, { 
-                                displayMode: true,
-                                strict: 'error', // Fail on bad input
-                                trust: false // Don't allow \href, etc.
-                            });
-                        } catch (e) {
-                            console.error('KaTeX display math error:', e);
-                            return match;
-                        }
-                    });
-
-                    // Handle inline math ($...$) - be careful not to match $$ patterns
-                    html = html.replace(/(?<!\$)\$([^$\n]+)\$(?!\$)/g, (match, math) => {
-                        try {
-                            return katex.renderToString(math, { 
-                                displayMode: false,
-                                strict: 'error', // Fail on bad input
-                                trust: false // Don't allow \href, etc.
-                            });
-                        } catch (e) {
-                            console.error('KaTeX inline math error:', e);
-                            return match;
-                        }
-                    });
-                }
-                // Returns html
-                return html;
+                // Enable math rendering only if exercise allows image upload (indicates math exercise)
+                const enableMath = exerciseData.allow_image_upload || false;
+                return renderMarkdown(content, enableMath);
             },
             async getGuidance(action: 'submit_answer' | 'ask_hint' | 'ask_question', details: { question?: string | null } = {}) {
                 this.loadingState = 'getting-guidance';

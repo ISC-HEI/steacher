@@ -16,8 +16,8 @@ from django.urls import reverse
 import qrcode
 from PIL import Image
 
-from .models import Trace, TraceImage
-from .authz import rate_limit
+from .models import Trace, TraceImage, Attempt, ChatThread, Course
+from .authz import rate_limit, can_edit_course
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,10 @@ def resize_and_convert_image(uploaded_file, max_width=2000, max_height=768):
     Handles transparency, palette modes, and various image formats.
     Returns tuple of (image_bytes, content_type, file_size).
     """
-    image_data = uploaded_file.read()
+    # Do not read the entire file into memory first (Issue #6)
+    
+    # Prevent Decompression Bomb (Issue #6)
+    Image.MAX_IMAGE_PIXELS = 100_000_000  # 100 MP limit
     
     # Pillow opens the image and detects what it is
     # SCENARIO: iPhone with "High Efficiency" → HEIC format
@@ -37,7 +40,7 @@ def resize_and_convert_image(uploaded_file, max_width=2000, max_height=768):
     #   - In practice, modern browsers often convert HEIC to JPEG before upload
     # SCENARIO: iPhone camera in normal mode → JPEG (img.format='JPEG')
     # SCENARIO: Android screenshot → PNG (img.format='PNG')
-    img = Image.open(BytesIO(image_data))
+    img = Image.open(uploaded_file)
     
     # img.format tells us what Pillow detected: 'JPEG', 'PNG', 'HEIF', 'GIF', 'WEBP', etc. Always present, and in uppercase.
     original_format = img.format
@@ -258,8 +261,12 @@ def serve_trace_image(request, token):
     # If not yet linked, any logged-in user with the token can view it. This happens 
     # just for a short time, before the student sends the new message and creates a new trace.
     if img.trace:
-        if img.trace.user != request.user and not request.user.is_teacher:
-            return HttpResponse('Unauthorized', status=403)
+        if img.trace.user != request.user:
+            # check if the user is a teacher
+            if not img.trace.course.memberships.filter(user=request.user, role__in=['teacher', 'owner']).exists():
+                return HttpResponse('Unauthorized', status=403)
+            else:
+                return HttpResponse('Forbidden', status=403)
     
     # Serve binary image data directly
     try:
@@ -288,5 +295,3 @@ def image_status(request, token):
             response['next_token'] = img.next_token
         return JsonResponse(response)
     return JsonResponse({'status': 'pending'})
-
-

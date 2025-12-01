@@ -31,8 +31,10 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'dev-insecure-key')
 DEBUG = os.getenv('DJANGO_DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = [h for h in os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',') if h]
-# TESTING: Uncomment for ngrok testing (no https://, just hostname)
-# ALLOWED_HOSTS += ['3e9c8362cdea.ngrok-free.app']
+
+# Allow ngrok tunnels automatically in DEBUG mode
+if DEBUG:
+    ALLOWED_HOSTS += ['.ngrok-free.app', '.ngrok.io', '.ngrok.app', 'localhost']
 
 
 # Application definition
@@ -58,6 +60,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
+    'exam_project.ngrok_middleware.NgrokCSRFMiddleware',  # Auto-trust ngrok origins in DEBUG
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -146,7 +149,13 @@ PASSWORD_HASHERS = [
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY', '')
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 SCALA_INTERPRETER_URL = os.getenv('SCALA_INTERPRETER_URL', 'http://localhost:8642')
+
+# PWA settings
+PWA_APP_NAME = "Steacher"
+PWA_APP_DESCRIPTION = "Mobile learning with AI tutor"
+PWA_APP_THEME_COLOR = "#00d1b2"  # Bulma primary
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
@@ -227,6 +236,11 @@ LOGGING = {
             'level': 'INFO',
             'propagate': True,
         },
+        'exercises.views_mobile': {
+            'handlers': ['file', 'console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
     },
 }
 
@@ -234,22 +248,16 @@ LOGGING = {
 LOGOUT_REDIRECT_URL = '/'
 LOGIN_REDIRECT_URL = '/'
 
-# Email configuration (console by default; Mailgun via env in dev/prod)
+# Email configuration (console by default; Mailtrap API when configured)
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'steacher@example.com')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'teachers@steacher.org')
 
-MAIL_SMTP_LOGIN = os.getenv('MAIL_SMTP_LOGIN')
-MAIL_SMTP_PASSWORD = os.getenv('MAIL_SMTP_PASSWORD')
-MAIL_DOMAIN = os.getenv('MAIL_DOMAIN')
+# Mailtrap API configuration (faster than SMTP)
+MAILTRAP_API_KEY = os.getenv('MAILTRAP_API_KEY')
+if MAILTRAP_API_KEY:
+    EMAIL_BACKEND = 'exercises.mailtrap_backend.MailtrapBackend'
 
-if MAIL_SMTP_LOGIN and MAIL_SMTP_PASSWORD:
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = 'live.smtp.mailtrap.io'
-    EMAIL_PORT = 587
-    EMAIL_HOST_USER = MAIL_SMTP_LOGIN
-    EMAIL_HOST_PASSWORD = MAIL_SMTP_PASSWORD
-    EMAIL_USE_TLS = True
-    DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', f"no-reply@{MAIL_DOMAIN or 'example.com'}")
+MAIL_DOMAIN = os.getenv('MAIL_DOMAIN', 'steacher.org')
 
 # Allow login by email or username
 AUTHENTICATION_BACKENDS = [
@@ -284,3 +292,12 @@ if not DEBUG:
     SECURE_REFERRER_POLICY = os.getenv('DJANGO_SECURE_REFERRER_POLICY', 'same-origin')
     # Close cross-origin opener unless needed by features
     SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+else:
+    # In DEBUG mode, trust ngrok HTTPS tunnels for CSRF
+    CSRF_TRUSTED_ORIGINS = [
+        'http://127.0.0.1:8000',
+        'http://localhost:8000',
+        'https://*.ngrok-free.app',
+        'https://*.ngrok.io',
+        'https://*.ngrok.app',
+    ]

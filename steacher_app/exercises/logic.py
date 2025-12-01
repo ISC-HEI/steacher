@@ -221,12 +221,15 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     # 1. Construct the user's message for the LLM from the incoming data
     # FIXME: this is a mess, refactor it
     user_prompt_content = ""
+    user_display_content = ""  # What to show in the UI (without LLM-specific prefixes)
     action = data.get('action')
 
     if action == 'ask_question':
         user_prompt_content += f"I have a specific question: {data.get('question', '')}"
+        user_display_content = data.get('question', '')
     elif action == 'ask_hint':
         user_prompt_content += "I am explicitly asking for a hint."
+        user_display_content = "[Requested a hint]"
 
     # For open_question, include student's answer
     elif data.get('answer'):
@@ -234,6 +237,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
             "Here is my submitted answer:\n\n"
             f"{data.get('answer')}\n"
         )
+        user_display_content = data.get('answer', '')
 
 
     # add code, error message, output
@@ -246,6 +250,8 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         except Exception:
             lang = 'python'
         user_prompt_content += f"## Student code:\n```{lang}\n{data.get('code', '')}\n```\n"
+        if not user_display_content:
+            user_display_content = data.get('code', '')
 
         # NEW: Run unit tests if available
         if exercise.exercise_type == 'python':
@@ -340,7 +346,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         _temp = 0.2 if action == 'reveal_solution' else 0.7
         chat_config = GenerateContentConfig(
             system_instruction=prompt,
-            response_mime_type="text/plain",
+            response_mime_type="application/json",
             temperature=_temp,
             #FIXME: not working ATM response_logprobs=True, logprobs=5,
             thinking_config=genai.types.ThinkingConfig(include_thoughts=True), # capture thoughts for the assistant_metadata
@@ -383,13 +389,31 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
 
         # loaded response from LLM
         try:
+            # If the response is valid JSON, we are good
             loaded_response = json.loads(text_out)
         except Exception as e:
-            logger.error(f"Failed to load response as JSON: {e}")
-            loaded_response = {"guidance_text":text_out}
+            # Fallback: if not JSON, assume it is the raw guidance text or contains the fields in text format
+            logger.warning(f"Failed to load response as JSON: {e}. Trying to extract fields from text.")
+            import re
+            
+            # Try to extract fields with regex if they appear in text format
+            guidance_match = re.search(r'Guidance Text:\s*(.*?)(?:Transcript:|Error Description:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            transcript_match = re.search(r'Transcript:\s*(.*?)(?:Guidance Text:|Error Description:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            error_desc_match = re.search(r'Error Description:\s*(.*?)(?:Guidance Text:|Transcript:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            
+            if guidance_match:
+                loaded_response = {
+                    "guidance_text": guidance_match.group(1).strip(),
+                    "transcript": transcript_match.group(1).strip() if transcript_match else "",
+                    "error_desc": error_desc_match.group(1).strip() if error_desc_match else ""
+                }
+            else:
+                # Last resort: treat the whole text as guidance
+                loaded_response = {"guidance_text": text_out}
+
         
         print("loaded_response: ", loaded_response)
-        guidance_text = loaded_response["guidance_text"]
+        guidance_text = loaded_response.get("guidance_text", "")
 
     except Exception as e:
         logger.error(f"Gemini generate_content failed for exercise {exercise.id}: {e}")
@@ -460,7 +484,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     
     # 7.b. Persist as a Trace. Ensure first trace stores system_prompt (mandatory)
     fields = {
-        'user_content': user_prompt_content,
+        'user_content': user_display_content or user_prompt_content,  # Prefer display version (without LLM prefixes)
         'user_metadata': data,
         'assistant_content': loaded_response,
         'assistant_metadata': {

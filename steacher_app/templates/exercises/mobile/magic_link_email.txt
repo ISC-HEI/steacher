@@ -1,0 +1,15 @@
+Hello {{ user.username }},
+
+You requested a login link for Steacher Mobile.
+
+Click the link below to log in:
+
+{{ magic_url }}
+
+This link will expire in {{ expires_minutes }} minutes.
+
+If you didn't request this, you can safely ignore this email.
+
+---
+Steacher - Learn with AI
+

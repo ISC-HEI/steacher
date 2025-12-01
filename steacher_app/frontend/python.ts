@@ -2,10 +2,9 @@ import { ChatbotPanel } from './ChatbotPanel.js';
 import { CodeMirrorEditor } from './CodeMirrorEditor.js';
 import { createApp, defineComponent } from 'vue';
 import confetti from 'canvas-confetti';
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
 import type { Exercise } from './utils.js';
 import { csrfFetch, getCsrfToken } from './utils.js';
+import { renderMarkdown } from './markdown_utils.js';
 
 interface ConsoleEntry {
     type: 'command' | 'output' | 'error';
@@ -128,8 +127,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         methods: {
             renderMarkdown(this: any, content: string) {
-                if (!content) return '';
-                return DOMPurify.sanitize(marked.parse(content) as string);
+                return renderMarkdown(content, false);
             },
             async startWorker() {
                 try {

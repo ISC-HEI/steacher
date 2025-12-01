@@ -171,6 +171,7 @@ services:
       - static_data:/app/static
     read_only: true
     tmpfs:
+      - /tmp
       - /var/lib/letsencrypt
       - /var/log/letsencrypt
     security_opt:
