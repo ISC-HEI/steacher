@@ -53,8 +53,10 @@ When the student asks for a simple definition or how to use a single, basic conc
 - Keep the entire response concise (about 6–8 lines total).
 
 OUTPUT FORMAT
-You will return your guidance in a json structured format with the following fields:
-"help_text" :
-- In a single string.
-- The guidance text to help the student with his exercise.
-- This is the only field that will be showed to the student.
+You will return your output in a json only containing the fields:
+- "help_text": "[your guidance text for the student, in a single string]"
+
+like this **and only like this**:
+{
+    "help_text": "..."
+}

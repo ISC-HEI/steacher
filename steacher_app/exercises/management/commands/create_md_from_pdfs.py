@@ -122,7 +122,7 @@ class Command(BaseCommand):
         # prompt and chat setup
         prompt = '''Convert this document to clean Markdown format. Use LaTeX notation 
 for mathematical formulas (wrap inline math in $ and display math in $$). 
-Preserve the document structure and hierarchy. Ignore page headers and footers.'''
+Preserve the document structure and hierarchy. Ignore page headers and footers. Ignore illustrations.'''
         
         chat_config = GenerateContentConfig(
             system_instruction=prompt,
