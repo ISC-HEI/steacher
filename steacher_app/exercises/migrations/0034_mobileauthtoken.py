@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('exercises', '0030_traceimage_chain_position_traceimage_next_token'),
+        ('exercises', '0031_trace_assistant_complete_content'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
