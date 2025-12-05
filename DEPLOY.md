@@ -563,6 +563,9 @@ git pull
 # or if web isn't up yet:
 docker compose run --rm --entrypoint "" web python manage.py migrate
 
+check migration stat:
+    docker compose exec web python manage.py showmigrations exercises
+
 # 4) Collect static (served by nginx from the volume)
 docker compose exec web python manage.py collectstatic --noinput
 
