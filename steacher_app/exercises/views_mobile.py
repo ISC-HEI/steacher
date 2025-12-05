@@ -365,6 +365,7 @@ def mobile_auth_send_link(request):
             'expires_minutes': 15,
         })
         
+        logger.info(f"Sending magic link email to {email}")
         send_mail(
             subject,
             message,
@@ -372,11 +373,21 @@ def mobile_auth_send_link(request):
             [email],
             fail_silently=False,
         )
-    except Exception:
-        logger.exception('Failed to send magic link email')
-        return JsonResponse({'status': 'error', 'message': 'Failed to send email'}, status=500)
+        logger.info(f"Magic link email sent successfully to {email}")
+        
+    except Exception as e:
+        logger.exception(f'Failed to send magic link email to {email}: {e}')
+        # Return success anyway for security (don't reveal if email exists)
+        # But log the error for debugging
+        return JsonResponse({
+            'status': 'success',
+            'message': 'If that email exists, you will receive a login link. Note: Some university email servers may delay delivery by several minutes.'
+        })
     
-    return JsonResponse({'status': 'success', 'message': 'Check your email for the login link.'})
+    return JsonResponse({
+        'status': 'success',
+        'message': 'Check your email for the login link. Note: Some university email servers may delay delivery.'
+    })
 
 
 @csrf_exempt

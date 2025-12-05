@@ -149,6 +149,24 @@ The first email may still be slower due to:
 
 Subsequent emails will be much faster as connections are reused.
 
+### University emails taking 1+ minutes
+
+**This is normal** for unverified domains sending to university mail servers.
+
+See the comprehensive guide: [`docs/Email_Delivery_Delays.md`](../steacher_app/docs/Email_Delivery_Delays.md)
+
+Quick fixes:
+1. **Verify your domain in Mailtrap** (most important - adds SPF/DKIM)
+2. Use the diagnostic tool: `python test_email_timing.py --test-domains`
+3. Check Mailtrap logs for delivery status
+4. Contact university IT to whitelist your domain
+
+The API timeout can be configured:
+```bash
+# In .env
+MAILTRAP_API_TIMEOUT=10  # seconds (default)
+```
+
 ## Reverting to SMTP
 
 If you need to revert to SMTP, just remove or comment out `MAILTRAP_API_KEY` from your `.env` file:
