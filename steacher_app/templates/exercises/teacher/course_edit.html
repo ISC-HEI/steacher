@@ -29,6 +29,16 @@
                 </details>
 
                 <div class="field">
+                    <label class="label">Course Prompt</label>
+                    <p class="help">Course-level instructions and context added after the system prompt but before the exercise details.</p>
+                    <p class="help">Use this to provide course-specific context, learning objectives, notation preferences, or content summaries that should inform the AI's guidance across all exercises.</p>
+
+                    <div class="control">
+                        <textarea class="textarea" name="course_prompt" rows="10">{{ initial.course_prompt }}</textarea>
+                    </div>
+                </div>
+
+                <div class="field">
                     <label class="label">System Prompt (Overrides default)</label>
                     <p class="help">If set, this replaces the default general tutor prompt for this course's exercises.</p>
                     <p class="help is-danger">Make sure you use the same syntax as the original system prompt above.</p>

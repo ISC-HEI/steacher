@@ -136,6 +136,7 @@ def course_edit(request, pk):
 
     if request.method == 'POST':
         name = (request.POST.get('name') or '').strip()
+        course_prompt = (request.POST.get('course_prompt') or '').strip()
         system_prompt = (request.POST.get('system_prompt') or '').strip()
 
         # Collect per-type prompts from form fields "llm_prompts__<type_key>"
@@ -152,9 +153,10 @@ def course_edit(request, pk):
             messages.error(request, 'Course name is required.')
         else:
             course.name = name
-            course.system_prompt = system_prompt
+            course.course_prompt = course_prompt
+            course.override_system_prompt = system_prompt
             course.llm_prompts = llm_prompts_val
-            course.save(update_fields=['name', 'system_prompt', 'llm_prompts', 'updated_at'])
+            course.save(update_fields=['name', 'course_prompt', 'override_system_prompt', 'llm_prompts', 'updated_at'])
             messages.success(request, 'Course settings updated.')
             return redirect('teachers:course_detail', pk=course.pk)
 
@@ -178,7 +180,8 @@ def course_edit(request, pk):
         'course': course,
         'initial': {
             'name': course.name or '',
-            'system_prompt': course.system_prompt or '',
+            'course_prompt': course.course_prompt or '',
+            'system_prompt': course.override_system_prompt or '',
         },
         'llm_type_fields': llm_type_fields,
         'original_system_prompt': original_system_prompt,

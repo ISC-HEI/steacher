@@ -5,7 +5,6 @@ Main template for AI tutor system prompt. Uses Django template syntax.
 
 Rules:
 - If is_reveal_solution: ignore all other content and render the inlined solution reveal prompt.
-- Else if course_system_prompt: render that raw text instead of the inlined general tutor rules.
 - Else: render the inlined general tutor rules.
 
 Then always append language directive and exercise context sections.
@@ -84,6 +83,18 @@ For this exercise, the student is gonna give you his solution input via a pictur
 If you encounter an error in the student's reasoning that seems to be fixed in the follow up (for example a sign error), consider it's a mistake on your side and ignore it.
 If you are not sure to read correctly an important line (for example where a mistake seems to be), you must ask the student to confirm what you think your read.
 {% endif %}{# end image_answers #}
+
+{% if course_prompt %}{# adds course-level context and instructions #}
+## Course-specific Instructions
+These instructions were provided by the teacher for this specific course. They may include:
+- information about the course contents, objectives, target audience, etc.
+- a summary of the course content itself. In this case, use it to refer to parts of the course content itself in your answers
+- notations to use and concepts to avoid
+
+(start of course-specific instructions)
+{{ course_prompt }}
+(end of course-specific instructions)
+{% endif %}{# end course_prompt #}
 
 ----
 

@@ -306,9 +306,10 @@ const TeacherCourseApp = defineComponent({
 
         const handleFileSelect = (event: Event) => {
             const target = event.target as HTMLInputElement;
-            if (target.files && target.files.length > 0) {
-                state.selectedFile = target.files[0];
-                state.selectedFileName = target.files[0].name;
+            const file = target.files?.[0];
+            if (file) {
+                state.selectedFile = file;
+                state.selectedFileName = file.name;
             } else {
                 state.selectedFile = null;
                 state.selectedFileName = null;

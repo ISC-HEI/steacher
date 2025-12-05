@@ -31,11 +31,13 @@ def build_system_prompt(*, action: str, exercise: Exercise, attempt: Attempt) ->
     # Course-level prompts
     try:
         course: Course = exercise.module.course
-        course_system_prompt: str = (course.system_prompt or '').strip()
+        override_system_prompt: str = (course.override_system_prompt or '').strip()
+        course_prompt: str = (course.course_prompt or '').strip()
         exercise_type_prompt: str = (course.llm_prompts or {}).get(exercise.exercise_type)
     except Exception:
         logger.error(f"Error getting course prompts for exercise {exercise.id}")
-        course_system_prompt: str = ''
+        override_system_prompt: str = ''
+        course_prompt: str = ''
         exercise_type_prompt: str = None
 
     # Localized exercise fields
@@ -61,6 +63,7 @@ def build_system_prompt(*, action: str, exercise: Exercise, attempt: Attempt) ->
         'is_ask_hint': action == 'ask_hint',
         'is_reveal_solution': action == 'reveal_solution',
         'exercise_type_prompt': exercise_type_prompt,
+        'course_prompt': course_prompt,
         'language_name': language_name,
         'exercise_type': exercise.exercise_type,
         'question_text': question_text,
@@ -72,9 +75,9 @@ def build_system_prompt(*, action: str, exercise: Exercise, attempt: Attempt) ->
     }
 
     # If the course provides a full system prompt override, render it as a Django template string (strict, so we catch errors).
-    if course_system_prompt:
+    if override_system_prompt:
         strict_engine = Engine(debug=True, string_if_invalid='[[INVALID:%s]]')
-        template = strict_engine.from_string(course_system_prompt)
+        template = strict_engine.from_string(override_system_prompt)
         # IMPORTANT: wrapping it in str, else it produces a django...SafeString that messes up the LLM
         return str(template.render(Context(context))).strip()
     else: # otherwise, render the default exercise_guidance.md template with strict engine (so we catch errors)

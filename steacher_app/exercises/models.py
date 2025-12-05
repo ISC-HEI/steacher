@@ -16,7 +16,8 @@ class Course(models.Model):
     name = models.CharField(max_length=200, help_text="The name/title of the course that will be displayed to the user.")
     description = models.TextField(blank=True, help_text="A short description of the course that will be displayed to the user.")
     chat_prompt = models.TextField(blank=True, help_text="Chatbot-specific instructions for this course, when the user starts a chat thread.")
-    system_prompt = models.TextField(blank=True, help_text="Override the default system prompt used by the AI tutor for exercises in this course. Leave empty to use the global default.")
+    course_prompt = models.TextField(blank=True, help_text="Course-level prompt for this specific course. Will be added at the end of the system prompt for all exercises in this course. It may contain information about the course contents, objectives, target audience, etc. You can also include a large amount of information about the course content itself (e.g. a summary of 5k words), so that in its answers, the AI will refer to parts of the course content itself. Also, you may include which notations to use, which concepts to avoid, etc.")
+    override_system_prompt = models.TextField(blank=True, help_text="Override the default system prompt used by the AI tutor for exercises in this course. Leave empty to use the global default (recommended).")
     llm_prompts = models.JSONField(blank=True, default=dict, help_text="LLM prompts per exercise type, e.g. {'turtle': 'Your prompt for turtle exercises...'}")
     visible = models.BooleanField(default=True, help_text="Whether the course is visible to students.")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -495,7 +496,7 @@ class Trace(models.Model):
     )
 
     # LLM/system message content
-    system_prompt = models.TextField(null=True, blank=True, help_text="The system prompt sent to the LLM for this trace. Only set on the first trace.")
+    system_prompt = models.TextField(null=True, blank=True, help_text="The system prompt sent to the LLM for this trace. Only set on the first trace. It's kept in this Trace for reference & debugging purposes.")
 
     # Assistant message
     assistant_content = models.JSONField(default=dict, blank=True, help_text="""Complete JSON response of the assistant. Keys: 

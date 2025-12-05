@@ -110,6 +110,12 @@
         </div>
     </nav>
 
+    <!-- Mobile device banner -->
+    <div id="mobile-banner" style="display: none; background-color: #3273dc; color: white; padding: 12px 20px; text-align: center; position: sticky; top: 0; z-index: 999;">
+        <i class="fas fa-mobile-alt" style="margin-right: 8px;"></i>
+        <a href="{% url 'exercises:mobile_dashboard' %}" style="color: white; text-decoration: underline; font-weight: 600; margin-left: 8px;">Switch to Mobile View</a>
+    </div>
+
     <main class="base-layout-main">
         {% block main_content %}
         <div class="{% block container_class %}container{% endblock %} mt-5">
@@ -142,6 +148,19 @@
         {% endblock %}
     </footer>
     
+    <script>
+        // Detect mobile device and show banner
+        (function() {
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(navigator.userAgent);
+            if (isMobile) {
+                const banner = document.getElementById('mobile-banner');
+                if (banner) {
+                    banner.style.display = 'block';
+                }
+            }
+        })();
+    </script>
+
     {% block scripts %}
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js" defer></script>
     {% endblock %}
