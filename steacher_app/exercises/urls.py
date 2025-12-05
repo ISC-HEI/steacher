@@ -94,6 +94,10 @@ teachers_urlpatterns = [
     # Annotation routes
     path('exercises/<int:exercise_id>/annotate/', views_annotations.annotate_exercise_entry, name='annotate_exercise'),
     path('exercises/<int:exercise_id>/annotate/<int:attempt_id>/', views_annotations.annotate_attempt, name='annotate_attempt'),
+    
+    # Module import/export
+    path('modules/<int:module_id>/export/', views_teachers.export_module, name='export_module'),
+    path('courses/<int:course_id>/import-module/', views_teachers.import_module, name='import_module'),
 ]
 
 # Default export keeps backward compatibility (student-facing by default)

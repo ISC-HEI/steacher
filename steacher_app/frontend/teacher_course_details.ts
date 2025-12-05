@@ -1,4 +1,4 @@
-import { createApp, defineComponent, onMounted, reactive } from 'vue';
+import { createApp, defineComponent, onMounted, reactive, toRefs } from 'vue';
 import { csrfFetch } from './utils.js';
 
 // Sortable is provided globally via CDN in base template
@@ -11,7 +11,13 @@ const TeacherCourseApp = defineComponent({
         const state = reactive({
             moduleVisible: {} as Record<string, boolean>,
             moduleExpanded: {} as Record<string, boolean>,
-            exerciseVisible: {} as Record<string, boolean>
+            exerciseVisible: {} as Record<string, boolean>,
+            showImportModal: false,
+            selectedFile: null as File | null,
+            selectedFileName: null as string | null,
+            importing: false,
+            importError: null as string | null,
+            importSuccess: null as string | null
         });
 
         let isReordering = false;
@@ -298,17 +304,88 @@ const TeacherCourseApp = defineComponent({
             }
         };
 
+        const handleFileSelect = (event: Event) => {
+            const target = event.target as HTMLInputElement;
+            if (target.files && target.files.length > 0) {
+                state.selectedFile = target.files[0];
+                state.selectedFileName = target.files[0].name;
+            } else {
+                state.selectedFile = null;
+                state.selectedFileName = null;
+            }
+            state.importError = null;
+            state.importSuccess = null;
+        };
+
+        const submitImport = async () => {
+            if (!state.selectedFile) return;
+            
+            state.importing = true;
+            state.importError = null;
+            state.importSuccess = null;
+
+            try {
+                const modulesList = document.getElementById('modules-list') as HTMLElement | null;
+                const rawCourse = modulesList?.getAttribute('data-course-id');
+                const courseId = rawCourse ? parseInt(rawCourse, 10) : null;
+                
+                if (!courseId) {
+                    throw new Error('Course ID not found');
+                }
+
+                const formData = new FormData();
+                formData.append('file', state.selectedFile);
+
+                const response = await csrfFetch(`/teachers/courses/${courseId}/import-module/`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || data.status === 'error') {
+                    throw new Error(data.message || 'Import failed');
+                }
+
+                state.importSuccess = data.message || 'Module imported successfully';
+                
+                // Reload page after short delay to show success message
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+
+            } catch (e: any) {
+                state.importError = e?.message || 'Import failed';
+                // eslint-disable-next-line no-console
+                console.error(e);
+            } finally {
+                state.importing = false;
+            }
+        };
+
+        const setShowImportModal = (value: boolean) => {
+            state.showImportModal = value;
+            if (!value) {
+                // Reset state when closing modal
+                state.selectedFile = null;
+                state.selectedFileName = null;
+                state.importError = null;
+                state.importSuccess = null;
+            }
+        };
+
         return {
-            moduleVisible: state.moduleVisible,
-            moduleExpanded: state.moduleExpanded,
-            exerciseVisible: state.exerciseVisible,
+            ...toRefs(state),
             toggleModuleExpanded,
             toggleModuleVisibility,
             toggleExerciseVisibility,
             duplicateExercise,
             deleteExercise,
             editExercise,
-            addModulePrompt
+            addModulePrompt,
+            handleFileSelect,
+            submitImport,
+            setShowImportModal
         };
     }
 });

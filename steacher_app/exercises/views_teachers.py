@@ -1278,4 +1278,157 @@ def quiz_results_api(request, cohort_id: int, module_id: int, exercise_id: int):
     })
 
 
+@login_required
+def export_module(request, module_id):
+    """
+    Export a module with all its exercises as JSON.
+    Teacher must have edit permissions on the course.
+    """
+    module = get_object_or_404(Module.objects.select_related('course').prefetch_related('exercises'), pk=module_id)
+    assert_can_edit_course(request.user, module.course)
+    
+    from .serializers import ModuleExportSerializer
+    
+    # Serialize module with exercises
+    serializer = ModuleExportSerializer(module)
+    module_data = serializer.data
+    
+    # Extract asset references from exercise_data
+    asset_references = set()
+    for exercise in module.exercises.all():
+        if exercise.exercise_data:
+            # SQL exercises reference database assets
+            db_name = exercise.exercise_data.get('db', '')
+            if db_name:
+                asset_references.add(db_name)
+    
+    # Build export JSON
+    export_data = {
+        'export_version': '1.0',
+        'exported_at': timezone.now().isoformat(),
+        'source_course': {
+            'id': module.course.id,
+            'name': module.course.name,
+        },
+        'module': module_data,
+        'asset_references': sorted(list(asset_references)),
+    }
+    
+    # Return as downloadable JSON file
+    response = JsonResponse(export_data, json_dumps_params={'indent': 2})
+    safe_module_name = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in module.name)
+    filename = f"{safe_module_name}_export.json"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+@login_required
+@require_POST
+def import_module(request, course_id):
+    """
+    Import a module from JSON file into the specified course.
+    Teacher must have edit permissions on the target course.
+    """
+    course = get_object_or_404(Course, pk=course_id)
+    assert_can_edit_course(request.user, course)
+    
+    # Get uploaded file
+    if 'file' not in request.FILES:
+        return JsonResponse({'status': 'error', 'message': 'No file uploaded'}, status=400)
+    
+    try:
+        # Parse JSON
+        uploaded_file = request.FILES['file']
+        data = json.loads(uploaded_file.read().decode('utf-8'))
+        
+        # Phase 1: Validation (outside transaction - fast fail)
+        _validate_import_json_structure(data)
+        _validate_import_asset_references(data, course_id)
+        _validate_import_exercise_schemas(data)
+        
+        # Phase 2: Import (inside transaction - atomic)
+        with transaction.atomic():
+            # Create module (order auto-assigned by Module.save())
+            module_data = data['module']
+            module = Module.objects.create(
+                course=course,
+                name=module_data['name'],
+                description=module_data.get('description', ''),
+                visible=module_data.get('visible', True),
+                is_quiz=module_data.get('is_quiz', False),
+                # order omitted - auto-assigned as max+1
+            )
+            
+            # Create exercises
+            for ex_data in module_data['exercises']:
+                Exercise.objects.create(
+                    module=module,
+                    title_i18n=ex_data.get('title_i18n', {}),
+                    description_i18n=ex_data.get('description_i18n', {}),
+                    question_i18n=ex_data.get('question_i18n', {}),
+                    exercise_type=ex_data['exercise_type'],
+                    order=ex_data['order'],
+                    exercise_data=ex_data.get('exercise_data', {}),
+                    answer_data=ex_data.get('answer_data', {}),
+                    visible=ex_data.get('visible', True),
+                    allow_image_upload=ex_data.get('allow_image_upload', False),
+                )
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': f'Module "{module.name}" imported successfully with {len(module_data["exercises"])} exercises.',
+            'module_id': module.id,
+        })
+        
+    except json.JSONDecodeError as e:
+        return JsonResponse({'status': 'error', 'message': f'Invalid JSON file: {e}'}, status=400)
+    except ValidationError as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+    except Exception as e:
+        logger.exception('Import failed')
+        return JsonResponse({'status': 'error', 'message': f'Import failed: {e}'}, status=500)
+
+
+def _validate_import_json_structure(data):
+    """Validate export format version and required fields."""
+    if 'export_version' not in data:
+        raise ValidationError("Missing export_version in JSON")
+    if data['export_version'] != '1.0':
+        raise ValidationError(f"Unsupported export version: {data['export_version']}")
+    if 'module' not in data:
+        raise ValidationError("Missing 'module' field in JSON")
+    if 'exercises' not in data['module']:
+        raise ValidationError("Missing 'exercises' in module data")
+    if not isinstance(data['module']['exercises'], list):
+        raise ValidationError("'exercises' must be a list")
+
+
+def _validate_import_asset_references(data, course_id):
+    """Check all referenced assets exist in target course."""
+    asset_refs = data.get('asset_references', [])
+    if not asset_refs:
+        return  # No assets to validate
+    
+    missing = []
+    for ref in asset_refs:
+        if not ExerciseAsset.objects.filter(course_id=course_id, name=ref).exists():
+            missing.append(ref)
+    
+    if missing:
+        raise ValidationError(
+            f"Missing required assets in target course: {', '.join(missing)}. "
+            f"Please upload these assets before importing."
+        )
+
+
+def _validate_import_exercise_schemas(data):
+    """Validate exercise_data and answer_data against Pydantic schemas."""
+    for idx, ex in enumerate(data['module']['exercises']):
+        try:
+            ExerciseData.model_validate(ex.get('exercise_data', {}))
+            AnswerData.model_validate(ex.get('answer_data', {}))
+        except Exception as e:
+            raise ValidationError(f"Invalid data in exercise {idx + 1}: {e}")
+
+
 
