@@ -11,7 +11,8 @@ RUN npm install
 COPY frontend/ ./frontend/
 COPY tsconfig.json .
 COPY rollup.codemirror.config.mjs .
-RUN npm run build:codemirror && npx tsc
+COPY rollup.mobile.config.mjs .
+RUN npm run build:codemirror && npm run build:mobile && npx tsc
 
 
 # Stage 2: Python Application
