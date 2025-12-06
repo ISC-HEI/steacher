@@ -46,6 +46,37 @@
         --sortable-ghost-bg: #2a2a2a;
     }
     
+    /* Navbar dark mode */
+    .navbar.is-light {
+        background-color: var(--bg-secondary);
+        color: var(--text-primary);
+    }
+    
+    .navbar.is-light .navbar-item,
+    .navbar.is-light .navbar-link {
+        color: var(--text-primary);
+    }
+    
+    .navbar.is-light .navbar-link:hover,
+    .navbar.is-light .navbar-item:hover {
+        background-color: var(--hover-bg);
+        color: var(--text-primary);
+    }
+    
+    .navbar.is-light .navbar-dropdown {
+        background-color: var(--bg-secondary);
+        border-top: 1px solid var(--border-color);
+    }
+    
+    .navbar.is-light .navbar-dropdown .navbar-item {
+        color: var(--text-primary);
+    }
+    
+    .navbar.is-light .navbar-dropdown .navbar-item:hover {
+        background-color: var(--hover-bg);
+        color: var(--text-primary);
+    }
+    
     /* Prism syntax highlighting code blocks */
     pre,
     pre code,
@@ -55,7 +86,13 @@
         color: #eaeaea;
     }
     
-    /* Ensure readable text on intentionally light boxes */
+    /* Override light backgrounds in dark mode */
+    .has-background-light,
+    .box.has-background-light {
+        background-color: var(--bg-secondary) !important;
+    }
+    
+    /* Ensure readable text color on converted backgrounds */
     .has-background-light .title,
     .box.has-background-light .title,
     .has-background-light h1,
@@ -64,12 +101,34 @@
     .has-background-light h4,
     .has-background-light h5,
     .has-background-light h6 {
-        color: #1a1a1a !important;
+        color: var(--text-primary) !important;
     }
     
     .has-background-light strong,
     .box.has-background-light strong {
-        color: #1a1a1a !important;
+        color: var(--text-primary) !important;
+    }
+    
+    .has-background-light a,
+    .box.has-background-light a {
+        color: var(--accent-color) !important;
+    }
+    
+    /* Fix button text in light background boxes */
+    .has-background-light .button.is-primary,
+    .box.has-background-light .button.is-primary {
+        color: #ffffff !important;
+    }
+    
+    /* Increase contrast for grey text labels */
+    .has-text-grey {
+        color: var(--text-secondary) !important;
+    }
+    
+    /* Fix light notifications in dark mode */
+    .notification.is-light {
+        background-color: var(--bg-secondary) !important;
+        color: var(--text-primary) !important;
     }
 }
 

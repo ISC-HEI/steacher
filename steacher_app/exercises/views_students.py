@@ -930,24 +930,28 @@ def chat_thread_send(request, thread_id: int):
 
         # Build AI prompt (study mode prompt + course context)
         from .logic import client, MODEL_FAST  # reuse existing configured client
-        prompt_path = os.path.join(settings.BASE_DIR, 'exercises', 'prompts', 'chat_mode_prompt.md')
-        with open(prompt_path, 'r') as file:
-            base_prompt = file.read()
-
+        from django.template import Context, Engine
+        
         course = thread.course
-        course_context = ''
+        course_prompt = ''
         try:
-            if (course.chat_prompt or '').strip():
-                course_context = course.chat_prompt.strip()
-            elif (course.description or '').strip():
-                desc = course.description.strip()
-                course_context = desc[:1000]
+            course_prompt = (course.course_prompt or '').strip()
         except Exception:
-            course_context = ''
+            course_prompt = ''
 
-        system_prompt = base_prompt
-        if course_context:
-            system_prompt = f"{base_prompt}\n\nCONTEXT FOR THIS COURSE: {course.name}\n{course_context}"
+        # Render chat_mode_prompt.md as a Django template with course_prompt
+        prompt_path = os.path.join(settings.BASE_DIR, 'exercises', 'prompts', 'chat_mode_prompt.md')
+        try:
+            with open(prompt_path, 'r', encoding='utf-8') as f:
+                tpl_str = f.read()
+            strict_engine = Engine(debug=True, string_if_invalid='[[INVALID:%s]]')
+            context = Context({'course_prompt': course_prompt})
+            system_prompt = str(strict_engine.from_string(tpl_str).render(context)).strip()
+        except Exception as e:
+            logger.exception("Error rendering chat_mode_prompt.md template")
+            # Fallback to simple prompt if template rendering fails
+            with open(prompt_path, 'r') as file:
+                system_prompt = file.read()
 
         model_messages = [{'role': 'system', 'content': system_prompt}]
         # Cap context to the last ~40 messages to control token usage
