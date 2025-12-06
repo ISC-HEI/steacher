@@ -101,7 +101,7 @@
                 const formData = new FormData();
                 formData.append('email', email);
                 
-                const response = await fetch('{% url "exercises:mobile_auth_send_link" %}', {
+                const response = await fetch('{% url "mobile:mobile_auth_send_link" %}', {
                     method: 'POST',
                     body: formData,
                 });

@@ -4,23 +4,19 @@ from . import views_students, views_teachers, views_annotations, views_image_upl
 
 app_name = 'exercises'
 
-# Mobile URL patterns (PWA)
+# Mobile URL patterns (PWA) - mounted at /m/ in project urls
 mobile_urlpatterns = [
-    # Main mobile views
-    # dashboard
-    path('mobile/', views_mobile.mobile_dashboard, name='mobile_dashboard'),
-    # install instructions
-    path('mobile/install/', views_mobile.mobile_install, name='mobile_install'),
-    # exercise
-    path('mobile/exercise/<int:exercise_id>/', views_mobile.mobile_exercise, name='mobile_exercise'),
-    # voice transcription
+    # Dashboard
+    path('', views_mobile.mobile_dashboard, name='mobile_dashboard'),
+    # Install instructions
+    path('install/', views_mobile.mobile_install, name='mobile_install'),
+    # Exercise
+    path('exercise/<int:exercise_id>/', views_mobile.mobile_exercise, name='mobile_exercise'),
     # Voice transcription
-    path('mobile/voice-transcribe/', views_mobile.mobile_voice_transcribe, name='mobile_voice_transcribe'),
+    path('voice-transcribe/', views_mobile.mobile_voice_transcribe, name='mobile_voice_transcribe'),
     # Authentication (Magic Link Only)
-    # endpoint to request the magic link to the user's email
-    path('mobile/auth/request-link/', views_mobile.mobile_auth_request_link, name='mobile_auth_request_link'),
-    # endpoint to send the magic link to the user's email
-    path('mobile/auth/send-link/', views_mobile.mobile_auth_send_link, name='mobile_auth_send_link'),
+    path('auth/request-link/', views_mobile.mobile_auth_request_link, name='mobile_auth_request_link'),
+    path('auth/send-link/', views_mobile.mobile_auth_send_link, name='mobile_auth_send_link'),
 ]
 
 # Students' URL patterns
@@ -98,5 +94,5 @@ teachers_urlpatterns = [
     path('courses/<int:course_id>/import-module/', views_teachers.import_module, name='import_module'),
 ]
 
-# Default export keeps backward compatibility (student-facing by default)
-urlpatterns = mobile_urlpatterns + students_urlpatterns
+# Default export is student-facing patterns (exercises/ prefix)
+urlpatterns = students_urlpatterns

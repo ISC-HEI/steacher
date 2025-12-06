@@ -43,6 +43,7 @@ urlpatterns = [
         name='password_change',
     ),
     path('accounts/', include('django.contrib.auth.urls')),
+    path('m/', include((exercises_urls.mobile_urlpatterns, 'mobile'), namespace='mobile')),
     path('exercises/', include((exercises_urls.urlpatterns, 'exercises'), namespace='exercises')),
     path('teachers/', include((exercises_urls.teachers_urlpatterns, 'teachers'), namespace='teachers')),
     path('evaluation/', include('evaluation.urls')),

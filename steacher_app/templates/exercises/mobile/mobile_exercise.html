@@ -120,7 +120,7 @@
     </div>
 
     <!-- Hidden file input for camera -->
-    <input type="file" ref="cameraInput" accept="image/*" capture="environment" @change="handleCameraCapture" style="display: none;">
+    <input type="file" ref="cameraInput" accept="image/*" @change="handleCameraCapture" style="display: none;">
 
     <!-- Cropper Modal -->
     <div v-if="showCropper" class="modal is-active" style="z-index: 9999;">

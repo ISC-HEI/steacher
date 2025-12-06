@@ -255,7 +255,7 @@ def mobile_exercise(request, exercise_id):
         'attempt_id': attempt.id,
         'interactions': interactions,
         'interactions_json': json.dumps(messages_for_vue),
-        'transcribe_url': reverse('exercises:mobile_voice_transcribe'),
+        'transcribe_url': reverse('mobile:mobile_voice_transcribe'),
     })
 
 
@@ -405,7 +405,7 @@ def mobile_magic_login(request, token):
     if not auth_token:
         # If token is invalid but user is already logged in, just redirect to dashboard
         if request.user.is_authenticated:
-            return redirect('exercises:mobile_dashboard')
+            return redirect('mobile:mobile_dashboard')
         return HttpResponse('Invalid or expired login link', status=403)
     
     # Mark token as used
@@ -419,6 +419,6 @@ def mobile_magic_login(request, token):
     request.session['mobile_login_at'] = timezone.now().isoformat()
     
     # Redirect to original destination or dashboard
-    next_url = request.GET.get('next', reverse('exercises:mobile_dashboard'))
+    next_url = request.GET.get('next', reverse('mobile:mobile_dashboard'))
     return redirect(next_url)
 

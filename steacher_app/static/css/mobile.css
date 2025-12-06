@@ -229,7 +229,7 @@ html, body {
     flex: 1;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 14px 7px 20px;
+    padding: 14px 7px 80px;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -268,8 +268,10 @@ html, body {
     background: white;
     border-top: 1px solid #e0e0e0;
     flex-shrink: 0;
-    position: sticky;
+    position: fixed;
     bottom: 0;
+    left: 0;
+    right: 0;
     z-index: 10;
 }
 

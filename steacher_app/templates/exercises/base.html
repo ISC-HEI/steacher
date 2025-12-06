@@ -111,9 +111,9 @@
     </nav>
 
     <!-- Mobile device banner -->
-    <div id="mobile-banner" style="display: none; background-color: #3273dc; color: white; padding: 12px 20px; text-align: center; position: sticky; top: 0; z-index: 999;">
-        <i class="fas fa-mobile-alt" style="margin-right: 8px;"></i>
-        <a href="{% url 'exercises:mobile_dashboard' %}" style="color: white; text-decoration: underline; font-weight: 600; margin-left: 8px;">Switch to Mobile View</a>
+    <div id="mobile-banner" class="notification is-link has-text-centered is-hidden" style="position: sticky; top: 0; z-index: 999; margin-bottom: 0; border-radius: 0;">
+        <i class="fas fa-mobile-alt mr-2"></i>
+        <a href="{% url 'mobile:mobile_dashboard' %}" class="has-text-white has-text-weight-semibold" style="text-decoration: underline;">Switch to Mobile View</a>
     </div>
 
     <main class="base-layout-main">
