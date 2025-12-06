@@ -105,6 +105,7 @@
             </button>
         </div>
         <div class="mobile-nav-content">
+            {% block nav_exercise_context %}{% endblock %}
             <a href="{% url 'mobile:mobile_dashboard' %}" class="mobile-nav-item">
                 <i class="fas fa-th-large"></i> Dashboard
             </a>
@@ -112,7 +113,8 @@
             <a href="{% url 'mobile:mobile_install' %}" class="mobile-nav-item" id="install-menu-item">
                 <i class="fas fa-download"></i> Install App
             </a>
-            <a href="mailto:renaud.richardet@hevs.ch" class="mobile-nav-item">
+            <!-- Help & Support: send email with body containing the current exercise id and logs -->
+            <a href="mailto:renaud.richardet@hevs.ch?subject=Steacher Mobile Support Request&body=Hello,%0D%0AI have trouble with Steacher.%0D%0A%0D%0AMy problem is: [please describe your problem here]%0D%0A%0D%0AExercise ID: {{ exercise.id }}%0D%0ALogs:{% for log in logs %}{{ log }}{% endfor %}" class="mobile-nav-item">
                 <i class="fas fa-question-circle"></i> Help & Support
             </a>
             <a href="#" onclick="window.__copyLogs(); return false;" class="mobile-nav-item">
@@ -143,6 +145,10 @@
             </div>
             <div class="mobile-header-actions">
                 {% block header_actions %}{% endblock %}
+                <button id="desktop-redirect-btn" class="mobile-menu-button info-button" style="display: none;" onclick="window.location.href='{% url 'exercises:dashboard' %}';" title="Switch to Desktop Version">
+                    <span>Switch to Desktop Version</span>
+                    <i class="fas fa-desktop"></i>
+                </button>
             </div>
         </header>
         
@@ -153,6 +159,15 @@
     </div>
     
     <script>
+        // Show desktop redirect button if on desktop browser
+        (function() {
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(navigator.userAgent);
+            if (!isMobile) {
+                const btn = document.getElementById('desktop-redirect-btn');
+                if (btn) btn.style.display = 'block';
+            }
+        })();
+        
         // Fix viewport height on mobile (account for browser bars)
         function setViewportHeight() {
             let vh = window.innerHeight * 0.01;

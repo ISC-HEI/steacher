@@ -4,6 +4,25 @@
 {% block title %}{{ exercise_json.title }} - Steacher{% endblock %}
 {% block header_title %}{{ exercise_json.title|truncatechars:30 }}{% endblock %}
 
+{% block nav_exercise_context %}
+    {% if module %}
+    <a href="{% url 'mobile:mobile_dashboard' %}#module-{{ module.id }}" class="mobile-nav-item">
+        <i class="fas fa-folder"></i> {{ module.name }}
+    </a>
+    {% endif %}
+    {% if prev_exercise %}
+    <a href="{% url 'mobile:mobile_exercise' prev_exercise.id %}" class="mobile-nav-item">
+        <i class="fas fa-chevron-left"></i> Previous Exercise
+    </a>
+    {% endif %}
+    {% if next_exercise %}
+    <a href="{% url 'mobile:mobile_exercise' next_exercise.id %}" class="mobile-nav-item">
+        <i class="fas fa-chevron-right"></i> Next Exercise
+    </a>
+    {% endif %}
+    <hr class="mobile-nav-divider">
+{% endblock %}
+
 {% block content %}
 <div id="mobile-exercise-app" v-cloak style="display: flex; flex-direction: column; height: 100%;">
     <!-- Chat Messages -->

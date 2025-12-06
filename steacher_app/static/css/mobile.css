@@ -63,7 +63,6 @@ html, body {
     color: white;
     font-size: 20px;
     padding: 8px;
-    width: 44px;
     flex-shrink: 0;
 }
 
@@ -83,7 +82,6 @@ html, body {
 .mobile-header-actions {
     display: flex;
     gap: 8px;
-    width: 44px;
     flex-shrink: 0;
     justify-content: flex-end;
 }

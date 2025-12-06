@@ -248,6 +248,13 @@ def mobile_exercise(request, exercise_id):
     logger.info(f"Total messages for Vue: {len(messages_for_vue)}")
     logger.info(f"Messages JSON: {json.dumps(messages_for_vue)[:200]}")
     
+    # Get module and navigation context
+    module = exercise.module
+    module_exercises = list(module.exercises.filter(visible=True).order_by('order'))
+    current_index = next((i for i, ex in enumerate(module_exercises) if ex.id == exercise.id), None)
+    prev_exercise = module_exercises[current_index - 1] if current_index and current_index > 0 else None
+    next_exercise = module_exercises[current_index + 1] if current_index is not None and current_index < len(module_exercises) - 1 else None
+    
     return render(request, 'exercises/mobile/mobile_exercise.html', {
         'exercise': exercise,
         'exercise_json': exercise_json,
@@ -256,6 +263,9 @@ def mobile_exercise(request, exercise_id):
         'interactions': interactions,
         'interactions_json': json.dumps(messages_for_vue),
         'transcribe_url': reverse('mobile:mobile_voice_transcribe'),
+        'module': module,
+        'prev_exercise': prev_exercise,
+        'next_exercise': next_exercise,
     })
 
 

@@ -584,6 +584,8 @@ Your goal is to help a teacher create or improve an exercise. The current state 
 
 If you are not sure about the exercise or how to improve it, ask the teacher for clarification (this is a conversation, so ask for clarification if needed). Else try to improve the exercise and return the updated exercise. For example, you may write better hints, improve the exercise data, add more test cases, etc.
 
+**IMPORTANT: Always write code examples in English.** Use English variable names, function names, comments, and string literals in all code. Even if the exercise is in French or German, the code itself must use English. For example, if an exercise is about fruits, use 'apple' not 'pomme', use 'count' not 'nombre', etc. This ensures consistency and makes code correction easier.
+
 Please adhere to the following JSON structure for the 'updated_exercise' Exercise object you return. **Do not invent new fields that are not defined in the schema below.**
 
 {get_pydantic_schema_as_string()}
