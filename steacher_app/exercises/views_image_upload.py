@@ -16,8 +16,9 @@ from django.urls import reverse
 import qrcode
 from PIL import Image
 
-from .models import Trace, TraceImage, Attempt, ChatThread, Course
-from .authz import rate_limit, can_edit_course
+from .models import TraceImage
+from .authz import rate_limit
+from .logic import IMAGE_MAX_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +194,8 @@ def mobile_upload_page(request, token):
 @rate_limit(ip_limit=10, name='mobile_upload_submit')
 def mobile_upload_submit(request, token):
     """Handle the mobile image upload POST for the given token.
-    This is a public endpoint that is used on a mobile device, so no authentication is required.
+    This is a public endpoint that is used on an unauthenticated mobile device, 
+    while still authenticated in the desktop client, so no authentication is required.
     Expects multipart/form-data with 'image' file field.
     """
     image_record = TraceImage.objects.filter(upload_token=token).first()
@@ -214,8 +216,8 @@ def mobile_upload_submit(request, token):
     # basic validations
     if not uploaded_file.content_type.startswith('image/'):
         return JsonResponse({'error': 'Invalid file type'}, status=400)
-    # 30MB should accommodate most smartphones
-    if uploaded_file.size > 30 * 1024 * 1024:
+    # 10MB should accommodate most smartphones
+    if uploaded_file.size > IMAGE_MAX_SIZE:
         return JsonResponse({'error': 'File too large (max 30MB)'}, status=400)
 
     try:

@@ -1,30 +1,31 @@
-from django.conf import settings
 import logging
+import time
+import json
+import os
+from typing import List
+from datetime import timedelta, date
+
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
 from django.contrib.auth import get_user_model
-from django.views.decorators.csrf import csrf_protect, csrf_exempt
-from django.http import JsonResponse, HttpResponse, Http404, FileResponse
+from django.views.decorators.csrf import csrf_protect
+from django.http import JsonResponse, Http404
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST, require_GET
 from django.db import models
 from django.template import TemplateSyntaxError
 from django.db.models import Prefetch, Max
 from django.utils import timezone
-from datetime import timedelta, date
+
 import requests
-import time
-import json
-import os
+from asgiref.sync import async_to_sync
 import newrelic.agent as nr
-import secrets
-import base64
-from django.urls import reverse
 
 from .models import Exercise, ExerciseAsset, Course, Attempt, UserInvite, ChatThread, CohortMembership, Trace, TraceEval, create_trace_for, localized_name, Cohort
 from .prompting import build_system_prompt
+from .schemas import TutorResponse
 from .consumers import get_state, presence_heartbeat, presence_count
-from asgiref.sync import async_to_sync
 from .authz import (
     assert_can_view_exercise,
     assert_can_view_course,
@@ -646,11 +647,16 @@ def get_guidance(request, exercise_id, attempt_id):
             if request.FILES:
                 from .models import TraceImage
                 import secrets
+                from .logic import IMAGE_MAX_SIZE
                 
                 image_tokens = data.get('image_tokens', [])
                 
                 for key, file in request.FILES.items():
                     if key.startswith('image_'):
+                        # Validate file size
+                        if file.size > IMAGE_MAX_SIZE:  # 10MB limit
+                            logger.warning(f"Image {key} is too large ({file.size / 1024 / 1024:.2f}MB), skipping")
+                            continue  # or return error
                         # Create TraceImage
                         token = secrets.token_urlsafe(16)
                         TraceImage.objects.create(
@@ -925,12 +931,11 @@ def chat_thread_send(request, thread_id: int):
                 messages.append({'role': 'user', 'content': tr.user_content})
             if (tr.assistant_content.get('guidance_text', '') or '').strip():
                 messages.append({'role': 'assistant', 'content': tr.assistant_content.get('guidance_text', '')})
-        # Append current user message
-        messages.append({'role': 'user', 'content': user_text})
 
         # Build AI prompt (study mode prompt + course context)
-        from .logic import client, MODEL_FAST  # reuse existing configured client
+        from .logic import gemini_client, MODEL_FAST
         from django.template import Context, Engine
+        from google.genai.types import GenerateContentConfig
         
         course = thread.course
         course_prompt = ''
@@ -945,7 +950,7 @@ def chat_thread_send(request, thread_id: int):
             with open(prompt_path, 'r', encoding='utf-8') as f:
                 tpl_str = f.read()
             strict_engine = Engine(debug=True, string_if_invalid='[[INVALID:%s]]')
-            context = Context({'course_prompt': course_prompt})
+            context = Context({'course_prompt': course_prompt, 'tutor_response_output_format': TutorResponse.output_format()})
             system_prompt = str(strict_engine.from_string(tpl_str).render(context)).strip()
         except Exception as e:
             logger.exception("Error rendering chat_mode_prompt.md template")
@@ -953,21 +958,35 @@ def chat_thread_send(request, thread_id: int):
             with open(prompt_path, 'r') as file:
                 system_prompt = file.read()
 
-        model_messages = [{'role': 'system', 'content': system_prompt}]
-        # Cap context to the last ~40 messages to control token usage
+        # Build history for Gemini chat session (cap to last ~40 messages)
+        from google.genai.types import UserContent, ModelContent, Part
+        history_parts: List[UserContent | ModelContent] = []
         tail = messages[-40:]
         for m in tail:
-            role = 'user' if m.get('role') == 'user' else 'assistant'
-            content = str(m.get('content') or '')
-            model_messages.append({'role': role, 'content': content})
+            if m.get('role') == 'user':
+                history_parts.append(UserContent(parts=[Part(text=m.get('content', ''))]))
+            else:
+                history_parts.append(ModelContent(parts=[Part(text=m.get('content', ''))]))
 
         try:
-            completion = client.chat.completions.create(
-                model=MODEL_FAST,
-                messages=model_messages,
+            # Create chat session with structured output
+            chat_config = GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+                response_json_schema=TutorResponse.model_json_schema(),
                 temperature=0.6,
             )
-            assistant_text = (completion.choices[0].message.content or '').strip()
+            chat_session = gemini_client.chats.create(
+                model=MODEL_FAST,
+                config=chat_config,
+                history=history_parts,
+            )
+            
+            gen_response = chat_session.send_message([Part(text=user_text)])
+            
+            # Parse response using TutorResponse (structured outputs guarantee valid JSON)
+            tutor_response = TutorResponse.from_gemini_response(gen_response)
+            assistant_text = tutor_response.guidance_text
         except Exception as e:
             logger.exception("Error calling AI service in chat_thread_send")
             return JsonResponse({'status': 'error', 'message': "Sorry, I couldn't reach the AI service."}, status=503)
@@ -977,7 +996,7 @@ def chat_thread_send(request, thread_id: int):
         is_first = not thread.traces.filter(channel__in=['study_chat', 'exercise_guidance']).exists()
         fields = {
             'user_content': user_text,
-            'assistant_content': {'guidance_text': assistant_text},
+            'assistant_content': tutor_response.to_dict(),
             'assistant_metadata': {
                 'assistant_message': assistant_text,
             },

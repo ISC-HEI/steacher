@@ -151,7 +151,7 @@ class CourseAdmin(admin.ModelAdmin):
             'fields': ('name', 'description', 'visible')
         }),
         ('AI Prompts', {
-            'fields': ('chat_prompt', 'course_prompt', 'override_system_prompt', 'llm_prompts')
+            'fields': ('course_prompt', 'chat_prompt', 'override_system_prompt', 'llm_prompts')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),

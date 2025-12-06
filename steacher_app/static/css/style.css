@@ -48,7 +48,7 @@
     
     /* Navbar dark mode */
     .navbar.is-light {
-        background-color: var(--bg-secondary);
+        background-color: var(--bg-secondary) !important;
         color: var(--text-primary);
     }
     
