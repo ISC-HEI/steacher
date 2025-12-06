@@ -21,8 +21,6 @@ mobile_urlpatterns = [
     path('mobile/auth/request-link/', views_mobile.mobile_auth_request_link, name='mobile_auth_request_link'),
     # endpoint to send the magic link to the user's email
     path('mobile/auth/send-link/', views_mobile.mobile_auth_send_link, name='mobile_auth_send_link'),
-    # the link send in the registration email
-    path('reg/<str:token>/', views_mobile.mobile_magic_login, name='mobile_magic_login'),
 ]
 
 # Students' URL patterns

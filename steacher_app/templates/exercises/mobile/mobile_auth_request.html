@@ -114,7 +114,7 @@
                 // Show success message
                 messageBox.style.display = 'block';
                 messageBox.className = 'notification is-success';
-                messageBox.textContent = 'Check your emails for the login link.';
+                messageBox.innerHTML = '<strong>Check your email for the login link.</strong><br><small>Note: University email may take 2-3 minutes to arrive.</small>';
                 
             } catch (error) {
                 messageBox.style.display = 'block';

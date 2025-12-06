@@ -347,14 +347,14 @@ def mobile_auth_send_link(request):
     
     # Create token (9 bytes → 12 characters)
     token = secrets.token_urlsafe(9)
+    
+    validity_minutes = 30
     MobileAuthToken.objects.create(
         user=user,
         token=token,
-        expires_at=timezone.now() + timedelta(minutes=15)
+        expires_at=timezone.now() + timedelta(minutes=validity_minutes)
     )
-    
-    # Build magic link
-    magic_url = request.build_absolute_uri(reverse('exercises:mobile_magic_login', args=[token]))
+    magic_url = request.build_absolute_uri(reverse('mobile_magic_login', args=[token]))
     
     # Send email
     try:
@@ -362,7 +362,7 @@ def mobile_auth_send_link(request):
         message = render_to_string('exercises/mobile/magic_link_email.txt', {
             'user': user,
             'magic_url': magic_url,
-            'expires_minutes': 15,
+            'expires_minutes': validity_minutes,
         })
         
         logger.info(f"Sending magic link email to {email}")
@@ -405,7 +405,7 @@ def mobile_magic_login(request, token):
     if not auth_token:
         # If token is invalid but user is already logged in, just redirect to dashboard
         if request.user.is_authenticated:
-            return redirect(reverse('exercises:mobile_dashboard'))
+            return redirect('exercises:mobile_dashboard')
         return HttpResponse('Invalid or expired login link', status=403)
     
     # Mark token as used

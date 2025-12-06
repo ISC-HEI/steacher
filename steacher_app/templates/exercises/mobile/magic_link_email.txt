@@ -6,7 +6,7 @@ Click the link below to log in:
 
 {{ magic_url }}
 
-This link will expire in {{ expires_minutes }} minutes.
+This link will expire in {{ expires_minutes }} minutes. It can only be used once.
 
 If you didn't request this, you can safely ignore this email.
 

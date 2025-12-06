@@ -20,12 +20,15 @@ from django.contrib.auth import views as auth_views
 from django.urls import reverse_lazy
 from exercises import urls as exercises_urls
 from exercises.views_students import register
+from exercises.views_mobile import mobile_magic_login
 from django.conf import settings
 from django.conf.urls.static import static
 from .views import home
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    # Mobile magic link (short URL at root level)
+    path('reg/<str:token>', mobile_magic_login, name='mobile_magic_login'),
     path('accounts/register/', register, name='register'),
     # Override password reset confirm to redirect to home/dashboard after success
     path(
