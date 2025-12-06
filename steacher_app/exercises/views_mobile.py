@@ -58,9 +58,13 @@ def mobile_dashboard(request):
         ).values_list('cohort__course', flat=True)
     )
     
-    # Recent 5 exercises
+    # Recent 5 exercises (open_question only)
     recent_attempts = (
-        Attempt.objects.filter(user=request.user, exercise__module__course__id__in=course_ids)
+        Attempt.objects.filter(
+            user=request.user,
+            exercise__module__course__id__in=course_ids,
+            exercise__exercise_type='open_question'
+        )
         .select_related('exercise__module__course')
         .order_by('-updated_at')[:5]
     )

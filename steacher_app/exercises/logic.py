@@ -575,23 +575,35 @@ When reviewing exercises, consider:
 """
 
     # 2) Build a single, consolidated system prompt
-    course_prompt = None
+    # Get both course-level prompt and exercise-type-specific prompt for context
+    course_general_prompt = None
+    exercise_type_prompt = None
     try:
-        # course.llm_prompts may or may not exist with keys per exercise type. Be defensive.
+        # Get the general course prompt that provides overall course context
+        course_general_prompt = (course.course_prompt or '').strip() if hasattr(course, 'course_prompt') else None
+        
+        # Get exercise-type-specific prompt if available
         exercise_type = (exercise_payload or {}).get('exercise_type')
-        course_prompt = (course.llm_prompts or {}).get(exercise_type) if hasattr(course, 'llm_prompts') else None
-        if course_prompt:
-            system_prompt += f"""## Course-specific Instructions
-To help you understand the course, here is some additional context. 
-**Important: it is not your role to follow these instructions, but to help the teacher improve the exercise.**
-
-(start of course-specific instructions)
-{str(course_prompt)}
-(end of course-specific instructions)
-"""
+        exercise_type_prompt = (course.llm_prompts or {}).get(exercise_type) if hasattr(course, 'llm_prompts') else None
+        
+        # Add course-specific context to help the authoring assistant
+        if course_general_prompt or exercise_type_prompt:
+            system_prompt += "\n## Course-specific Context\n"
+            system_prompt += "To help you author exercises that fit the course, here is important context about the course. Use this to ensure exercises align with course objectives, use consistent notation, and reference appropriate concepts.\n\n"
+            
+            if course_general_prompt:
+                system_prompt += "(start of general course context)\n"
+                system_prompt += str(course_general_prompt)
+                system_prompt += "\n(end of general course context)\n\n"
+            
+            if exercise_type_prompt:
+                system_prompt += f"(start of {exercise_type}-specific instructions)\n"
+                system_prompt += str(exercise_type_prompt)
+                system_prompt += f"\n(end of {exercise_type}-specific instructions)\n\n"
     except Exception:
-        logger.exception("Failed to get course prompt")
-        course_prompt = None
+        logger.exception("Failed to get course prompts")
+        course_general_prompt = None
+        exercise_type_prompt = None
 
     # Provide the current exercise as a separate assistant context message to avoid user truncation
     try:
