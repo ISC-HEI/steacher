@@ -51,6 +51,9 @@ const MobileChatComponent = defineComponent({
     computed: {
         renderedQuestion(): string {
             return renderMarkdown(this.exerciseQuestion, true);
+        },
+        messagesContainerStyle(): { paddingBottom: string } {
+            return { paddingBottom: `${this.inputContainerHeight + 16}px` };
         }
     },
     data() {
@@ -96,10 +99,30 @@ const MobileChatComponent = defineComponent({
             cropperImageSrc: '',
             fullScreenImage: null as string | null,
             isZoomed: false,
+            textareaHeight: 36,
+            inputContainerHeight: 100,
         };
+    },
+    watch: {
+        messageText() {
+            this.autoResizeTextarea();
+        },
+        textareaHeight() {
+            this.updateInputContainerHeight();
+        },
+        pendingImages() {
+            this.updateInputContainerHeight();
+        },
+        isRecording() {
+            this.updateInputContainerHeight();
+        },
+        isTranscribing() {
+            this.updateInputContainerHeight();
+        },
     },
     mounted() {
         console.log('[MobileChat] Component mounted');
+        this.updateInputContainerHeight();
         this.scrollToBottom();
     },
     unmounted() {
@@ -112,15 +135,17 @@ const MobileChatComponent = defineComponent({
         }
     },
     methods: {
-        updateSendButton() {
-            // Logic handled by reactive binding in template
-            this.autoResizeTextarea();
-        },
-        
         autoResizeTextarea() {
             this.$nextTick(() => {
                 const textarea = this.$refs.messageInput as HTMLTextAreaElement;
                 if (!textarea) return;
+                
+                // If empty, reset to minimum height
+                if (!this.messageText.trim()) {
+                    textarea.style.height = '36px';
+                    this.textareaHeight = 36;
+                    return;
+                }
                 
                 // Reset height to auto to get the correct scrollHeight
                 textarea.style.height = 'auto';
@@ -128,6 +153,18 @@ const MobileChatComponent = defineComponent({
                 // Set height based on scrollHeight, respecting max-height from CSS
                 const newHeight = Math.min(textarea.scrollHeight, 120);
                 textarea.style.height = newHeight + 'px';
+                
+                // Update reactive height tracker
+                this.textareaHeight = newHeight;
+            });
+        },
+        
+        updateInputContainerHeight() {
+            this.$nextTick(() => {
+                const inputContainer = document.querySelector('.mobile-chat-input-container') as HTMLElement;
+                if (!inputContainer) return;
+                
+                this.inputContainerHeight = inputContainer.offsetHeight;
             });
         },
         
@@ -380,6 +417,7 @@ const MobileChatComponent = defineComponent({
             // Clear input state
             this.messageText = '';
             this.pendingImages = [];
+            this.autoResizeTextarea();
             
             // Show loading
             this.isLoading = true;

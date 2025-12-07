@@ -352,15 +352,21 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
                 try:
                     trace_image_obj = TraceImage.objects.get(upload_token=token)
                     if trace_image_obj.image:
+                        # Get image bytes and check size before creating Part
+                        image_data = trace_image_obj.image_bytes
+                        image_size = len(image_data)
+                        
+                        # enforce max size of 10MB for each image, should be enough for most smartphones
+                        if image_size > IMAGE_MAX_SIZE:
+                            logger.warning(f"Image {token} is too large ({image_size / 1024 / 1024:.2f}MB), skipping")
+                            # TODO bubble up the error to the student
+                            continue
+                        
                         # create a Part from the binary image data
                         image_part = genai.types.Part.from_bytes(
-                            data=trace_image_obj.image_bytes,
+                            data=image_data,
                             mime_type=trace_image_obj.image_type or 'image/jpeg'
                         )
-                        # enforce max size of 10MB for each image, should be enough for most smartphones
-                        if image_part.size > IMAGE_MAX_SIZE:
-                            logger.warning(f"Image {token} is too large ({image_part.size / 1024 / 1024:.2f}MB), skipping")
-                            continue
                         user_complete_input.append(image_part) # add to the user's message
                         trace_image_objects.append(trace_image_obj) # keep reference for later trace linking
                 except TraceImage.DoesNotExist:

@@ -24,9 +24,9 @@
 {% endblock %}
 
 {% block content %}
-<div id="mobile-exercise-app" v-cloak style="display: flex; flex-direction: column; height: 100%;">
+<div id="mobile-exercise-app" v-cloak style="height: 100%; position: relative;">
     <!-- Chat Messages -->
-    <div class="mobile-chat-messages" ref="messagesContainer" @click="handleImageClick" style="flex: 1; overflow-y: auto; padding-bottom: 16px;">
+    <div class="mobile-chat-messages" ref="messagesContainer" @click="handleImageClick" :style="messagesContainerStyle">
         <!-- Exercise Question -->
         {% if exercise_json.question %}
         <div class="mobile-exercise-question" v-html="renderedQuestion">
@@ -82,7 +82,7 @@
     </div>
 
     <!-- Input Area -->
-    <div class="mobile-chat-input-container" style="flex-shrink: 0;">
+    <div class="mobile-chat-input-container">
         <!-- Image Thumbnails -->
         <div class="mobile-chat-images" v-if="pendingImages.length > 0">
             <div v-for="img in pendingImages" :key="img.id" class="mobile-chat-image-thumb">
@@ -124,7 +124,6 @@
                 ref="messageInput"
                 class="mobile-chat-input-field" 
                 v-model="messageText"
-                @input="updateSendButton"
                 @keydown.enter.exact.prevent="sendMessage"
                 :disabled="isTranscribing"
                 placeholder="Type your answer..."

@@ -146,6 +146,17 @@
     </footer>
     
     <script>
+        // Localhost visual indicator
+        (function() {
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                console.log('Detected localhost, changing navbar color');
+                const navbar = document.querySelector('.navbar');
+                if (navbar) {
+                    navbar.style.setProperty('border', '1px solid #ffeb3b', 'important');
+                }
+            }
+        })();
+
         // Auto-redirect mobile devices to mobile view
         (function() {
             const isMobile = /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(navigator.userAgent);
