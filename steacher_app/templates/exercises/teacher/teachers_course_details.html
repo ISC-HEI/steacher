@@ -31,6 +31,10 @@
                 <span class="icon"><i class="fas fa-plus"></i></span>
                 <span>Add module</span>
             </button>
+            <button class="button is-light" @click="setShowImportModal(true)">
+                <span class="icon"><i class="fas fa-upload"></i></span>
+                <span>Import module</span>
+            </button>
             <a class="button is-light ml-4" href="{% url 'exercises:course_detail' pk=course.pk %}">
                 <span class="icon"><i class="fas fa-user-graduate"></i></span>
                 <span>View as student</span>
@@ -73,6 +77,11 @@
                     <button class="button is-small is-primary">
                         <span class="icon"><i class="fas fa-plus"></i></span>
                         <span>Add exercise</span>
+                    </button>
+                </a>
+                <a class="card-header-icon" aria-label="export module" href="{% url 'teachers:export_module' module_id=module.pk %}" title="Export this module as JSON">
+                    <button class="button is-small is-light">
+                        <span class="icon"><i class="fas fa-download"></i></span>
                     </button>
                 </a>
                 <button class="card-header-icon" aria-label="more options" data-action="toggle-module" @click="toggleModuleExpanded('{{ module.pk }}')">
@@ -151,6 +160,53 @@
             </a>
         </div>
     </div>
+
+    <!-- Import Module Modal -->
+    <div class="modal" :class="{ 'is-active': showImportModal }">
+        <div class="modal-background" @click="setShowImportModal(false)"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Import Module</p>
+                <button class="delete" aria-label="close" @click="setShowImportModal(false)"></button>
+            </header>
+            <section class="modal-card-body">
+                <div class="content">
+                    <p>Select a JSON file exported from another course or Steacher instance.</p>
+                    <div class="file has-name is-fullwidth">
+                        <label class="file-label">
+                            <input class="file-input" type="file" accept=".json" @change="handleFileSelect" ref="fileInput">
+                            <span class="file-cta">
+                                <span class="icon">
+                                    <i class="fas fa-upload"></i>
+                                </span>
+                                <span class="file-label">
+                                    Choose file…
+                                </span>
+                            </span>
+                            <span class="file-name" v-text="selectedFileName || 'No file selected'"></span>
+                        </label>
+                    </div>
+                    <div v-if="importError" class="notification is-danger mt-3">
+                        <button class="delete" @click="importError = null"></button>
+                        {{ importError }}
+                    </div>
+                    <div v-if="importSuccess" class="notification is-success mt-3">
+                        <button class="delete" @click="importSuccess = null"></button>
+                        {{ importSuccess }}
+                    </div>
+                </div>
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button is-success" @click="submitImport" :disabled="!selectedFile || importing">
+                    <span class="icon" v-if="importing">
+                        <i class="fas fa-spinner fa-pulse"></i>
+                    </span>
+                    <span>Import</span>
+                </button>
+                <button class="button" @click="setShowImportModal(false)">Cancel</button>
+            </footer>
+        </div>
+    </div>
 </div>
 </div>
 {% endblock %}
@@ -160,7 +216,10 @@
 <script type="importmap">
 {
   "imports": {
-    "vue": "https://cdn.jsdelivr.net/npm/vue@3.4.27/dist/vue.esm-browser.js"
+    "vue": "https://cdn.jsdelivr.net/npm/vue@3.4.27/dist/vue.esm-browser.js",
+    "marked": "https://cdn.jsdelivr.net/npm/marked@16.0.0/lib/marked.esm.js",
+    "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs",
+    "katex": "https://cdn.jsdelivr.net/npm/katex@0.16.25/dist/katex.mjs"
   }
 }
 </script>

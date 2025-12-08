@@ -11,7 +11,7 @@
     <div class="box" style="background: #3a3a3a; color: white; margin-bottom: 16px;">
         <h3 style="margin-top: 0; font-size: 14px; opacity: 0.9;">Continue where you left off</h3>
         <p style="font-size: 18px; font-weight: 600; margin: 8px 0;">{{ last_exercise.localized_title|default:last_exercise.title }}</p>
-        <a href="{% url 'exercises:mobile_exercise' last_exercise.id %}" class="button" style="margin-top: 12px; background: #48c774; color: white; border: none;">
+        <a href="{% url 'mobile:mobile_exercise' last_exercise.id %}" class="button" style="margin-top: 12px; background: #48c774; color: white; border: none;">
             <span class="icon"><i class="fas fa-play"></i></span>
             <span>Resume exercise</span>
         </a>
@@ -21,7 +21,7 @@
     {% if recent_exercises %}
     <h2 class="mobile-section-title">Recent exercises</h2>
     {% for exercise in recent_exercises %}
-    <a href="{% url 'exercises:mobile_exercise' exercise.id %}" class="mobile-list-item">
+    <a href="{% url 'mobile:mobile_exercise' exercise.id %}" class="mobile-list-item">
         <div class="mobile-list-item-icon {% if exercise.is_complete %}completed{% endif %}">
             {% if exercise.is_complete %}
                 <i class="fas fa-check"></i>
@@ -65,7 +65,7 @@
                     </button>
                     <div class="mobile-accordion-content" id="module-{{ module_item.module.id }}">
                         {% for exercise in module_item.exercises %}
-                        <a href="{% url 'exercises:mobile_exercise' exercise.id %}" class="mobile-list-item">
+                        <a href="{% url 'mobile:mobile_exercise' exercise.id %}" class="mobile-list-item">
                             <div class="mobile-list-item-icon {% if exercise.is_complete %}completed{% endif %}">
                                 {% if exercise.is_complete %}
                                     <i class="fas fa-check"></i>

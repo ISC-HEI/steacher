@@ -1,5 +1,140 @@
-from typing import Optional, List, Dict, Any
+import json
+import logging
+import re
+
+from typing import Optional, List, Any
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
+
+
+def strip_markdown_fences(content: str) -> str:
+    """Removes Markdown code fences (e.g., ```json) from a string."""
+    content = content.strip()
+    if content.startswith("```"):
+        # Find the first newline
+        first_newline = content.find('\n')
+        if first_newline != -1:
+            content = content[first_newline + 1:]
+        else:  # Should not happen with valid markdown but handle it
+            content = content.lstrip('`')
+
+    if content.endswith("```"):
+        content = content[:-3].strip()
+    return content
+
+
+class TutorResponse(BaseModel):  # used for structured output validation with Gemini API.
+    """
+    Response from AI tutor (exercise guidance or study chat). For example, 
+```json
+{
+  "transcript" : "$y = x - 8$\\n$y = 3x + 1$\\n$x - 8 = 3x + 1$\\n$-2x = 9$\\n$x = 4.5$\\n$y = x - 8 = 4.5 - 8 = 3.5$",
+  "error_desc" : "The exercise description asks to solve for y = x + 8",
+  "guidance_text" : "You should check again your signs in the first equation.",
+}
+```
+    """
+    transcript: Optional[str] = Field(
+        default="",
+        description="A complete LaTeX retranscription of the student worksheet picture (if provided). Must be written in valid LaTeX format. A complete LaTeX retranscription of the student worksheet picture that you received, **this must be written in valid LaTeX format**. Include the student's paging, line breaks, etc. Illustrations and graphs should be replaced by a short description of their content. In case you didn't receive an image, simply leave this field empty. The content of this field is not shown to the student. For teacher debugging only."
+    )
+    error_desc: Optional[str] = Field(
+        default="",
+        description="A concise description of the mistakes made by the student that you spotted. For teacher debugging only."
+    )
+    guidance_text: str = Field(
+        description="The guidance text to help the student with their exercise. This is the only field shown to the student."
+    )    
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary format matching existing assistant_content structure in Trace model."""
+        return {
+            "guidance_text": self.guidance_text,
+            "error_desc": self.error_desc or "",
+            "transcript": self.transcript or "",
+        }
+
+    @staticmethod
+    def output_format() -> str:
+        """Return the output format as a string."""
+        return f"""
+You will return your guidance in a json structured format with the following fields:
+
+"transcript" :
+- In a single string.
+- A complete LaTeX retranscription of the student worksheet picture that you received, **this must be written in valid LaTeX format**.
+- You will include the student's paging, line breaks, etc.
+- Illustrations and graphs will be replaced by a short description of their content.
+
+"error_desc" :
+- In a single string.
+- A concise description of the mistakes made by the student that you spotted.
+
+"guidance_text" :
+- In a single string.
+- The guidance text to help the student with his exercise.
+- This is the only field that will be showed to the student.
+"""
+
+    @classmethod
+    def from_gemini_response(cls, response: Any) -> 'TutorResponse':
+        """
+        Factory method to create a TutorResponse from a Google GenAI response object.
+        Prioritizes strict JSON parsing (response.parsed) but falls back to text parsing.
+        """
+        # 1. Try the SDK's automatic parsing (if available and successful)
+        if hasattr(response, 'parsed') and response.parsed:
+            try:
+                if isinstance(response.parsed, cls):
+                    return response.parsed
+                if isinstance(response.parsed, dict):
+                    return cls(**response.parsed)
+            except Exception as e:
+                logger.warning(f"response.parsed present but validation failed: {e}")
+
+        # 2. Fallback: Parse the raw text manually
+        # Handle cases where response.text might be None
+        raw_text = getattr(response, 'text', '') or ''
+        return cls.parse_text(raw_text)
+
+    @staticmethod
+    def parse_text(text_out: str) -> 'TutorResponse':
+        """Parses a raw string (with potential Markdown fences) into TutorResponse."""
+        if not text_out:
+            return TutorResponse(guidance_text="")
+
+        try:    
+            # Remove markdown code fences
+            text_out = strip_markdown_fences(text_out)
+
+            # Attempt clean JSON parse
+            try:
+                loaded_response = json.loads(text_out)
+                return TutorResponse(**loaded_response)
+            except Exception as e:
+                logger.warning(f"Failed to load response as JSON: {e}. Falling back to Regex.")
+                
+            # Regex Fallbacks (try to extract a key field from the text and match until the next key or the end of the text is reached)
+            guidance_match = re.search(r'guidance[_ ]text:\s*(.*?)(?:transcript:|error[_ ]description:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            transcript_match = re.search(r'transcript:\s*(.*?)(?:guidance[_ ]text:|error[_ ]description:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            error_desc_match = re.search(r'error[_ ]description:\s*(.*?)(?:guidance[_ ]text:|transcript:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            
+            if guidance_match:
+                loaded_response = {
+                    "guidance_text": guidance_match.group(1).strip(),
+                    "transcript": transcript_match.group(1).strip() if transcript_match else "",
+                    "error_desc": error_desc_match.group(1).strip() if error_desc_match else "",
+                }
+            else:
+                # Last resort: treat whole text as guidance
+                loaded_response = {"guidance_text": text_out}
+
+            return TutorResponse(**loaded_response)
+
+        except Exception as e:
+            logger.exception(f"Error parsing TutorResponse from text: {e}")
+            return TutorResponse(guidance_text=text_out)
 
 
 class TestCase(BaseModel):

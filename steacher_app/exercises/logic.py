@@ -4,7 +4,7 @@ import time
 from django.conf import settings
 from .models import Trace, TraceImage, Exercise, Attempt, Course, create_trace_for, localized_name
 from django.contrib.contenttypes.models import ContentType
-from .schemas import ExerciseData, AnswerData, get_pydantic_schema_as_string
+from .schemas import ExerciseData, AnswerData, TutorResponse, get_pydantic_schema_as_string, strip_markdown_fences
 import logging
 import math
 from statistics import mean, pstdev
@@ -17,9 +17,12 @@ client = openai.OpenAI(api_key=settings.GEMINI_API_KEY, base_url="https://genera
 gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 logger = logging.getLogger(__name__)
+
 MODEL_FAST = "gemini-2.5-flash"
 MODEL_PRO = "gemini-2.5-pro"
 MODEL_LATEST = "gemini-3-pro-preview"  # TODO: thorough test before production use
+
+IMAGE_MAX_SIZE = 10 * 1024 * 1024  # 10MB
 
 def _compute_uncertainty_from_logprobs(resp, first_k: int = 10, threshold_nll_nats: float = 4.8) -> dict:
     """
@@ -152,20 +155,6 @@ def _compute_uncertainty_from_logprobs(resp, first_k: int = 10, threshold_nll_na
         return {}
 
 
-def _strip_markdown_fences(content: str) -> str:
-    """Removes Markdown code fences (e.g., ```json) from a string."""
-    content = content.strip()
-    if content.startswith("```"):
-        # Find the first newline
-        first_newline = content.find('\n')
-        if first_newline != -1:
-            content = content[first_newline + 1:]
-        else: # Should not happen with valid markdown but handle it
-            content = content.lstrip('`')
-
-    if content.endswith("```"):
-        content = content[:-3].strip()
-    return content
 
 
 def _extract_thoughts_from_response(gen_response) -> list[str]:
@@ -253,7 +242,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         if not user_display_content:
             user_display_content = data.get('code', '')
 
-        # NEW: Run unit tests if available
+        # Run unit tests if available
         if exercise.exercise_type == 'python':
             unit_tests = exercise.answer_data_obj.unit_tests
             if unit_tests and unit_tests.test_cases:
@@ -318,9 +307,6 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         user_prompt_content += f"Output:\n```\n{data.get('output')}\n```"
 
    
-    #else: FIXME
-    #    raise ValueError(f"Invalid action: {action}")
-
     # 2. Fetch conversation history (Trace-based)
     # Use reverse GenericRelation for clarity and performance
     existing_traces = attempt.traces.all().order_by('rank_order', 'id')
@@ -328,7 +314,6 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     # 3. Render system prompt via template
     from .prompting import build_system_prompt
     prompt = build_system_prompt(action=action, exercise=exercise, attempt=attempt)
-    print(f"type(prompt): {type(prompt)}")
     logger.debug(f"System prompt:\n{prompt}")
 
     # 4. Use structured chat with history via Google genai Chats API
@@ -347,6 +332,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         chat_config = GenerateContentConfig(
             system_instruction=prompt,
             response_mime_type="application/json",
+            response_json_schema=TutorResponse.model_json_schema(),  # Backend enforces schema conformance via guided generation + validation (not pure constrained decoding)
             temperature=_temp,
             #FIXME: not working ATM response_logprobs=True, logprobs=5,
             thinking_config=genai.types.ThinkingConfig(include_thoughts=True), # capture thoughts for the assistant_metadata
@@ -362,13 +348,23 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         # Add uploaded images if present
         image_tokens = data.get('image_tokens', [])
         if image_tokens:
-            for token in image_tokens:
+            for token in image_tokens[:3]: # limit to 3 images for now
                 try:
                     trace_image_obj = TraceImage.objects.get(upload_token=token)
                     if trace_image_obj.image:
-                        # Create a Part from the binary image data
+                        # Get image bytes and check size before creating Part
+                        image_data = trace_image_obj.image_bytes
+                        image_size = len(image_data)
+                        
+                        # enforce max size of 10MB for each image, should be enough for most smartphones
+                        if image_size > IMAGE_MAX_SIZE:
+                            logger.warning(f"Image {token} is too large ({image_size / 1024 / 1024:.2f}MB), skipping")
+                            # TODO bubble up the error to the student
+                            continue
+                        
+                        # create a Part from the binary image data
                         image_part = genai.types.Part.from_bytes(
-                            data=trace_image_obj.image_bytes,
+                            data=image_data,
                             mime_type=trace_image_obj.image_type or 'image/jpeg'
                         )
                         user_complete_input.append(image_part) # add to the user's message
@@ -379,64 +375,36 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
                     logger.error(f"Failed to load image with token {token}: {e}")
 
         gen_response = chat_session.send_message(user_complete_input)
-        print("gen_response: ", gen_response)
-
-        text_out = (gen_response.text or '').strip()
-
-        # Remove markdown code fences before parsing JSON
-        text_out = _strip_markdown_fences(text_out)
-        print("text_out: ", text_out)
-
-        # loaded response from LLM
-        try:
-            # If the response is valid JSON, we are good
-            loaded_response = json.loads(text_out)
-        except Exception as e:
-            # Fallback: if not JSON, assume it is the raw guidance text or contains the fields in text format
-            logger.warning(f"Failed to load response as JSON: {e}. Trying to extract fields from text.")
-            import re
-            
-            # Try to extract fields with regex if they appear in text format
-            guidance_match = re.search(r'Guidance Text:\s*(.*?)(?:Transcript:|Error Description:|$)', text_out, re.DOTALL | re.IGNORECASE)
-            transcript_match = re.search(r'Transcript:\s*(.*?)(?:Guidance Text:|Error Description:|$)', text_out, re.DOTALL | re.IGNORECASE)
-            error_desc_match = re.search(r'Error Description:\s*(.*?)(?:Guidance Text:|Transcript:|$)', text_out, re.DOTALL | re.IGNORECASE)
-            
-            if guidance_match:
-                loaded_response = {
-                    "guidance_text": guidance_match.group(1).strip(),
-                    "transcript": transcript_match.group(1).strip() if transcript_match else "",
-                    "error_desc": error_desc_match.group(1).strip() if error_desc_match else ""
-                }
-            else:
-                # Last resort: treat the whole text as guidance
-                loaded_response = {"guidance_text": text_out}
-
-        
-        print("loaded_response: ", loaded_response)
-        guidance_text = loaded_response.get("guidance_text", "")
+        tutor_response = TutorResponse.from_gemini_response(gen_response)
+        loaded_response: dict = tutor_response.to_dict()
+        guidance_text: str = tutor_response.guidance_text
 
     except Exception as e:
         logger.error(f"Gemini generate_content failed for exercise {exercise.id}: {e}")
         # As a fallback, return a graceful error-style message
         gen_response = None
+        tutor_response = TutorResponse(guidance_text="I'm sorry, I couldn't process your request right now. Please try again.", error_desc=str(e), transcript="")
+        loaded_response: dict = tutor_response.to_dict()
+        guidance_text: str = loaded_response["guidance_text"]
     llm_duration = time.time() - llm_start_time
     logger.info(f"LLM call for exercise {exercise.id} took {llm_duration:.2f} seconds.")
 
     # 6. Extract answer and thoughts
+    tutor_answer: str = '' # the answer to be shown to the student
     if gen_response is None:
-        answer = "I'm sorry, I couldn't process your request right now. Please try again."
+        tutor_answer = "I'm sorry, I couldn't process your request right now. Please try again."
         thoughts = []
     else:
         try:
-            answer = guidance_text
+            tutor_answer = guidance_text
         except Exception:
-            answer = ''
+            tutor_answer = ''
         thoughts = _extract_thoughts_from_response(gen_response)
 
     # 7.a. Detect completion/reveal tags and mark attempt accordingly
     try:
-        has_completed_tag = "<exercise_completed>" in answer
-        has_solution_revealed_tag = "<solution_revealed>" in answer
+        has_completed_tag = "<exercise_completed>" in tutor_answer
+        has_solution_revealed_tag = "<solution_revealed>" in tutor_answer
 
         fields_to_update = []
         if has_completed_tag and not attempt.complete:
@@ -468,7 +436,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         },
         "llm_response": {
             "role": "assistant",
-            "content": answer,
+            "content": tutor_answer,
             "metadata": {
                 "model": getattr(gen_response, 'model_version', MODEL_FAST), 
                 "usage": {
@@ -524,7 +492,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         'images': [{'image_token': img.upload_token} for img in trace_image_objects]
     }
     response_data = {
-        'guidance': answer,
+        'guidance': tutor_answer,
         'user_submission': user_submission_with_images,
         'assistant_trace_id': created_trace.id,
         'thoughts': thoughts if thoughts else None,  # Will be filtered by view for non-teachers
@@ -584,6 +552,8 @@ Your goal is to help a teacher create or improve an exercise. The current state 
 
 If you are not sure about the exercise or how to improve it, ask the teacher for clarification (this is a conversation, so ask for clarification if needed). Else try to improve the exercise and return the updated exercise. For example, you may write better hints, improve the exercise data, add more test cases, etc.
 
+**IMPORTANT: Always write code examples in English.** Use English variable names, function names, comments, and string literals in all code. Even if the exercise is in French or German, the code itself must use English. For example, if an exercise is about fruits, use 'apple' not 'pomme', use 'count' not 'nombre', etc. This ensures consistency and makes code correction easier.
+
 Please adhere to the following JSON structure for the 'updated_exercise' Exercise object you return. **Do not invent new fields that are not defined in the schema below.**
 
 {get_pydantic_schema_as_string()}
@@ -611,23 +581,35 @@ When reviewing exercises, consider:
 """
 
     # 2) Build a single, consolidated system prompt
-    course_prompt = None
+    # Get both course-level prompt and exercise-type-specific prompt for context
+    course_general_prompt = None
+    exercise_type_prompt = None
     try:
-        # course.llm_prompts may or may not exist with keys per exercise type. Be defensive.
+        # Get the general course prompt that provides overall course context
+        course_general_prompt = (course.course_prompt or '').strip() if hasattr(course, 'course_prompt') else None
+        
+        # Get exercise-type-specific prompt if available
         exercise_type = (exercise_payload or {}).get('exercise_type')
-        course_prompt = (course.llm_prompts or {}).get(exercise_type) if hasattr(course, 'llm_prompts') else None
-        if course_prompt:
-            system_prompt += f"""## Course-specific Instructions
-To help you understand the course, here is some additional context. 
-**Important: it is not your role to follow these instructions, but to help the teacher improve the exercise.**
-
-(start of course-specific instructions)
-{str(course_prompt)}
-(end of course-specific instructions)
-"""
+        exercise_type_prompt = (course.llm_prompts or {}).get(exercise_type) if hasattr(course, 'llm_prompts') else None
+        
+        # Add course-specific context to help the authoring assistant
+        if course_general_prompt or exercise_type_prompt:
+            system_prompt += "\n## Course-specific Context\n"
+            system_prompt += "To help you author exercises that fit the course, here is important context about the course. Use this to ensure exercises align with course objectives, use consistent notation, and reference appropriate concepts.\n\n"
+            
+            if course_general_prompt:
+                system_prompt += "(start of general course context)\n"
+                system_prompt += str(course_general_prompt)
+                system_prompt += "\n(end of general course context)\n\n"
+            
+            if exercise_type_prompt:
+                system_prompt += f"(start of {exercise_type}-specific instructions)\n"
+                system_prompt += str(exercise_type_prompt)
+                system_prompt += f"\n(end of {exercise_type}-specific instructions)\n\n"
     except Exception:
-        logger.exception("Failed to get course prompt")
-        course_prompt = None
+        logger.exception("Failed to get course prompts")
+        course_general_prompt = None
+        exercise_type_prompt = None
 
     # Provide the current exercise as a separate assistant context message to avoid user truncation
     try:
@@ -683,7 +665,7 @@ Here is the current state of the exercise you are helping the teacher with:
 
     if mode == 'edit':
         # Strip accidental Markdown code fencing if any
-        content = _strip_markdown_fences(content)
+        content = strip_markdown_fences(content)
 
         # 4) Parse JSON response
         def _looks_like_exercise(obj: dict) -> bool:
@@ -773,6 +755,8 @@ def generate_i18n_translations(*, source_lang: str, targets: list, fields: dict,
     system_prompt = (
         "You are a translation engine. Translate ONLY the provided fields into each of the TARGET languages. "
         "Preserve Markdown and fenced code blocks; do not translate or alter code or placeholders (backticks, triple backticks, {{var}}). "
+        "**IMPORTANT: Keep code examples in English for all translations.** Use English variable names, function names, comments, and string literals in all code. Even if the exercise is in French or German, the code itself must use English. For example, if an exercise is about fruits, use 'apple' not 'pomme', use 'count' not 'nombre', etc. This ensures consistency and makes code correction easier."
+        "If there is some text in brackets (`[`, `]`) in the title, don't translate what is inside the brackets."
         "Do not add commentary.\n\n"
         "Output JSON with this exact shape:\n"
         "{\n  \"translations\": {\n    \"fr\": {\"title\": str?, \"description\": str?, \"question\": str?},\n    \"de\": {\"title\": str?, \"description\": str?, \"question\": str?}\n  }\n}\n"
@@ -804,7 +788,7 @@ def generate_i18n_translations(*, source_lang: str, targets: list, fields: dict,
         response_format={"type": "json_object"},
     )
     content = (completion.choices[0].message.content or '').strip()
-    content = _strip_markdown_fences(content)
+    content = strip_markdown_fences(content)
     try:
         obj = json.loads(content) if content else {}
     except Exception:

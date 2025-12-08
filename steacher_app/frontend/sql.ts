@@ -143,8 +143,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 initialMessages.forEach(msg => chatbotPanel.displayMessage(msg));
             }
 
-            // Initialize database
-            await this.loadDatabase();
+            // Initialize database - defer to next tick to allow UI to render first
+            setTimeout(() => {
+                this.loadDatabase();
+            }, 0);
             
             // Expose for quiz mode auto-submit
             (window as any).submitAnswer = () => this.submitAnswer();

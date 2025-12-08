@@ -4,10 +4,29 @@
 {% block title %}{{ exercise_json.title }} - Steacher{% endblock %}
 {% block header_title %}{{ exercise_json.title|truncatechars:30 }}{% endblock %}
 
+{% block nav_exercise_context %}
+    {% if module %}
+    <a href="{% url 'mobile:mobile_dashboard' %}#module-{{ module.id }}" class="mobile-nav-item">
+        <i class="fas fa-folder"></i> {{ module.name }}
+    </a>
+    {% endif %}
+    {% if prev_exercise %}
+    <a href="{% url 'mobile:mobile_exercise' prev_exercise.id %}" class="mobile-nav-item">
+        <i class="fas fa-chevron-left"></i> Previous Exercise
+    </a>
+    {% endif %}
+    {% if next_exercise %}
+    <a href="{% url 'mobile:mobile_exercise' next_exercise.id %}" class="mobile-nav-item">
+        <i class="fas fa-chevron-right"></i> Next Exercise
+    </a>
+    {% endif %}
+    <hr class="mobile-nav-divider">
+{% endblock %}
+
 {% block content %}
-<div id="mobile-exercise-app" v-cloak style="display: flex; flex-direction: column; height: 100%;">
+<div id="mobile-exercise-app" v-cloak style="height: 100%; position: relative;">
     <!-- Chat Messages -->
-    <div class="mobile-chat-messages" ref="messagesContainer" @click="handleImageClick" style="flex: 1; overflow-y: auto; padding-bottom: 16px;">
+    <div class="mobile-chat-messages" ref="messagesContainer" @click="handleImageClick" :style="messagesContainerStyle">
         <!-- Exercise Question -->
         {% if exercise_json.question %}
         <div class="mobile-exercise-question" v-html="renderedQuestion">
@@ -63,7 +82,7 @@
     </div>
 
     <!-- Input Area -->
-    <div class="mobile-chat-input-container" style="flex-shrink: 0;">
+    <div class="mobile-chat-input-container">
         <!-- Image Thumbnails -->
         <div class="mobile-chat-images" v-if="pendingImages.length > 0">
             <div v-for="img in pendingImages" :key="img.id" class="mobile-chat-image-thumb">
@@ -105,7 +124,6 @@
                 ref="messageInput"
                 class="mobile-chat-input-field" 
                 v-model="messageText"
-                @input="updateSendButton"
                 @keydown.enter.exact.prevent="sendMessage"
                 :disabled="isTranscribing"
                 placeholder="Type your answer..."
@@ -120,7 +138,7 @@
     </div>
 
     <!-- Hidden file input for camera -->
-    <input type="file" ref="cameraInput" accept="image/*" capture="environment" @change="handleCameraCapture" style="display: none;">
+    <input type="file" ref="cameraInput" accept="image/*" @change="handleCameraCapture" style="display: none;">
 
     <!-- Cropper Modal -->
     <div v-if="showCropper" class="modal is-active" style="z-index: 9999;">

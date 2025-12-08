@@ -149,6 +149,75 @@ The first email may still be slower due to:
 
 Subsequent emails will be much faster as connections are reused.
 
+### University emails taking 1-2 minutes
+
+**This is completely normal and expected** for university mail servers, even with verified domains.
+
+#### Understanding the Timing
+
+When you send an email to a university address (e.g., HEVS.CH), the total delivery time breaks down as:
+
+1. **Your code → Mailtrap API: < 1 second** ✓ (this is fast and under your control)
+2. **Mailtrap → University mail server: < 1 second** ✓ (also fast)
+3. **University internal processing: 60-120 seconds** ⏱️ (this is the delay you observe)
+
+**Example from actual HEVS.CH delivery:**
+```
+Sent by Mailtrap:  01:00:58 UTC
+Received by HEVS:  01:00:59 UTC  (1 second - excellent!)
+Delivered to inbox: 01:02:13 UTC  (74 seconds of HEVS processing)
+```
+
+#### Why University Mail Servers Take Longer
+
+University mail servers (like HEVS.CH using Microsoft Office 365) perform extensive security processing:
+
+- **SPF/DKIM/DMARC verification** - validates sender authenticity
+- **Multiple spam filtering layers** - machine learning models, content analysis
+- **Antivirus scanning** - checks attachments and embedded content  
+- **Geographic routing** - emails route through multiple Exchange servers
+- **Compliance checks** - university-specific policies and regulations
+- **Mailbox delivery rules** - user-specific filters and forwarding
+
+This processing is **intentional and cannot be bypassed**. Consumer services like Gmail skip many of these steps.
+
+#### What You Should Do
+
+1. **Verify your domain in Mailtrap** (critical for passing authentication)
+   - Go to https://mailtrap.io/domains
+   - Ensure steacher.org shows `✓ Verified` with SPF/DKIM/DMARC
+   - Without verification, delays can be 5-60 minutes instead of 1-2 minutes
+
+2. **Check Mailtrap dashboard** to confirm fast delivery to university servers
+   - Look at Email Logs: https://mailtrap.io/inboxes
+   - Status should show "delivered" within 1-2 seconds
+   - Verify timestamp shows Mailtrap sent immediately
+
+3. **Set user expectations** in your app messaging
+   - Tell students: "Check your email - university mail takes 1-2 minutes"
+   - This is normal, not a bug
+
+#### Typical Delivery Times by Service
+
+| Email Service | Expected Delivery Time |
+|--------------|------------------------|
+| Gmail | 1-10 seconds |
+| Office 365 (personal) | 10-30 seconds |
+| **Office 365 (enterprise like HEVS.CH)** | **60-120 seconds** |
+| Government servers | 2-10 minutes |
+
+**Your 1-2 minute delivery to HEVS.CH is right in the expected range.**
+
+#### When to Investigate
+
+Only investigate if:
+- Mailtrap dashboard shows delays (> 5 seconds to send)
+- Emails are marked as spam or bounced
+- Delivery takes > 5 minutes consistently
+- Domain shows as "not verified" in Mailtrap
+
+Otherwise, accept that university mail processing takes time and is outside your control.
+
 ## Reverting to SMTP
 
 If you need to revert to SMTP, just remove or comment out `MAILTRAP_API_KEY` from your `.env` file:

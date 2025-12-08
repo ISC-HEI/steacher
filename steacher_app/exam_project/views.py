@@ -27,13 +27,13 @@ def home(request):
     # If not authenticated, redirect to appropriate login
     if not request.user.is_authenticated:
         if is_mobile(request):
-            return redirect('exercises:mobile_auth_request_link')
+            return redirect('mobile:mobile_auth_request_link')
         else:
             return redirect('login')
     
     # If authenticated, redirect to appropriate dashboard
     if is_mobile(request):
-        return redirect('exercises:mobile_dashboard')
+        return redirect('mobile:mobile_dashboard')
     else:
         return redirect('exercises:dashboard')
 

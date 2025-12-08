@@ -20,40 +20,51 @@
             </div>
         </div>
 
-        <details>
-            <summary class="mt-6 mb-6 title is-6">Modify Prompts [expert mode]</summary>
-            <div class="box mb-6">
-                <details>
-                    <summary class="mt-5 mb-6 title is-6">View original system prompt (acts as documentation)</summary>
-                    <pre>{{ original_system_prompt|force_escape }}</pre>
-                </details>
+     
 
+        <div class="field">
+            <label class="label">Course Prompt</label>
+            <p class="help">Course-level instructions and context added after the system prompt but before the exercise details.</p>
+            <p class="help">Use this to provide course-specific context, learning objectives, notation preferences, or content summaries that should inform the AI's guidance across all exercises.</p>
+
+            <div class="control">
+                <textarea class="textarea" name="course_prompt" rows="10">{{ initial.course_prompt }}</textarea>
+            </div>
+        </div>
+
+        <div class="field mt-6">
+            <label class="label">LLM Prompts (per exercise type)</label>
+            <p class="help">You may override the default prompt for each specific exercise type.</p>
+            <p class="help">Leave empty to use the default prompt for that exercise type.</p>
+        </div>
+
+        {% for item in llm_type_fields %}
+        <div class="field">
+            <label class="label">{{ item.key }}</label>
+            <div class="control">
+                <textarea class="textarea" name="llm_prompts__{{ item.key }}" rows="10">{{ item.value }}</textarea>
+            </div>
+        </div>
+        {% endfor %}
+
+        <details class="mt-6 mb-6">
+            <summary class="title is-6 has-text-danger">⚠️ System Prompt Override [expert mode - use with caution]</summary>
+            <div class="box mt-4">
                 <div class="field">
                     <label class="label">System Prompt (Overrides default)</label>
                     <p class="help">If set, this replaces the default general tutor prompt for this course's exercises.</p>
-                    <p class="help is-danger">Make sure you use the same syntax as the original system prompt above.</p>
+                    <p class="help is-danger">Make sure you use the same syntax as the original system prompt below.</p>
                     <p class="help is-danger">⚠️ Make sure you test the system prompt with at least one exercise in this course. ⚠️</p>
+
+                    <details>
+                        <summary class="mt-5 mb-6 title is-6">View original system prompt (acts as documentation)</summary>
+                        <pre>{{ original_system_prompt|force_escape }}</pre>
+                    </details>
 
                     <div class="control">
                         <textarea class="textarea" name="system_prompt" rows="14">{{ initial.system_prompt }}</textarea>
                     </div>
-                    
                 </div>
-
-                <div class="field">
-                    <label class="label mt-6">LLM Prompts (per exercise type)</label>
-                    <p class="help">You may override the default prompt for each specific exercise type.</p>
-                    <p class="help">Leave empty to use the default prompt for that exercise type.</p>
-                </div>
-
-                {% for item in llm_type_fields %}
-                <div class="field">
-                    <label class="label">{{ item.key }}</label>
-                    <div class="control">
-                        <textarea class="textarea" name="llm_prompts__{{ item.key }}" rows="10">{{ item.value }}</textarea>
-                    </div>
-                </div>
-                {% endfor %}
             </div>
         </details>
 

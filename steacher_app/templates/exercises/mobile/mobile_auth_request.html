@@ -101,7 +101,7 @@
                 const formData = new FormData();
                 formData.append('email', email);
                 
-                const response = await fetch('{% url "exercises:mobile_auth_send_link" %}', {
+                const response = await fetch('{% url "mobile:mobile_auth_send_link" %}', {
                     method: 'POST',
                     body: formData,
                 });
@@ -114,7 +114,7 @@
                 // Show success message
                 messageBox.style.display = 'block';
                 messageBox.className = 'notification is-success';
-                messageBox.textContent = 'Check your emails for the login link.';
+                messageBox.innerHTML = '<strong>Check your email for the login link.</strong><br><small>Note: University email may take 2-3 minutes to arrive.</small>';
                 
             } catch (error) {
                 messageBox.style.display = 'block';

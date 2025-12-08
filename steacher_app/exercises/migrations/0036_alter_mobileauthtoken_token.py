@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('exercises', '0032_remove_mobileauthtoken_token_type'),
+        ('exercises', '0035_remove_mobileauthtoken_token_type'),
     ]
 
     operations = [

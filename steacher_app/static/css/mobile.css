@@ -13,6 +13,23 @@ html, body {
     padding-right: env(safe-area-inset-right);
 }
 
+/* Code Elements - Light Background */
+code,
+pre,
+pre code,
+pre[class*="language-"],
+code[class*="language-"] {
+    background-color: #f5f5f5 !important;
+    color: #333 !important;
+}
+
+:not(pre) > code {
+    background-color: #f5f5f5 !important;
+    color: #333 !important;
+    padding: 0.15rem 0.35rem;
+    border-radius: 0.25rem;
+}
+
 /* Layout */
 .mobile-container {
     display: flex;
@@ -63,7 +80,6 @@ html, body {
     color: white;
     font-size: 20px;
     padding: 8px;
-    width: 44px;
     flex-shrink: 0;
 }
 
@@ -83,7 +99,6 @@ html, body {
 .mobile-header-actions {
     display: flex;
     gap: 8px;
-    width: 44px;
     flex-shrink: 0;
     justify-content: flex-end;
 }
@@ -192,8 +207,8 @@ html, body {
 .mobile-list-item:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
 
 .mobile-list-item-icon {
-    width: 32px;
-    height: 32px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
     background: transparent;
     border: 1px solid #e0e0e0;
@@ -201,7 +216,7 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-right: 10px;
+    margin-right: 8px;
     font-size: 0;
     flex-shrink: 0;
 }
@@ -226,10 +241,10 @@ html, body {
 
 /* Chat Interface */
 .mobile-chat-messages {
-    flex: 1;
+    height: 100%;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 14px 7px 20px;
+    padding: 14px 7px;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -268,8 +283,10 @@ html, body {
     background: white;
     border-top: 1px solid #e0e0e0;
     flex-shrink: 0;
-    position: sticky;
+    position: fixed;
     bottom: 0;
+    left: 0;
+    right: 0;
     z-index: 10;
 }
 

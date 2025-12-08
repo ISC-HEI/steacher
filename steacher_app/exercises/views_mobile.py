@@ -58,9 +58,13 @@ def mobile_dashboard(request):
         ).values_list('cohort__course', flat=True)
     )
     
-    # Recent 5 exercises
+    # Recent 5 exercises (open_question only)
     recent_attempts = (
-        Attempt.objects.filter(user=request.user, exercise__module__course__id__in=course_ids)
+        Attempt.objects.filter(
+            user=request.user,
+            exercise__module__course__id__in=course_ids,
+            exercise__exercise_type='open_question'
+        )
         .select_related('exercise__module__course')
         .order_by('-updated_at')[:5]
     )
@@ -248,6 +252,13 @@ def mobile_exercise(request, exercise_id):
     logger.info(f"Total messages for Vue: {len(messages_for_vue)}")
     logger.info(f"Messages JSON: {json.dumps(messages_for_vue)[:200]}")
     
+    # Get module and navigation context
+    module = exercise.module
+    module_exercises = list(module.exercises.filter(visible=True).order_by('order'))
+    current_index = next((i for i, ex in enumerate(module_exercises) if ex.id == exercise.id), None)
+    prev_exercise = module_exercises[current_index - 1] if current_index and current_index > 0 else None
+    next_exercise = module_exercises[current_index + 1] if current_index is not None and current_index < len(module_exercises) - 1 else None
+    
     return render(request, 'exercises/mobile/mobile_exercise.html', {
         'exercise': exercise,
         'exercise_json': exercise_json,
@@ -255,7 +266,10 @@ def mobile_exercise(request, exercise_id):
         'attempt_id': attempt.id,
         'interactions': interactions,
         'interactions_json': json.dumps(messages_for_vue),
-        'transcribe_url': reverse('exercises:mobile_voice_transcribe'),
+        'transcribe_url': reverse('mobile:mobile_voice_transcribe'),
+        'module': module,
+        'prev_exercise': prev_exercise,
+        'next_exercise': next_exercise,
     })
 
 
@@ -347,14 +361,14 @@ def mobile_auth_send_link(request):
     
     # Create token (9 bytes → 12 characters)
     token = secrets.token_urlsafe(9)
+    
+    validity_minutes = 30
     MobileAuthToken.objects.create(
         user=user,
         token=token,
-        expires_at=timezone.now() + timedelta(minutes=15)
+        expires_at=timezone.now() + timedelta(minutes=validity_minutes)
     )
-    
-    # Build magic link
-    magic_url = request.build_absolute_uri(reverse('exercises:mobile_magic_login', args=[token]))
+    magic_url = request.build_absolute_uri(reverse('mobile_magic_login', args=[token]))
     
     # Send email
     try:
@@ -362,9 +376,10 @@ def mobile_auth_send_link(request):
         message = render_to_string('exercises/mobile/magic_link_email.txt', {
             'user': user,
             'magic_url': magic_url,
-            'expires_minutes': 15,
+            'expires_minutes': validity_minutes,
         })
         
+        logger.info(f"Sending magic link email to {email}")
         send_mail(
             subject,
             message,
@@ -372,11 +387,21 @@ def mobile_auth_send_link(request):
             [email],
             fail_silently=False,
         )
-    except Exception:
-        logger.exception('Failed to send magic link email')
-        return JsonResponse({'status': 'error', 'message': 'Failed to send email'}, status=500)
+        logger.info(f"Magic link email sent successfully to {email}")
+        
+    except Exception as e:
+        logger.exception(f'Failed to send magic link email to {email}: {e}')
+        # Return success anyway for security (don't reveal if email exists)
+        # But log the error for debugging
+        return JsonResponse({
+            'status': 'success',
+            'message': 'If that email exists, you will receive a login link. Note: Some university email servers may delay delivery by several minutes.'
+        })
     
-    return JsonResponse({'status': 'success', 'message': 'Check your email for the login link.'})
+    return JsonResponse({
+        'status': 'success',
+        'message': 'Check your email for the login link. Note: Some university email servers may delay delivery.'
+    })
 
 
 @csrf_exempt
@@ -394,7 +419,7 @@ def mobile_magic_login(request, token):
     if not auth_token:
         # If token is invalid but user is already logged in, just redirect to dashboard
         if request.user.is_authenticated:
-            return redirect(reverse('exercises:mobile_dashboard'))
+            return redirect('mobile:mobile_dashboard')
         return HttpResponse('Invalid or expired login link', status=403)
     
     # Mark token as used
@@ -408,6 +433,6 @@ def mobile_magic_login(request, token):
     request.session['mobile_login_at'] = timezone.now().isoformat()
     
     # Redirect to original destination or dashboard
-    next_url = request.GET.get('next', reverse('exercises:mobile_dashboard'))
+    next_url = request.GET.get('next', reverse('mobile:mobile_dashboard'))
     return redirect(next_url)
 

@@ -128,10 +128,13 @@
             <div class="level-item">
                 <span>
                     <a href="https://www.hevs.ch/isc" target="_blank">
-                        <img src="{% static 'images/ISC Logo inline v2-150.png' %}" alt="ISC Logo" style="height: 35px;">
+                        <picture>
+                            <source srcset="{% static 'images/ISC_Logo_darkmode.png' %}" media="(prefers-color-scheme: dark)">
+                            <img src="{% static 'images/ISC_Logo_lightmode.png' %}" alt="ISC Logo" style="height: 35px;">
+                        </picture>
                     </a>
                 </span>
-                <span class="has-text-grey-dark pl-6">Steacher is a research project from the 
+                <span class="has-text-grey pl-6">Steacher is a research project from the 
                     <a href="https://www.hevs.ch/isc" class="footer-link" target="_blank">Computer Science and Communication Systems Institute</a> 
                     at <a href="https://hevs.ch" class="footer-link" target="_blank">HEVS</a></span>
             </div>
@@ -142,6 +145,27 @@
         {% endblock %}
     </footer>
     
+    <script>
+        // Localhost visual indicator
+        (function() {
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                console.log('Detected localhost, changing navbar color');
+                const navbar = document.querySelector('.navbar');
+                if (navbar) {
+                    navbar.style.setProperty('border', '1px solid #ffeb3b', 'important');
+                }
+            }
+        })();
+
+        // Auto-redirect mobile devices to mobile view
+        (function() {
+            const isMobile = /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(navigator.userAgent);
+            if (isMobile) {
+                window.location.href = "{% url 'mobile:mobile_dashboard' %}";
+            }
+        })();
+    </script>
+
     {% block scripts %}
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js" defer></script>
     {% endblock %}

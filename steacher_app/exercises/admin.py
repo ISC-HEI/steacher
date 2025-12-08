@@ -134,7 +134,8 @@ class CourseAdminForm(forms.ModelForm):
         widgets = {
             'llm_prompts': JSONFormWidget(schema=LLM_PROMPTS_SCHEMA),
             'chat_prompt': forms.Textarea(attrs={'rows': 12}),
-            'system_prompt': forms.Textarea(attrs={'rows': 20}),
+            'course_prompt': forms.Textarea(attrs={'rows': 12}),
+            'override_system_prompt': forms.Textarea(attrs={'rows': 20}),
         }
 
 @admin.register(Course)
@@ -150,7 +151,7 @@ class CourseAdmin(admin.ModelAdmin):
             'fields': ('name', 'description', 'visible')
         }),
         ('AI Prompts', {
-            'fields': ('chat_prompt', 'system_prompt', 'llm_prompts')
+            'fields': ('course_prompt', 'chat_prompt', 'override_system_prompt', 'llm_prompts')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
