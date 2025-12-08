@@ -50,6 +50,22 @@ const MobileChatComponent = defineComponent({
         userLanguage: {
             type: String,
             default: 'en',
+        },
+        isComplete: {
+            type: Boolean,
+            default: false,
+        },
+        nextExerciseId: {
+            type: Number,
+            default: null,
+        },
+        nextExerciseTitle: {
+            type: String,
+            default: '',
+        },
+        answerTemplate: {
+            type: String,
+            default: '',
         }
     },
     computed: {
@@ -90,7 +106,7 @@ const MobileChatComponent = defineComponent({
 
         return {
             messages: cleanedMessages as Message[],
-            messageText: '',
+            messageText: cleanedMessages.length === 0 ? this.answerTemplate : '',
             pendingImages: [] as LocalImage[],
             isLoading: false,
             isRecording: false,
@@ -111,6 +127,7 @@ const MobileChatComponent = defineComponent({
             microphoneError: null as string | null,
             pressStartTime: null as number | null,
             isHoldMode: false,
+            showCompletionButtons: this.isComplete,
         };
     },
     watch: {
@@ -136,6 +153,10 @@ const MobileChatComponent = defineComponent({
         this.updateInputContainerHeight();
         this.scrollToBottom();
         this.checkMicrophoneAvailability();
+        // Auto-resize textarea if it has initial content from answer template
+        if (this.messageText) {
+            this.autoResizeTextarea();
+        }
     },
     unmounted() {
         if (this.audioStream) {
@@ -748,6 +769,7 @@ const MobileChatComponent = defineComponent({
             
             if (isComplete && !isSolutionReveal) {
                 confetti({ particleCount: 200, spread: 150, origin: { y: 0.6 } });
+                this.showCompletionButtons = true;
             }
             
             this.messages.push({
@@ -811,6 +833,10 @@ export default {
         transcribeUrl: string;
         exerciseQuestion?: string;
         userLanguage?: string;
+        isComplete?: boolean;
+        nextExerciseId?: number;
+        nextExerciseTitle?: string;
+        answerTemplate?: string;
     }) {
         console.log('[MobileChat] createApp called with config:', config);
         const { createApp } = (window as any).Vue;
@@ -821,6 +847,10 @@ export default {
             transcribeUrl: config.transcribeUrl,
             exerciseQuestion: config.exerciseQuestion || '',
             userLanguage: config.userLanguage || 'en',
+            isComplete: config.isComplete || false,
+            nextExerciseId: config.nextExerciseId || null,
+            nextExerciseTitle: config.nextExerciseTitle || '',
+            answerTemplate: config.answerTemplate || '',
         });
         
         const instance = app.mount(element);

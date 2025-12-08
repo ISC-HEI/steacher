@@ -217,6 +217,7 @@ def mobile_exercise(request, exercise_id):
         'description': localized_name(exercise, 'description_i18n', request.user),
         'question': localized_name(exercise, 'question_i18n', request.user),
         'exercise_type': exercise.exercise_type,
+        'exercise_template': exercise.exercise_data_obj.answer_template,
     }
     
     # Convert interactions to JSON-safe format for Vue
