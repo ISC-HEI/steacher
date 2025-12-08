@@ -417,7 +417,10 @@ const MobileChatComponent = defineComponent({
         handleMicrophoneDown() {
             console.log('[MobileChat] Microphone pressed down');
             this.pressStartTime = Date.now();
-            this.startRecording();
+            
+            if (!this.isRecording) {
+                this.startRecording();
+            }
         },
         
         handleMicrophoneUp() {
@@ -434,14 +437,14 @@ const MobileChatComponent = defineComponent({
             console.log('[MobileChat] Press duration:', pressDuration, 'ms');
             
             if (pressDuration < HOLD_MODE_THRESHOLD) {
-                // Short press: Toggle mode
+                // Short tap: Toggle mode - stop recording immediately
                 this.isHoldMode = false;
-                console.log('[MobileChat] Toggle mode activated');
-                // Recording continues until next tap
+                console.log('[MobileChat] Short tap - toggle mode, stopping recording');
+                this.stopRecording();
             } else {
-                // Long press: Hold-to-record mode
+                // Long press: Hold-to-record mode - stop when released
                 this.isHoldMode = true;
-                console.log('[MobileChat] Hold mode - stopping recording');
+                console.log('[MobileChat] Long press - hold mode, stopping recording on release');
                 this.stopRecording();
             }
             
