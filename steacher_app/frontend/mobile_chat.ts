@@ -46,6 +46,10 @@ const MobileChatComponent = defineComponent({
         exerciseQuestion: {
             type: String,
             default: '',
+        },
+        userLanguage: {
+            type: String,
+            default: 'en',
         }
     },
     computed: {
@@ -94,6 +98,8 @@ const MobileChatComponent = defineComponent({
             mediaRecorder: null as MediaRecorder | null,
             audioStream: null as MediaStream | null,
             audioChunks: [] as Blob[],
+            speechRecognition: null as SpeechRecognition | null,
+            isAndroid: false,
             cropper: null as any,
             showCropper: false,
             cropperImageSrc: '',
@@ -124,6 +130,7 @@ const MobileChatComponent = defineComponent({
     },
     mounted() {
         console.log('[MobileChat] Component mounted');
+        this.detectPlatform();
         this.updateInputContainerHeight();
         this.scrollToBottom();
         this.checkMicrophoneAvailability();
@@ -133,11 +140,21 @@ const MobileChatComponent = defineComponent({
             this.audioStream.getTracks().forEach(track => track.stop());
             this.audioStream = null;
         }
+        if (this.speechRecognition) {
+            this.speechRecognition.stop();
+            this.speechRecognition = null;
+        }
         if (this.cropper) {
             this.cropper.destroy();
         }
     },
     methods: {
+        detectPlatform() {
+            const userAgent = navigator.userAgent.toLowerCase();
+            this.isAndroid = /android/.test(userAgent);
+            console.log('[MobileChat] Platform detected:', this.isAndroid ? 'Android' : 'iOS/Other');
+        },
+        
         async checkMicrophoneAvailability() {
             const diagnostics: string[] = [];
             
@@ -382,8 +399,113 @@ const MobileChatComponent = defineComponent({
             }
         },
         
+        initSpeechRecognition() {
+            // Android path: Use Web Speech API
+            const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+            
+            if (!SpeechRecognitionAPI) {
+                console.error('[MobileChat] SpeechRecognition not supported');
+                return null;
+            }
+            
+            const recognition = new SpeechRecognitionAPI() as SpeechRecognition;
+            recognition.continuous = false;
+            recognition.interimResults = true;
+            recognition.lang = this.userLanguage || 'en';
+            recognition.maxAlternatives = 1;
+            
+            recognition.onstart = () => {
+                console.log('[MobileChat] Speech recognition started');
+                this.isRecording = true;
+            };
+            
+            recognition.onresult = (event: SpeechRecognitionEvent) => {
+                let interimTranscript = '';
+                let finalTranscript = '';
+                
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const result = event.results[i];
+                    if (!result || !result[0]) continue;
+                    
+                    const transcript = result[0].transcript;
+                    if (result.isFinal) {
+                        finalTranscript += transcript + ' ';
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+                
+                // Update the text field with interim or final results
+                if (finalTranscript) {
+                    this.messageText = (this.messageText + ' ' + finalTranscript).trim();
+                    this.autoResizeTextarea();
+                } else if (interimTranscript) {
+                    // Show interim results in real-time (optional, can be disabled)
+                    this.messageText = (this.messageText + ' ' + interimTranscript).trim();
+                    this.autoResizeTextarea();
+                }
+            };
+            
+            recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+                console.error('[MobileChat] Speech recognition error:', event.error);
+                this.isRecording = false;
+                
+                let message = 'Speech recognition failed. ';
+                
+                if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+                    message += 'Microphone permission denied. Please allow microphone access:\n\n';
+                    message += '1. Tap the lock icon in the address bar\n';
+                    message += '2. Find "Microphone" permissions\n';
+                    message += '3. Change to "Allow"\n';
+                    message += '4. Reload the page';
+                } else if (event.error === 'no-speech') {
+                    message += 'No speech detected. Please try again.';
+                } else if (event.error === 'audio-capture') {
+                    message += 'Microphone not found or not working.';
+                } else if (event.error === 'network') {
+                    message += 'Network error. Please check your connection.';
+                } else {
+                    message += `Error: ${event.error}`;
+                }
+                
+                alert(message);
+            };
+            
+            recognition.onend = () => {
+                console.log('[MobileChat] Speech recognition ended');
+                this.isRecording = false;
+            };
+            
+            return recognition;
+        },
+        
         async startRecording() {
             if (this.isRecording) return;
+            
+            // Android: Use Web Speech API
+            if (this.isAndroid) {
+                console.log('[MobileChat] Using Web Speech API for Android');
+                
+                if (!this.speechRecognition) {
+                    this.speechRecognition = this.initSpeechRecognition();
+                }
+                
+                if (!this.speechRecognition) {
+                    alert('Speech recognition is not supported on this device.');
+                    return;
+                }
+                
+                try {
+                    this.speechRecognition.start();
+                } catch (error: any) {
+                    console.error('[MobileChat] Error starting speech recognition:', error);
+                    alert('Could not start speech recognition. Please try again.');
+                }
+                return;
+            }
+            
+            // iOS/Other: Use MediaRecorder + Whispr (existing implementation)
+            console.log('[MobileChat] Using MediaRecorder for iOS/Other');
             
             try {
                 if (!this.audioStream || !this.audioStream.active) {
@@ -396,7 +518,7 @@ const MobileChatComponent = defineComponent({
                 }
                 const mimeType = this.getBestAudioMimeType();
                 
-                // Only pass mimeType option if we found a supported type. Else, it might cause authorization errors on Android
+                // Only pass mimeType option if we found a supported type
                 this.mediaRecorder = mimeType 
                     ? new MediaRecorder(stream, { mimeType })
                     : new MediaRecorder(stream);
@@ -415,8 +537,8 @@ const MobileChatComponent = defineComponent({
                 this.isRecording = true;
                 
             } catch (error: any) {
-                console.error('Error accessing microphone:', error);
-                console.error('Error details:', {
+                console.error('[MobileChat] Error accessing microphone:', error);
+                console.error('[MobileChat] Error details:', {
                     name: error.name,
                     message: error.message,
                     isSecureContext: window.isSecureContext,
@@ -424,7 +546,6 @@ const MobileChatComponent = defineComponent({
                 });
                 this.audioStream = null;
                 
-                // Provide specific error messages based on error type
                 let message = 'Could not access microphone. ';
                 
                 if (error.name === 'NotSupportedError') {
@@ -452,10 +573,19 @@ const MobileChatComponent = defineComponent({
         },
         
         stopRecording() {
-            if (!this.isRecording || !this.mediaRecorder) return;
+            if (!this.isRecording) return;
             
-            this.mediaRecorder.stop();
-            this.isRecording = false;
+            // Android: Stop Web Speech API
+            if (this.isAndroid && this.speechRecognition) {
+                this.speechRecognition.stop();
+                return;
+            }
+            
+            // iOS/Other: Stop MediaRecorder
+            if (this.mediaRecorder) {
+                this.mediaRecorder.stop();
+                this.isRecording = false;
+            }
         },
         
         getBestAudioMimeType(): string {
@@ -643,6 +773,7 @@ export default {
         initialMessages: Message[]; 
         transcribeUrl: string;
         exerciseQuestion?: string;
+        userLanguage?: string;
     }) {
         console.log('[MobileChat] createApp called with config:', config);
         const { createApp } = (window as any).Vue;
@@ -652,6 +783,7 @@ export default {
             initialMessages: config.initialMessages || [],
             transcribeUrl: config.transcribeUrl,
             exerciseQuestion: config.exerciseQuestion || '',
+            userLanguage: config.userLanguage || 'en',
         });
         
         const instance = app.mount(element);

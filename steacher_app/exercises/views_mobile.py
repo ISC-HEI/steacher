@@ -259,6 +259,9 @@ def mobile_exercise(request, exercise_id):
     prev_exercise = module_exercises[current_index - 1] if current_index and current_index > 0 else None
     next_exercise = module_exercises[current_index + 1] if current_index is not None and current_index < len(module_exercises) - 1 else None
     
+    # Get user's preferred language for speech recognition
+    user_language = getattr(request.user, 'preferred_language', 'en')
+    
     return render(request, 'exercises/mobile/mobile_exercise.html', {
         'exercise': exercise,
         'exercise_json': exercise_json,
@@ -267,6 +270,7 @@ def mobile_exercise(request, exercise_id):
         'interactions': interactions,
         'interactions_json': json.dumps(messages_for_vue),
         'transcribe_url': reverse('mobile:mobile_voice_transcribe'),
+        'user_language': user_language,
         'module': module,
         'prev_exercise': prev_exercise,
         'next_exercise': next_exercise,
@@ -420,7 +424,7 @@ def mobile_magic_login(request, token):
         # If token is invalid but user is already logged in, just redirect to dashboard
         if request.user.is_authenticated:
             return redirect('mobile:mobile_dashboard')
-        return HttpResponse('Invalid or expired login link', status=403)
+        return HttpResponse('Invalid or expired login link. Please request a <a href="/">new login link</a>.', status=403)
     
     # Mark token as used
     auth_token.used = True
