@@ -65,6 +65,12 @@ docker compose logs -n 100 web | cat
 docker compose logs -n 100 proxy | cat
 ```
 
+# check production logs
+```bash
+docker compose exec web tail -f /app/logs/steacher.log
+docker compose exec web tail -n 200 /app/logs/steacher.log | cat
+```
+
 Start local django
 
 ```bash

@@ -114,10 +114,10 @@
                 </button>
                 <button class="mobile-chat-input-button" 
                         @click="toggleRecording" 
-                        :style="{ background: isRecording ? '#f14668' : '' }"
-                        :disabled="isTranscribing"
-                        title="Record voice">
-                    <i class="fas fa-microphone"></i>
+                        :style="{ background: isRecording ? '#f14668' : '', opacity: !microphoneAvailable ? '0.5' : '1' }"
+                        :disabled="isTranscribing || !microphoneAvailable"
+                        :title="microphoneError || 'Record voice'">
+                    <i class="fas" :class="microphoneError ? 'fa-microphone-slash' : 'fa-microphone'"></i>
                 </button>
             </div>
             <textarea 

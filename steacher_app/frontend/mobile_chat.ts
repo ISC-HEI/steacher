@@ -101,6 +101,8 @@ const MobileChatComponent = defineComponent({
             isZoomed: false,
             textareaHeight: 36,
             inputContainerHeight: 100,
+            microphoneAvailable: true,
+            microphoneError: null as string | null,
         };
     },
     watch: {
@@ -124,6 +126,7 @@ const MobileChatComponent = defineComponent({
         console.log('[MobileChat] Component mounted');
         this.updateInputContainerHeight();
         this.scrollToBottom();
+        this.checkMicrophoneAvailability();
     },
     unmounted() {
         if (this.audioStream) {
@@ -135,6 +138,81 @@ const MobileChatComponent = defineComponent({
         }
     },
     methods: {
+        async checkMicrophoneAvailability() {
+            const diagnostics: string[] = [];
+            
+            // Check basic support
+            diagnostics.push(`getUserMedia available: ${!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)}`);
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                this.microphoneAvailable = false;
+                this.microphoneError = 'Browser does not support audio recording';
+                console.warn('[MobileChat] getUserMedia not supported');
+                console.log('[MobileChat] Diagnostics:\n' + diagnostics.join('\n'));
+                return;
+            }
+            
+            // Check secure context
+            diagnostics.push(`Secure context (HTTPS): ${window.isSecureContext}`);
+            diagnostics.push(`Protocol: ${window.location.protocol}`);
+            diagnostics.push(`User agent: ${navigator.userAgent}`);
+            
+            if (!window.isSecureContext) {
+                this.microphoneAvailable = false;
+                this.microphoneError = 'HTTPS required for microphone access';
+                console.warn('[MobileChat] Not in secure context (HTTPS required for microphone)');
+                console.log('[MobileChat] Diagnostics:\n' + diagnostics.join('\n'));
+                return;
+            }
+            
+            // Check for audio input devices
+            try {
+                if (navigator.mediaDevices.enumerateDevices) {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const audioInputs = devices.filter(device => device.kind === 'audioinput');
+                    diagnostics.push(`Audio input devices found: ${audioInputs.length}`);
+                    
+                    if (audioInputs.length === 0) {
+                        this.microphoneAvailable = false;
+                        this.microphoneError = 'No microphone found on device';
+                        console.warn('[MobileChat] No audio input devices found');
+                        console.log('[MobileChat] Diagnostics:\n' + diagnostics.join('\n'));
+                        return;
+                    }
+                } else {
+                    diagnostics.push('enumerateDevices: not available');
+                }
+            } catch (error) {
+                diagnostics.push('enumerateDevices: query failed');
+                console.log('[MobileChat] enumerateDevices failed:', error);
+            }
+            
+            // Check permission status (if Permissions API is available)
+            try {
+                if (navigator.permissions && navigator.permissions.query) {
+                    const result = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+                    diagnostics.push(`Permission status: ${result.state}`);
+                    console.log('[MobileChat] Microphone permission status:', result.state);
+                    
+                    if (result.state === 'denied') {
+                        this.microphoneAvailable = false;
+                        this.microphoneError = 'Microphone permission denied';
+                        console.warn('[MobileChat] Microphone permission denied');
+                    } else if (result.state === 'granted') {
+                        this.microphoneAvailable = true;
+                        this.microphoneError = null;
+                    }
+                } else {
+                    diagnostics.push('Permission API: not available');
+                }
+            } catch (error) {
+                // Permissions API may not be fully supported, that's okay
+                diagnostics.push('Permission API: query failed');
+                console.log('[MobileChat] Permissions API not available or query failed');
+            }
+            
+            console.log('[MobileChat] Diagnostics:\n' + diagnostics.join('\n'));
+        },
+        
         autoResizeTextarea() {
             this.$nextTick(() => {
                 const textarea = this.$refs.messageInput as HTMLTextAreaElement;
@@ -318,7 +396,10 @@ const MobileChatComponent = defineComponent({
                 }
                 const mimeType = this.getBestAudioMimeType();
                 
-                this.mediaRecorder = new MediaRecorder(stream, { mimeType });
+                // Only pass mimeType option if we found a supported type. Else, it might cause authorization errors on Android
+                this.mediaRecorder = mimeType 
+                    ? new MediaRecorder(stream, { mimeType })
+                    : new MediaRecorder(stream);
                 this.audioChunks = [];
                 
                 this.mediaRecorder.addEventListener('dataavailable', (event) => {
@@ -333,10 +414,40 @@ const MobileChatComponent = defineComponent({
                 this.mediaRecorder.start();
                 this.isRecording = true;
                 
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Error accessing microphone:', error);
+                console.error('Error details:', {
+                    name: error.name,
+                    message: error.message,
+                    isSecureContext: window.isSecureContext,
+                    protocol: window.location.protocol,
+                });
                 this.audioStream = null;
-                alert('Could not access microphone. Please check permissions.');
+                
+                // Provide specific error messages based on error type
+                let message = 'Could not access microphone. ';
+                
+                if (error.name === 'NotSupportedError') {
+                    message += 'Audio recording format not supported on this device.';
+                } else if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                    message += 'Permission denied. Please allow microphone access in your browser settings:\n\n';
+                    message += '1. Tap the lock icon or "i" in the address bar\n';
+                    message += '2. Find "Microphone" permissions\n';
+                    message += '3. Change to "Allow"\n';
+                    message += '4. Reload the page';
+                } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+                    message += 'No microphone found on your device.';
+                } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+                    message += 'Microphone is already in use by another application.';
+                } else if (error.name === 'OverconstrainedError') {
+                    message += 'Could not start microphone with the requested settings.';
+                } else if (error.name === 'SecurityError') {
+                    message += 'Security error. Make sure you are using HTTPS.';
+                } else {
+                    message += `Error: ${error.name} - ${error.message}`;
+                }
+                
+                alert(message);
             }
         },
         
