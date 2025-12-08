@@ -109,6 +109,8 @@ const MobileChatComponent = defineComponent({
             inputContainerHeight: 100,
             microphoneAvailable: true,
             microphoneError: null as string | null,
+            pressStartTime: null as number | null,
+            isHoldMode: false,
         };
     },
     watch: {
@@ -391,7 +393,42 @@ const MobileChatComponent = defineComponent({
             }
         },
         
+        handleMicrophoneDown() {
+            console.log('[MobileChat] Microphone pressed down');
+            this.pressStartTime = Date.now();
+            this.startRecording();
+        },
+        
+        handleMicrophoneUp() {
+            console.log('[MobileChat] Microphone released');
+            
+            if (this.pressStartTime === null) {
+                console.warn('[MobileChat] pressStartTime is null on release');
+                return;
+            }
+            
+            const pressDuration = Date.now() - this.pressStartTime;
+            const HOLD_MODE_THRESHOLD = 300;
+            
+            console.log('[MobileChat] Press duration:', pressDuration, 'ms');
+            
+            if (pressDuration < HOLD_MODE_THRESHOLD) {
+                // Short press: Toggle mode
+                this.isHoldMode = false;
+                console.log('[MobileChat] Toggle mode activated');
+                // Recording continues until next tap
+            } else {
+                // Long press: Hold-to-record mode
+                this.isHoldMode = true;
+                console.log('[MobileChat] Hold mode - stopping recording');
+                this.stopRecording();
+            }
+            
+            this.pressStartTime = null;
+        },
+        
         toggleRecording() {
+            // Legacy method kept for potential direct calls
             if (this.isRecording) {
                 this.stopRecording();
             } else {

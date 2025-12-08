@@ -113,7 +113,10 @@
                     <i class="fas fa-camera"></i>
                 </button>
                 <button class="mobile-chat-input-button" 
-                        @click="toggleRecording" 
+                        @mousedown="handleMicrophoneDown"
+                        @mouseup="handleMicrophoneUp"
+                        @touchstart.prevent="handleMicrophoneDown"
+                        @touchend.prevent="handleMicrophoneUp"
                         :style="{ background: isRecording ? '#f14668' : '', opacity: !microphoneAvailable ? '0.5' : '1' }"
                         :disabled="isTranscribing || !microphoneAvailable"
                         :title="microphoneError || 'Record voice'">
