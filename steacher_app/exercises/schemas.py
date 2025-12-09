@@ -37,7 +37,7 @@ class TutorResponse(BaseModel):  # used for structured output validation with Ge
     """
     transcript: Optional[str] = Field(
         default="",
-        description="A complete LaTeX retranscription of the student worksheet picture (if provided). Must be written in valid LaTeX format. A complete LaTeX retranscription of the student worksheet picture that you received, **this must be written in valid LaTeX format**. Include the student's paging, line breaks, etc. Illustrations and graphs should be replaced by a short description of their content. In case you didn't receive an image, simply leave this field empty. The content of this field is not shown to the student. For teacher debugging only."
+        description="A complete LaTeX retranscription of the student worksheet picture, if provided. In case you didn't receive an image, simply leave this field empty. Must be written in valid LaTeX format. Include the student's paging, line breaks, etc. Illustrations and graphs should be replaced by a short description of their content. The content of this field is not shown to the student. For teacher debugging only."
     )
     error_desc: Optional[str] = Field(
         default="",

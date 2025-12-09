@@ -14,7 +14,7 @@
 
 {% block nav_exercise_context %}
     <a href="{% url 'mobile:mobile_dashboard' %}" class="mobile-nav-item">
-        <i class="fas fa-th-large"></i> Dashboard
+        <i class="fas fa-home"></i> Dashboard
     </a>
     {% if module %}
     <a href="{% url 'mobile:mobile_dashboard' %}#module-{{ module.id }}" class="mobile-nav-item">
@@ -87,7 +87,7 @@
             </a>
             {% endif %}
             <a href="{% url 'mobile:mobile_dashboard' %}" class="mobile-completion-button is-secondary">
-                <span class="icon"><i class="fas fa-th-large"></i></span>
+                <span class="icon"><i class="fas fa-home"></i></span>
                 <span>Dashboard</span>
             </a>
         </div>
