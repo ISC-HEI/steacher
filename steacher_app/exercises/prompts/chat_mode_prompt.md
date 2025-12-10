@@ -65,6 +65,3 @@ These instructions were provided by the teacher for this specific course. They m
 {{ course_prompt }}
 (end of course-specific instructions)
 {% endif %}
-
-# OUTPUT FORMAT
-{{tutor_response_output_format}}
