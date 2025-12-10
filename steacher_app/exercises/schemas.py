@@ -37,14 +37,14 @@ class TutorResponse(BaseModel):  # used for structured output validation with Ge
     """
     transcript: Optional[str] = Field(
         default="",
-        description="A complete LaTeX retranscription of the student worksheet picture (if provided). Must be written in valid LaTeX format. A complete LaTeX retranscription of the student worksheet picture that you received, **this must be written in valid LaTeX format**. Include the student's paging, line breaks, etc. Illustrations and graphs should be replaced by a short description of their content. In case you didn't receive an image, simply leave this field empty. The content of this field is not shown to the student. For teacher debugging only."
+        description="A complete LaTeX retranscription of the student worksheet picture, if provided. In case you didn't receive an image, simply leave this field empty. Must be written in valid LaTeX format. Include the student's paging, line breaks, etc. Illustrations and graphs should be replaced by a short description of their content. The content of this field is not shown to the student. Ensure all LaTeX backslashes are double-escaped (e.g., \\frac instead of \frac) so the output remains valid JSON. For teacher debugging only."
     )
     error_desc: Optional[str] = Field(
         default="",
         description="A concise description of the mistakes made by the student that you spotted. For teacher debugging only."
     )
     guidance_text: str = Field(
-        description="The guidance text to help the student with their exercise. This is the only field shown to the student."
+        description="The Socratic guidance text for the student. This is the only field shown to the student."
     )    
 
     def to_dict(self) -> dict:
@@ -54,28 +54,6 @@ class TutorResponse(BaseModel):  # used for structured output validation with Ge
             "error_desc": self.error_desc or "",
             "transcript": self.transcript or "",
         }
-
-    @staticmethod
-    def output_format() -> str:
-        """Return the output format as a string."""
-        return f"""
-You will return your guidance in a json structured format with the following fields:
-
-"transcript" :
-- In a single string.
-- A complete LaTeX retranscription of the student worksheet picture that you received, **this must be written in valid LaTeX format**.
-- You will include the student's paging, line breaks, etc.
-- Illustrations and graphs will be replaced by a short description of their content.
-
-"error_desc" :
-- In a single string.
-- A concise description of the mistakes made by the student that you spotted.
-
-"guidance_text" :
-- In a single string.
-- The guidance text to help the student with his exercise.
-- This is the only field that will be showed to the student.
-"""
 
     @classmethod
     def from_gemini_response(cls, response: Any) -> 'TutorResponse':

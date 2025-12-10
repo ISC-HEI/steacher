@@ -45,11 +45,12 @@ class UserAdmin(DjangoUserAdmin):
                     "is_active",
                     "groups",
                     "user_permissions",
-                )
+                ),
+                "classes": ("collapse",),
             },
         ),
-        ("Important dates", {"fields": ("last_login", "date_joined")}),
-        ("Activity", {"fields": ("activity_link",), "classes": ("collapse",)}),
+        ("Important dates", {"fields": ("last_login", "date_joined"), "classes": ("collapse",)}),
+        ("Activity", {"fields": ("activity_link",)}),
     )
     add_fieldsets = (
         (

@@ -783,6 +783,7 @@ class MobileAuthToken(models.Model):
     token = models.CharField(max_length=64, unique=True, db_index=True)
     expires_at = models.DateTimeField()
     used = models.BooleanField(default=False)
+    first_used_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:

@@ -46,6 +46,26 @@ const MobileChatComponent = defineComponent({
         exerciseQuestion: {
             type: String,
             default: '',
+        },
+        userLanguage: {
+            type: String,
+            default: 'en',
+        },
+        isComplete: {
+            type: Boolean,
+            default: false,
+        },
+        nextExerciseId: {
+            type: Number,
+            default: null,
+        },
+        nextExerciseTitle: {
+            type: String,
+            default: '',
+        },
+        answerTemplate: {
+            type: String,
+            default: '',
         }
     },
     computed: {
@@ -86,7 +106,7 @@ const MobileChatComponent = defineComponent({
 
         return {
             messages: cleanedMessages as Message[],
-            messageText: '',
+            messageText: cleanedMessages.length === 0 ? this.answerTemplate : '',
             pendingImages: [] as LocalImage[],
             isLoading: false,
             isRecording: false,
@@ -94,6 +114,8 @@ const MobileChatComponent = defineComponent({
             mediaRecorder: null as MediaRecorder | null,
             audioStream: null as MediaStream | null,
             audioChunks: [] as Blob[],
+            speechRecognition: null as SpeechRecognition | null,
+            isAndroid: false,
             cropper: null as any,
             showCropper: false,
             cropperImageSrc: '',
@@ -101,6 +123,11 @@ const MobileChatComponent = defineComponent({
             isZoomed: false,
             textareaHeight: 36,
             inputContainerHeight: 100,
+            microphoneAvailable: true,
+            microphoneError: null as string | null,
+            pressStartTime: null as number | null,
+            isHoldMode: false,
+            showCompletionButtons: this.isComplete,
         };
     },
     watch: {
@@ -122,19 +149,110 @@ const MobileChatComponent = defineComponent({
     },
     mounted() {
         console.log('[MobileChat] Component mounted');
+        this.detectPlatform();
         this.updateInputContainerHeight();
         this.scrollToBottom();
+        this.checkMicrophoneAvailability();
+        // Auto-resize textarea if it has initial content from answer template
+        if (this.messageText) {
+            this.autoResizeTextarea();
+        }
     },
     unmounted() {
         if (this.audioStream) {
             this.audioStream.getTracks().forEach(track => track.stop());
             this.audioStream = null;
         }
+        if (this.speechRecognition) {
+            this.speechRecognition.stop();
+            this.speechRecognition = null;
+        }
         if (this.cropper) {
             this.cropper.destroy();
         }
     },
     methods: {
+        detectPlatform() {
+            const userAgent = navigator.userAgent.toLowerCase();
+            this.isAndroid = /android/.test(userAgent);
+            console.log('[MobileChat] Platform detected:', this.isAndroid ? 'Android' : 'iOS/Other');
+        },
+        
+        async checkMicrophoneAvailability() {
+            const diagnostics: string[] = [];
+            
+            // Check basic support
+            diagnostics.push(`getUserMedia available: ${!!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)}`);
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                this.microphoneAvailable = false;
+                this.microphoneError = 'Browser does not support audio recording';
+                console.warn('[MobileChat] getUserMedia not supported');
+                console.log('[MobileChat] Diagnostics:\n' + diagnostics.join('\n'));
+                return;
+            }
+            
+            // Check secure context
+            diagnostics.push(`Secure context (HTTPS): ${window.isSecureContext}`);
+            diagnostics.push(`Protocol: ${window.location.protocol}`);
+            diagnostics.push(`User agent: ${navigator.userAgent}`);
+            
+            if (!window.isSecureContext) {
+                this.microphoneAvailable = false;
+                this.microphoneError = 'HTTPS required for microphone access';
+                console.warn('[MobileChat] Not in secure context (HTTPS required for microphone)');
+                console.log('[MobileChat] Diagnostics:\n' + diagnostics.join('\n'));
+                return;
+            }
+            
+            // Check for audio input devices
+            try {
+                if (navigator.mediaDevices.enumerateDevices) {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const audioInputs = devices.filter(device => device.kind === 'audioinput');
+                    diagnostics.push(`Audio input devices found: ${audioInputs.length}`);
+                    
+                    if (audioInputs.length === 0) {
+                        this.microphoneAvailable = false;
+                        this.microphoneError = 'No microphone found on device';
+                        console.warn('[MobileChat] No audio input devices found');
+                        console.log('[MobileChat] Diagnostics:\n' + diagnostics.join('\n'));
+                        return;
+                    }
+                } else {
+                    diagnostics.push('enumerateDevices: not available');
+                }
+            } catch (error) {
+                diagnostics.push('enumerateDevices: query failed');
+                console.log('[MobileChat] enumerateDevices failed:', error);
+            }
+            
+            // Check permission status (if Permissions API is available)
+            try {
+                if (navigator.permissions && navigator.permissions.query) {
+                    const result = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+                    diagnostics.push(`Permission status: ${result.state}`);
+                    console.log('[MobileChat] Microphone permission status:', result.state);
+                    
+                    if (result.state === 'denied') {
+                        this.microphoneAvailable = false;
+                        this.microphoneError = 'Microphone permission denied';
+                        console.warn('[MobileChat] Microphone permission denied');
+                    } else if (result.state === 'granted') {
+                        this.microphoneAvailable = true;
+                        this.microphoneError = null;
+                    }
+                } else {
+                    diagnostics.push('Permission API: not available');
+                }
+            } catch (error) {
+                // Permissions API may not be fully supported, that's okay
+                diagnostics.push('Permission API: query failed');
+                console.log('[MobileChat] Permissions API not available or query failed');
+            }
+            
+            console.log('[MobileChat] Diagnostics:\n' + diagnostics.join('\n'));
+        },
+        
         autoResizeTextarea() {
             this.$nextTick(() => {
                 const textarea = this.$refs.messageInput as HTMLTextAreaElement;
@@ -296,7 +414,45 @@ const MobileChatComponent = defineComponent({
             }
         },
         
+        handleMicrophoneDown() {
+            console.log('[MobileChat] Microphone pressed down');
+            this.pressStartTime = Date.now();
+            
+            if (!this.isRecording) {
+                this.startRecording();
+            }
+        },
+        
+        handleMicrophoneUp() {
+            console.log('[MobileChat] Microphone released');
+            
+            if (this.pressStartTime === null) {
+                console.warn('[MobileChat] pressStartTime is null on release');
+                return;
+            }
+            
+            const pressDuration = Date.now() - this.pressStartTime;
+            const HOLD_MODE_THRESHOLD = 300;
+            
+            console.log('[MobileChat] Press duration:', pressDuration, 'ms');
+            
+            if (pressDuration < HOLD_MODE_THRESHOLD) {
+                // Short tap: Toggle mode - stop recording immediately
+                this.isHoldMode = false;
+                console.log('[MobileChat] Short tap - toggle mode, stopping recording');
+                this.stopRecording();
+            } else {
+                // Long press: Hold-to-record mode - stop when released
+                this.isHoldMode = true;
+                console.log('[MobileChat] Long press - hold mode, stopping recording on release');
+                this.stopRecording();
+            }
+            
+            this.pressStartTime = null;
+        },
+        
         toggleRecording() {
+            // Legacy method kept for potential direct calls
             if (this.isRecording) {
                 this.stopRecording();
             } else {
@@ -304,8 +460,113 @@ const MobileChatComponent = defineComponent({
             }
         },
         
+        initSpeechRecognition() {
+            // Android path: Use Web Speech API
+            const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+            
+            if (!SpeechRecognitionAPI) {
+                console.error('[MobileChat] SpeechRecognition not supported');
+                return null;
+            }
+            
+            const recognition = new SpeechRecognitionAPI() as SpeechRecognition;
+            recognition.continuous = false;
+            recognition.interimResults = true;
+            recognition.lang = this.userLanguage || 'en';
+            recognition.maxAlternatives = 1;
+            
+            recognition.onstart = () => {
+                console.log('[MobileChat] Speech recognition started');
+                this.isRecording = true;
+            };
+            
+            recognition.onresult = (event: SpeechRecognitionEvent) => {
+                let interimTranscript = '';
+                let finalTranscript = '';
+                
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const result = event.results[i];
+                    if (!result || !result[0]) continue;
+                    
+                    const transcript = result[0].transcript;
+                    if (result.isFinal) {
+                        finalTranscript += transcript + ' ';
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+                
+                // Update the text field with interim or final results
+                if (finalTranscript) {
+                    this.messageText = (this.messageText + ' ' + finalTranscript).trim();
+                    this.autoResizeTextarea();
+                } else if (interimTranscript) {
+                    // Show interim results in real-time (optional, can be disabled)
+                    this.messageText = (this.messageText + ' ' + interimTranscript).trim();
+                    this.autoResizeTextarea();
+                }
+            };
+            
+            recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+                console.error('[MobileChat] Speech recognition error:', event.error);
+                this.isRecording = false;
+                
+                let message = 'Speech recognition failed. ';
+                
+                if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+                    message += 'Microphone permission denied. Please allow microphone access:\n\n';
+                    message += '1. Tap the lock icon in the address bar\n';
+                    message += '2. Find "Microphone" permissions\n';
+                    message += '3. Change to "Allow"\n';
+                    message += '4. Reload the page';
+                } else if (event.error === 'no-speech') {
+                    message += 'No speech detected. Please try again.';
+                } else if (event.error === 'audio-capture') {
+                    message += 'Microphone not found or not working.';
+                } else if (event.error === 'network') {
+                    message += 'Network error. Please check your connection.';
+                } else {
+                    message += `Error: ${event.error}`;
+                }
+                
+                alert(message);
+            };
+            
+            recognition.onend = () => {
+                console.log('[MobileChat] Speech recognition ended');
+                this.isRecording = false;
+            };
+            
+            return recognition;
+        },
+        
         async startRecording() {
             if (this.isRecording) return;
+            
+            // Android: Use Web Speech API
+            if (this.isAndroid) {
+                console.log('[MobileChat] Using Web Speech API for Android');
+                
+                if (!this.speechRecognition) {
+                    this.speechRecognition = this.initSpeechRecognition();
+                }
+                
+                if (!this.speechRecognition) {
+                    alert('Speech recognition is not supported on this device.');
+                    return;
+                }
+                
+                try {
+                    this.speechRecognition.start();
+                } catch (error: any) {
+                    console.error('[MobileChat] Error starting speech recognition:', error);
+                    alert('Could not start speech recognition. Please try again.');
+                }
+                return;
+            }
+            
+            // iOS/Other: Use MediaRecorder + Whispr (existing implementation)
+            console.log('[MobileChat] Using MediaRecorder for iOS/Other');
             
             try {
                 if (!this.audioStream || !this.audioStream.active) {
@@ -318,7 +579,10 @@ const MobileChatComponent = defineComponent({
                 }
                 const mimeType = this.getBestAudioMimeType();
                 
-                this.mediaRecorder = new MediaRecorder(stream, { mimeType });
+                // Only pass mimeType option if we found a supported type
+                this.mediaRecorder = mimeType 
+                    ? new MediaRecorder(stream, { mimeType })
+                    : new MediaRecorder(stream);
                 this.audioChunks = [];
                 
                 this.mediaRecorder.addEventListener('dataavailable', (event) => {
@@ -333,18 +597,56 @@ const MobileChatComponent = defineComponent({
                 this.mediaRecorder.start();
                 this.isRecording = true;
                 
-            } catch (error) {
-                console.error('Error accessing microphone:', error);
+            } catch (error: any) {
+                console.error('[MobileChat] Error accessing microphone:', error);
+                console.error('[MobileChat] Error details:', {
+                    name: error.name,
+                    message: error.message,
+                    isSecureContext: window.isSecureContext,
+                    protocol: window.location.protocol,
+                });
                 this.audioStream = null;
-                alert('Could not access microphone. Please check permissions.');
+                
+                let message = 'Could not access microphone. ';
+                
+                if (error.name === 'NotSupportedError') {
+                    message += 'Audio recording format not supported on this device.';
+                } else if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+                    message += 'Permission denied. Please allow microphone access in your browser settings:\n\n';
+                    message += '1. Tap the lock icon or "i" in the address bar\n';
+                    message += '2. Find "Microphone" permissions\n';
+                    message += '3. Change to "Allow"\n';
+                    message += '4. Reload the page';
+                } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+                    message += 'No microphone found on your device.';
+                } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+                    message += 'Microphone is already in use by another application.';
+                } else if (error.name === 'OverconstrainedError') {
+                    message += 'Could not start microphone with the requested settings.';
+                } else if (error.name === 'SecurityError') {
+                    message += 'Security error. Make sure you are using HTTPS.';
+                } else {
+                    message += `Error: ${error.name} - ${error.message}`;
+                }
+                
+                alert(message);
             }
         },
         
         stopRecording() {
-            if (!this.isRecording || !this.mediaRecorder) return;
+            if (!this.isRecording) return;
             
-            this.mediaRecorder.stop();
-            this.isRecording = false;
+            // Android: Stop Web Speech API
+            if (this.isAndroid && this.speechRecognition) {
+                this.speechRecognition.stop();
+                return;
+            }
+            
+            // iOS/Other: Stop MediaRecorder
+            if (this.mediaRecorder) {
+                this.mediaRecorder.stop();
+                this.isRecording = false;
+            }
         },
         
         getBestAudioMimeType(): string {
@@ -470,6 +772,7 @@ const MobileChatComponent = defineComponent({
             
             if (isComplete && !isSolutionReveal) {
                 confetti({ particleCount: 200, spread: 150, origin: { y: 0.6 } });
+                this.showCompletionButtons = true;
             }
             
             this.messages.push({
@@ -532,6 +835,11 @@ export default {
         initialMessages: Message[]; 
         transcribeUrl: string;
         exerciseQuestion?: string;
+        userLanguage?: string;
+        isComplete?: boolean;
+        nextExerciseId?: number;
+        nextExerciseTitle?: string;
+        answerTemplate?: string;
     }) {
         console.log('[MobileChat] createApp called with config:', config);
         const { createApp } = (window as any).Vue;
@@ -541,6 +849,11 @@ export default {
             initialMessages: config.initialMessages || [],
             transcribeUrl: config.transcribeUrl,
             exerciseQuestion: config.exerciseQuestion || '',
+            userLanguage: config.userLanguage || 'en',
+            isComplete: config.isComplete || false,
+            nextExerciseId: config.nextExerciseId || null,
+            nextExerciseTitle: config.nextExerciseTitle || '',
+            answerTemplate: config.answerTemplate || '',
         });
         
         const instance = app.mount(element);

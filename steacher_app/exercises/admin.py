@@ -6,7 +6,7 @@ from django.urls import reverse
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html, mark_safe
 from django.db.models import Count
-from .models import Exercise, Course, Module, ExerciseAsset, Attempt, UserInvite, ChatThread, Cohort, CohortMembership, Trace, TraceEval, CourseMembership, QuizLog, TraceImage
+from .models import Exercise, Course, Module, ExerciseAsset, Attempt, UserInvite, ChatThread, Cohort, CohortMembership, Trace, TraceEval, CourseMembership, QuizLog, TraceImage, MobileAuthToken
 from django_jsonform.widgets import JSONFormWidget
 
 # Customize Django admin titles
@@ -716,3 +716,22 @@ class TraceImageAdmin(admin.ModelAdmin):
         else:
             return f'{size / (1024 * 1024):.1f} MB'
     file_size_display.short_description = 'File Size'
+
+
+@admin.register(MobileAuthToken)
+class MobileAuthTokenAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'token', 'used', 'expires_at', 'created_at')
+    list_filter = (('user', admin.RelatedOnlyFieldListFilter), 'used', 'expires_at')
+    search_fields = ('user__username', 'user__email', 'token')
+    readonly_fields = ('token', 'created_at')
+    ordering = ('-created_at',)
+    
+    fieldsets = (
+        (None, {
+            'fields': ('user', 'token', 'used', 'expires_at')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )

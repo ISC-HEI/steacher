@@ -9,7 +9,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login, get_user_model
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse, HttpResponse
-from django.db.models import Max, Prefetch
+from django.db.models import Max, Prefetch, Q
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST, require_GET
 from django.utils import timezone
@@ -217,6 +217,7 @@ def mobile_exercise(request, exercise_id):
         'description': localized_name(exercise, 'description_i18n', request.user),
         'question': localized_name(exercise, 'question_i18n', request.user),
         'exercise_type': exercise.exercise_type,
+        'exercise_template': exercise.exercise_data_obj.answer_template,
     }
     
     # Convert interactions to JSON-safe format for Vue
@@ -259,6 +260,9 @@ def mobile_exercise(request, exercise_id):
     prev_exercise = module_exercises[current_index - 1] if current_index and current_index > 0 else None
     next_exercise = module_exercises[current_index + 1] if current_index is not None and current_index < len(module_exercises) - 1 else None
     
+    # Get user's preferred language for speech recognition
+    user_language = getattr(request.user, 'preferred_language', 'en')
+    
     return render(request, 'exercises/mobile/mobile_exercise.html', {
         'exercise': exercise,
         'exercise_json': exercise_json,
@@ -267,6 +271,7 @@ def mobile_exercise(request, exercise_id):
         'interactions': interactions,
         'interactions_json': json.dumps(messages_for_vue),
         'transcribe_url': reverse('mobile:mobile_voice_transcribe'),
+        'user_language': user_language,
         'module': module,
         'prev_exercise': prev_exercise,
         'next_exercise': next_exercise,
@@ -409,22 +414,37 @@ def mobile_auth_send_link(request):
 def mobile_magic_login(request, token):
     """
     Mobile endpoint: validate magic link token and create session.
+    Allows reuse within 1 minute of first use to handle browser prefetching.
     """
+    now = timezone.now()
+    one_minute_ago = now - timedelta(minutes=1)
+    
+    # Find token that is either:
+    # 1. Not used yet (used=False), OR
+    # 2. First used within the last minute (first_used_at within 1 minute)
     auth_token = MobileAuthToken.objects.filter(
         token=token,
-        used=False,
-        expires_at__gt=timezone.now()
+        expires_at__gt=now
+    ).filter(
+        Q(used=False) | Q(first_used_at__gt=one_minute_ago)
     ).select_related('user').first()
     
     if not auth_token:
         # If token is invalid but user is already logged in, just redirect to dashboard
         if request.user.is_authenticated:
             return redirect('mobile:mobile_dashboard')
-        return HttpResponse('Invalid or expired login link', status=403)
+        return HttpResponse('Invalid or expired login link. Please request a <a href="/">new login link</a>.', status=403)
     
-    # Mark token as used
-    auth_token.used = True
-    auth_token.save()
+    # Track first use or mark as fully used after 1 minute
+    if auth_token.first_used_at is None:
+        # First use: record timestamp but keep token reusable
+        auth_token.first_used_at = now
+        auth_token.save()
+    elif auth_token.first_used_at <= one_minute_ago:
+        # More than 1 minute since first use: mark as used
+        auth_token.used = True
+        auth_token.save()
+    # Otherwise: within 1-minute window, allow reuse without updating
     
     # Create 6-month session
     login(request, auth_token.user, backend=settings.AUTHENTICATION_BACKENDS[0])

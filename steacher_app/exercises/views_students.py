@@ -950,7 +950,7 @@ def chat_thread_send(request, thread_id: int):
             with open(prompt_path, 'r', encoding='utf-8') as f:
                 tpl_str = f.read()
             strict_engine = Engine(debug=True, string_if_invalid='[[INVALID:%s]]')
-            context = Context({'course_prompt': course_prompt, 'tutor_response_output_format': TutorResponse.output_format()})
+            context = Context({'course_prompt': course_prompt})
             system_prompt = str(strict_engine.from_string(tpl_str).render(context)).strip()
         except Exception as e:
             logger.exception("Error rendering chat_mode_prompt.md template")

@@ -2,9 +2,20 @@
 {% load static %}
 
 {% block title %}{{ exercise_json.title }} - Steacher{% endblock %}
-{% block header_title %}{{ exercise_json.title|truncatechars:30 }}{% endblock %}
+{% block header_title %}{{ exercise_json.title }}{% endblock %}
+
+{% block header_actions %}
+    {% if next_exercise %}
+    <a href="{% url 'mobile:mobile_exercise' next_exercise.id %}" class="mobile-menu-button" title="Next Exercise">
+        <i class="fas fa-chevron-right"></i>
+    </a>
+    {% endif %}
+{% endblock %}
 
 {% block nav_exercise_context %}
+    <a href="{% url 'mobile:mobile_dashboard' %}" class="mobile-nav-item">
+        <i class="fas fa-home"></i> Dashboard
+    </a>
     {% if module %}
     <a href="{% url 'mobile:mobile_dashboard' %}#module-{{ module.id }}" class="mobile-nav-item">
         <i class="fas fa-folder"></i> {{ module.name }}
@@ -66,6 +77,20 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Completion Buttons -->
+        <div v-if="showCompletionButtons" class="mobile-completion-buttons">
+            {% if next_exercise %}
+            <a :href="'/mobile/exercises/' + nextExerciseId + '/'" class="mobile-completion-button is-primary">
+                <span>Next Exercise</span>
+                <span class="icon"><i class="fas fa-arrow-right"></i></span>
+            </a>
+            {% endif %}
+            <a href="{% url 'mobile:mobile_dashboard' %}" class="mobile-completion-button is-secondary">
+                <span class="icon"><i class="fas fa-home"></i></span>
+                <span>Dashboard</span>
+            </a>
+        </div>
     </div>
     
     <!-- Full Screen Image Modal -->
@@ -108,16 +133,19 @@
             <div class="mobile-chat-input-actions">
                 <button class="mobile-chat-input-button" 
                         @click="openCamera" 
-                        :disabled="isRecording || isTranscribing"
+                        :disabled="isRecording || isTranscribing || isLoading"
                         title="Take photo">
                     <i class="fas fa-camera"></i>
                 </button>
                 <button class="mobile-chat-input-button" 
-                        @click="toggleRecording" 
-                        :style="{ background: isRecording ? '#f14668' : '' }"
-                        :disabled="isTranscribing"
-                        title="Record voice">
-                    <i class="fas fa-microphone"></i>
+                        @mousedown="handleMicrophoneDown"
+                        @mouseup="handleMicrophoneUp"
+                        @touchstart.prevent="handleMicrophoneDown"
+                        @touchend.prevent="handleMicrophoneUp"
+                        :style="{ background: isRecording ? '#f14668' : '', opacity: !microphoneAvailable ? '0.5' : '1' }"
+                        :disabled="isTranscribing || !microphoneAvailable || isLoading"
+                        :title="microphoneError || 'Record voice'">
+                    <i class="fas" :class="microphoneError ? 'fa-microphone-slash' : 'fa-microphone'"></i>
                 </button>
             </div>
             <textarea 
@@ -125,13 +153,13 @@
                 class="mobile-chat-input-field" 
                 v-model="messageText"
                 @keydown.enter.exact.prevent="sendMessage"
-                :disabled="isTranscribing"
+                :disabled="isTranscribing || isLoading"
                 placeholder="Type your answer..."
                 rows="1"
             ></textarea>
             <button class="mobile-chat-send-button" 
                     @click="sendMessage" 
-                    :disabled="isTranscribing || (!messageText.trim() && pendingImages.length === 0)">
+                    :disabled="isTranscribing || isLoading || (!messageText.trim() && pendingImages.length === 0)">
                 <i class="fas fa-arrow-up"></i>
             </button>
         </div>
@@ -189,6 +217,13 @@
         initialMessages: initialMessages,
         transcribeUrl: '{{ transcribe_url }}',
         exerciseQuestion: '{{ exercise_json.question|escapejs }}',
+        userLanguage: '{{ user_language }}',
+        isComplete: {{ attempt.complete|lower }},
+        answerTemplate: '{{ exercise_json.exercise_template|default:""|escapejs }}',
+        {% if next_exercise %}
+        nextExerciseId: {{ next_exercise.id }},
+        nextExerciseTitle: '{{ next_exercise.title_i18n|escapejs }}',
+        {% endif %}
     });
 </script>
 {% endblock %}
