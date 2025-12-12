@@ -101,7 +101,7 @@
         <button class="mobile-fullscreen-close" @click="closeFullScreen">
             <i class="fas fa-times"></i>
         </button>
-        <button class="mobile-fullscreen-zoom" @click.stop="toggleZoom">
+        <button class="mobile-fullscreen-zoom" @click="toggleZoom">
             <i class="fas" :class="isZoomed ? 'fa-search-minus' : 'fa-search-plus'"></i>
         </button>
     </div>
@@ -140,8 +140,8 @@
                 <button class="mobile-chat-input-button" 
                         @mousedown="handleMicrophoneDown"
                         @mouseup="handleMicrophoneUp"
-                        @touchstart.prevent="handleMicrophoneDown"
-                        @touchend.prevent="handleMicrophoneUp"
+                        @touchstart="handleMicrophoneDown"
+                        @touchend="handleMicrophoneUp"
                         :style="{ background: isRecording ? '#f14668' : '', opacity: !microphoneAvailable ? '0.5' : '1' }"
                         :disabled="isTranscribing || !microphoneAvailable || isLoading"
                         :title="microphoneError || 'Record voice'">
@@ -170,7 +170,7 @@
 
     <!-- Cropper Modal -->
     <div v-if="showCropper" class="modal is-active" style="z-index: 9999;">
-        <div class="modal-background" style="background: rgba(0,0,0,0.9);" @click.stop="cancelCrop"></div>
+        <div class="modal-background" style="background: rgba(0,0,0,0.9);" @click="cancelCrop"></div>
         <div class="modal-content" style="width: 100%; height: 100%; max-height: 100%; margin: 0; display: flex; flex-direction: column; background: black; position: relative; z-index: 10000;">
             <div style="padding: 16px; text-align: center; background: transparent;">
                 <h2 style="color: white; font-size: 20px; font-weight: 600; margin: 0;">Crop Photo</h2>
@@ -181,11 +181,11 @@
             </div>
             
             <div style="padding: 20px; display: flex; gap: 16px; justify-content: center; background: black; position: relative; z-index: 10001;">
-                <button class="button is-white is-outlined" @click.stop="cancelCrop" style="flex: 1; max-width: 150px; pointer-events: auto;">
+                <button class="button is-white is-outlined" @click="cancelCrop" style="flex: 1; max-width: 150px; pointer-events: auto;">
                     <span class="icon"><i class="fas fa-redo"></i></span>
                     <span>Retake</span>
                 </button>
-                <button class="button is-primary" @click.stop="confirmCrop" style="flex: 1; max-width: 150px; pointer-events: auto;">
+                <button class="button is-primary" @click="confirmCrop" style="flex: 1; max-width: 150px; pointer-events: auto;">
                     <span class="icon"><i class="fas fa-check"></i></span>
                     <span>Use Photo</span>
                 </button>

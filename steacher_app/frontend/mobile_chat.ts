@@ -344,7 +344,8 @@ const MobileChatComponent = defineComponent({
             });
         },
 
-        confirmCrop() {
+        confirmCrop(event?: Event) {
+            if (event) event.stopPropagation();
             console.log('[MobileChat] confirmCrop called');
             if (!this.cropper) {
                 console.error('[MobileChat] Cropper not initialized!');
@@ -373,7 +374,8 @@ const MobileChatComponent = defineComponent({
             }
         },
 
-        cancelCrop() {
+        cancelCrop(event?: Event) {
+            if (event) event.stopPropagation();
             this.closeCropper();
             this.openCamera();
         },
@@ -414,7 +416,8 @@ const MobileChatComponent = defineComponent({
             }
         },
         
-        handleMicrophoneDown() {
+        handleMicrophoneDown(event?: Event) {
+            if (event) event.preventDefault();
             console.log('[MobileChat] Microphone pressed down');
             this.pressStartTime = Date.now();
             
@@ -423,7 +426,8 @@ const MobileChatComponent = defineComponent({
             }
         },
         
-        handleMicrophoneUp() {
+        handleMicrophoneUp(event?: Event) {
+            if (event) event.preventDefault();
             console.log('[MobileChat] Microphone released');
             
             if (this.pressStartTime === null) {
@@ -812,8 +816,8 @@ const MobileChatComponent = defineComponent({
             document.body.style.overflow = '';
         },
 
-        toggleZoom(event: Event) {
-            event.stopPropagation();
+        toggleZoom(event?: Event) {
+            if (event) event.stopPropagation();
             this.isZoomed = !this.isZoomed;
         },
 
