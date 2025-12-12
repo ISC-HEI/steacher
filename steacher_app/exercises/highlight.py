@@ -5,6 +5,7 @@ import logging
 from google import genai
 from google.genai.types import GenerateContentConfig, ThinkingConfig, Part
 from django.conf import settings
+from .schemas import HighlightResponse
 
 gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 logger = logging.getLogger(__name__)
@@ -173,34 +174,19 @@ You output will be a valid JSON format containing the following fields:
         gen_response = chat_session.send_message(user_input)
         elapsed_time = time.time() - start_time
 
-        response_text = gen_response.text.strip()
-
-        # Clean up markdown code fences if present
-        clean_response = response_text
-        if clean_response.startswith("```json"):
-            clean_response = clean_response[7:]
-        if clean_response.startswith("```"):
-            clean_response = clean_response[3:]
-        if clean_response.endswith("```"):
-            clean_response = clean_response[:-3]
-
-        # Parse JSON response
-        try:
-            json_response = json.loads(clean_response.strip())
-            json_response["elapsed_time"] = round(elapsed_time, 2)
-            return json_response
-        except json.JSONDecodeError:
-            logger.error(f"Failed to parse JSON from Gemini response: {clean_response}")
-            return {
-                "bounding_box": [],
-                "comment": f"ERROR: Failed to parse response",
-                "elapsed_time": round(elapsed_time, 2)
-            }
+        # Parse response using HighlightResponse model
+        highlight_response = HighlightResponse.from_gemini_response(
+            gen_response,
+            elapsed_time=round(elapsed_time, 2)
+        )
+        
+        return highlight_response.model_dump()
 
     except Exception as e:
         logger.error(f"Error in find_text_in_image: {e}")
-        return {
-            "bounding_box": [],
-            "comment": f"ERROR: {str(e)}",
-            "elapsed_time": 0
-        }
+        error_response = HighlightResponse(
+            bounding_box=[],
+            comment=f"ERROR: {str(e)}",
+            elapsed_time=0.0
+        )
+        return error_response.model_dump()

@@ -123,6 +123,103 @@ class TutorResponse(BaseModel):  # used for structured output validation with Ge
             return TutorResponse(guidance_text=text_out)
 
 
+class HighlightResponse(BaseModel):
+    """
+    Response from AI text finder (find_text_in_image). For example: 
+```json
+{
+  "bounding_box" : "[10, 100, 70, 140]",
+  "comment" : ""
+}
+```
+    """
+    bounding_box: List[int] = Field(
+        default_factory=list,
+        description="2D bounding box [y0, x0, y1, x1] or empty if not found"
+    )
+    comment: str = Field(
+        default="",
+        description="Error message or empty if successful"
+    )
+    elapsed_time: float = Field(
+        default=0.0,
+        description="Time taken for API call in seconds"
+    )
+    
+    @classmethod
+    def from_gemini_response(cls, response: Any, elapsed_time: float) -> 'HighlightResponse':
+        """
+        Factory method to create a HighlightResponse from a Google GenAI response object.
+        Prioritizes strict JSON parsing (response.parsed) but falls back to text parsing.
+        
+        Args:
+            response: The Gemini API response object
+            elapsed_time: Time taken for the API call in seconds
+        """
+        # 1. Try the SDK's automatic parsing (if available and successful)
+        if hasattr(response, 'parsed') and response.parsed:
+            try:
+                if isinstance(response.parsed, dict):
+                    parsed_dict = response.parsed.copy()
+                    parsed_dict['elapsed_time'] = elapsed_time
+                    return cls(**parsed_dict)
+            except Exception as e:
+                logger.warning(f"response.parsed present but validation failed: {e}")
+
+        # 2. Fallback: Parse the raw text manually
+        raw_text = getattr(response, 'text', '') or ''
+        return cls.parse_text(raw_text, elapsed_time)
+    
+    @staticmethod
+    def parse_text(text_out: str, elapsed_time: float = 0.0) -> 'HighlightResponse':
+        """Parses a raw string (with potential Markdown fences) into HighlightResponse."""
+        if not text_out:
+            return HighlightResponse(
+                bounding_box=[],
+                comment="ERROR: Empty response",
+                elapsed_time=elapsed_time
+            )
+
+        try:
+            # Remove markdown code fences
+            text_out = strip_markdown_fences(text_out)
+
+            # Attempt clean JSON parse
+            try:
+                loaded_response = json.loads(text_out)
+                loaded_response['elapsed_time'] = elapsed_time
+                return HighlightResponse(**loaded_response)
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to load response as JSON: {e}. Falling back to regex.")
+            
+            # Regex fallback to extract bounding_box and comment
+            bbox_match = re.search(r'bounding[_ ]box["\s:]*\[([\d,\s]+)\]', text_out, re.IGNORECASE)
+            comment_match = re.search(r'comment["\s:]*"([^"]*)"', text_out, re.IGNORECASE)
+            
+            bounding_box = []
+            if bbox_match:
+                try:
+                    bounding_box = [int(x.strip()) for x in bbox_match.group(1).split(',')]
+                except ValueError:
+                    logger.warning(f"Failed to parse bounding box coordinates: {bbox_match.group(1)}")
+            
+            comment = comment_match.group(1) if comment_match else "ERROR: Failed to parse response"
+            
+            return HighlightResponse(
+                bounding_box=bounding_box,
+                comment=comment,
+                elapsed_time=elapsed_time
+            )
+
+        except Exception as e:
+            logger.exception(f"Error parsing HighlightResponse from text: {e}")
+            return HighlightResponse(
+                bounding_box=[],
+                comment=f"ERROR: {str(e)}",
+                elapsed_time=elapsed_time
+            )
+
+
 class TestCase(BaseModel):
     """Pydantic model for a test case. This is used for automated unit testing. Applies to programming exercises only (e.g. Python, Scala).
     Never just write a `description` without a `test_code`. You may omit the `expected_output` if your `test_code` uses assertions, but if it prints something to the console, you must have an `expected_output`.
