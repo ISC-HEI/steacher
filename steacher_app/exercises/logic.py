@@ -394,9 +394,10 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
                 logger.info(f"Processing image highlight, text to be highlighted: {loaded_response.get('text_to_highlight')}")
                 # Get the image bytes from the first uploaded image
                 img_bytes = trace_image_objects[0].image_bytes
+                img_mim_type =  trace_image_objects[0].image_type
 
                 # Find the text in the image using Gemini API
-                found_text = find_text_in_image(loaded_response["text_to_highlight"], img_bytes)
+                found_text = find_text_in_image(loaded_response["text_to_highlight"], img_bytes, img_mim_type)
                 logger.info(f"Found text result: {found_text}")
                 returned_bbox = found_text["bounding_box"]
 

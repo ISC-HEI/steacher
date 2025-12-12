@@ -93,7 +93,7 @@ def treat_gemini_bbox(bbox, img_size):
     return x0,y0,x1,y1
 
 
-def find_text_in_image(text_to_find: str, img_bytes:bytes) -> dict:
+def find_text_in_image(text_to_find: str, img_bytes:bytes, mime_type: str) -> dict:
     """
     Finds text text_to_find in the img image using Gemini API and returns a dict with the important informations:
     - The bounding box of the found text (or empty list if not found)
@@ -106,7 +106,9 @@ def find_text_in_image(text_to_find: str, img_bytes:bytes) -> dict:
         The text extract that needs to be found in the image
     img : bytes
         The image the text needs to be found in, already in bytes since it should be loaded from fetch_ai_guidance
-          
+    mime_type : str     
+        The input image mime_type (typically 'image/[format]', like this 'image/jpeg')
+
     Returns
     -------
     dict (with following keys:)
@@ -150,9 +152,6 @@ You output will be a valid JSON format containing the following fields:
 '''
 
     try:
-        # type of the saved images
-        mime_type = 'image/jpeg'
-
         # Create chat session using the existing gemini_client
         chat_config = GenerateContentConfig(
             response_mime_type="text/plain",
