@@ -31,7 +31,8 @@ class TutorResponse(BaseModel):  # used for structured output validation with Ge
 {
   "transcript" : "$y = x - 8$\\n$y = 3x + 1$\\n$x - 8 = 3x + 1$\\n$-2x = 9$\\n$x = 4.5$\\n$y = x - 8 = 4.5 - 8 = 3.5$",
   "error_desc" : "The exercise description asks to solve for y = x + 8",
-  "guidance_text" : "You should check again your signs in the first equation.",
+  "text_to_highlight" : "$y = x - 8$",
+  "guidance_text" : "You should check again your signs in the first equation."
 }
 ```
     """
@@ -43,6 +44,10 @@ class TutorResponse(BaseModel):  # used for structured output validation with Ge
         default="",
         description="A concise description of the mistakes made by the student that you spotted. For teacher debugging only."
     )
+    text_to_highlight: Optional[str] = Field(
+        default="",
+        description="An extract of the transcript with the exact text containing the student mistake."
+    )
     guidance_text: str = Field(
         description="The Socratic guidance text for the student. This is the only field shown to the student."
     )    
@@ -53,6 +58,7 @@ class TutorResponse(BaseModel):  # used for structured output validation with Ge
             "guidance_text": self.guidance_text,
             "error_desc": self.error_desc or "",
             "transcript": self.transcript or "",
+            "text_to_highlight": self.text_to_highlight or "",
         }
 
     @classmethod
@@ -94,15 +100,17 @@ class TutorResponse(BaseModel):  # used for structured output validation with Ge
                 logger.warning(f"Failed to load response as JSON: {e}. Falling back to Regex.")
                 
             # Regex Fallbacks (try to extract a key field from the text and match until the next key or the end of the text is reached)
-            guidance_match = re.search(r'guidance[_ ]text:\s*(.*?)(?:transcript:|error[_ ]description:|$)', text_out, re.DOTALL | re.IGNORECASE)
-            transcript_match = re.search(r'transcript:\s*(.*?)(?:guidance[_ ]text:|error[_ ]description:|$)', text_out, re.DOTALL | re.IGNORECASE)
-            error_desc_match = re.search(r'error[_ ]description:\s*(.*?)(?:guidance[_ ]text:|transcript:|$)', text_out, re.DOTALL | re.IGNORECASE)
-            
+            guidance_match = re.search(r'guidance[_ ]text:\s*(.*?)(?:transcript:|error[_ ]description:|highlighted[_ ]text[_ ]match:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            transcript_match = re.search(r'transcript:\s*(.*?)(?:guidance[_ ]text:|error[_ ]description:|highlighted[_ ]text[_ ]match:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            error_desc_match = re.search(r'error[_ ]description:\s*(.*?)(?:guidance[_ ]text:|transcript:|highlighted[_ ]text[_ ]match:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            highlighted_text_match = re.search(r'highlighted[_ ]text[_ ]match:\s*(.*?)(?:guidance[_ ]text:|transcript:|error[_ ]description:|$)', text_out, re.DOTALL | re.IGNORECASE)
+
             if guidance_match:
                 loaded_response = {
                     "guidance_text": guidance_match.group(1).strip(),
                     "transcript": transcript_match.group(1).strip() if transcript_match else "",
                     "error_desc": error_desc_match.group(1).strip() if error_desc_match else "",
+                    "highlighted_text" : highlighted_text_match.group(1).strip() if highlighted_text_match else ""
                 }
             else:
                 # Last resort: treat whole text as guidance

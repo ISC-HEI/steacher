@@ -1,15 +1,21 @@
 import json
 import openai
 import time
+import io
+import os
+import logging
+import math
+from pathlib import Path
 from django.conf import settings
 from .models import Trace, TraceImage, Exercise, Attempt, Course, create_trace_for, localized_name
 from django.contrib.contenttypes.models import ContentType
 from .schemas import ExerciseData, AnswerData, TutorResponse, get_pydantic_schema_as_string, strip_markdown_fences
-import logging
-import math
 from statistics import mean, pstdev
 from google import genai
-from google.genai.types import UserContent, ModelContent, Part, GenerateContentConfig
+from google.genai.types import UserContent, ModelContent, Part, GenerateContentConfig, ThinkingConfig
+from exercises.highlight import add_highlighter, treat_gemini_bbox
+from PIL import Image
+
 
 # TODO: remove the openai client once all calls are migrated to the google client
 client = openai.OpenAI(api_key=settings.GEMINI_API_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
@@ -23,6 +29,9 @@ MODEL_PRO = "gemini-2.5-pro"
 MODEL_LATEST = "gemini-3-pro-preview"  # TODO: thorough test before production use
 
 IMAGE_MAX_SIZE = 10 * 1024 * 1024  # 10MB
+
+# Toggle the highlight function currently in test
+TOGGLE_HIGHLIGHT = True
 
 def _compute_uncertainty_from_logprobs(resp, first_k: int = 10, threshold_nll_nats: float = 4.8) -> dict:
     """
@@ -378,6 +387,39 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         tutor_response = TutorResponse.from_gemini_response(gen_response)
         loaded_response: dict = tutor_response.to_dict()
         guidance_text: str = tutor_response.guidance_text
+
+        # If there's text to highlight and we have images, process the first image
+        if TOGGLE_HIGHLIGHT and loaded_response.get("text_to_highlight") and trace_image_objects:
+            try:
+                logger.info(f"Processing image highlight, text to be highlighted: {loaded_response.get('text_to_highlight')}")
+                # Get the image bytes from the first uploaded image
+                img_bytes = trace_image_objects[0].image_bytes
+
+                # Find the text in the image using Gemini API
+                found_text = find_text_in_image(loaded_response["text_to_highlight"], img_bytes)
+                logger.info(f"Found text result: {found_text}")
+                returned_bbox = found_text["bounding_box"]
+
+                # Load image bytes into PIL Image and get its size for bbox normalization
+                im_pil = Image.open(io.BytesIO(img_bytes))
+                img_size = (im_pil.height, im_pil.width)
+
+                # Treat the bounding box coordinates
+                treated_bbox = treat_gemini_bbox(returned_bbox, img_size)
+                logger.info(f"Treated bbox: {treated_bbox}")
+
+                # Add visual highlight to the image at the bounding box
+                highlighted_image = add_highlighter(im_pil, treated_bbox)
+
+                # Save highlighted image for debugging/export
+                export_dir = os.path.join(settings.BASE_DIR, 'exports')
+                os.makedirs(export_dir, exist_ok=True)
+                output_path = os.path.join(export_dir, 'test_highlight.jpeg')
+                highlighted_image.save(output_path, format='JPEG')
+                logger.info(f"Successfully saved highlighted image to: {output_path}")
+
+            except Exception as highlight_error:
+                logger.error(f"Failed to highlight image: {highlight_error}", exc_info=True)
 
     except Exception as e:
         logger.error(f"Gemini generate_content failed for exercise {exercise.id}: {e}")
@@ -1066,4 +1108,115 @@ Based on all this context, please generate your response in the required JSON fo
         return {
             "error": "Failed to generate recommendation.",
             "details": str(e)
+        }
+
+def find_text_in_image(text_to_find: str, img_bytes:bytes) -> dict:
+    """
+    Finds text text_to_find in the img image using Gemini API and returns a dict with the important informations:
+    - The bounding box of the found text (or empty list if not found)
+    - A comment with any errors that occured, should be empty most of the time
+    - The time the request took for debugging/improvement purposes
+
+    Parameters
+    ----------
+    text_to_find : str
+        The text extract that needs to be found in the image
+    img : bytes
+        The image the text needs to be found in, already in bytes since it should be loaded from fetch_ai_guidance
+            
+    Returns
+    -------
+    dict (with following keys:)
+        - bounding_box ([int, int, int, int]): list [y0, x0, y1, x1] or empty list if not found
+        - comment (str): error message or empty string if successful
+        - elapsed_time (float): time taken for the API call in seconds
+    """
+
+    prompt = f'''# Task
+You will receive an image of a student math exercise and a piece of LaTeX formatted text. Your task is to find the inputed text into the image and return a bounding box that goes around it.
+
+# Input
+Image: the image will be given on the side. If you don't receive an image, you must return an empty bounding box.
+Text: You will receive it at the end of these instructions with the title "# Text to find". It will be formatted as plaintext with LaTeX notations, either inline with "$" or full-line with "$$".
+
+# Output
+You output will be a valid JSON format containing the following fields:
+"bounding_box" : This is the 2d bounding box around the text. The list must contain the elements in this order: [y0, x0, y1, x1]
+"comment" : This is a place for you to give us debug information:
+- If you don't receive an image, return "ERROR: No Image" in this field.
+- If you don't find the text in the image, return "ERROR: The text is not in the image" in this field.
+- If there was no problem, simply return an empty "" in this field.
+
+# Output Examples:
+## The image contained the text
+{{
+	bounding_box : [1,10,40,100],
+	comment: ""
+}}
+
+## the image didn't contain text
+{{
+	bounding_box : [];
+	comment: "ERROR: The text is not in the image"
+}}
+
+# Text to find
+{text_to_find}
+
+# Your output
+'''
+
+    try:
+        # type of the saved images
+        mime_type = 'image/jpeg'
+
+        # Create chat session using the existing gemini_client
+        chat_config = GenerateContentConfig(
+            response_mime_type="text/plain",
+            thinking_config=ThinkingConfig(thinking_budget=0)
+        )
+        chat_session = gemini_client.chats.create(
+            model=MODEL_FAST,
+            config=chat_config,
+        )
+
+        # Create input with text and image
+        image_part = Part.from_bytes(data=img_bytes, mime_type=mime_type)
+        user_input = [Part(text=prompt), image_part]
+
+        # Send message and get response
+        start_time = time.time()
+        gen_response = chat_session.send_message(user_input)
+        elapsed_time = time.time() - start_time
+
+        response_text = gen_response.text.strip()
+
+        # Clean up markdown code fences if present
+        clean_response = response_text
+        if clean_response.startswith("```json"):
+            clean_response = clean_response[7:]
+        if clean_response.startswith("```"):
+            clean_response = clean_response[3:]
+        if clean_response.endswith("```"):
+            clean_response = clean_response[:-3]
+
+        # Parse JSON response
+        try:
+            json_response = json.loads(clean_response.strip())
+            json_response["elapsed_time"] = round(elapsed_time, 2)
+            return json_response
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse JSON from Gemini response: {clean_response}")
+            return {
+                "bounding_box": [],
+                "comment": f"ERROR: Failed to parse response",
+                "elapsed_time": round(elapsed_time, 2)
+            }
+
+    except Exception as e:
+        logger.error(f"Error in find_text_in_image: {e}")
+        return {
+            "bounding_box": [],
+            "comment": f"ERROR: {str(e)}",
+            "elapsed_time": 0
         }
