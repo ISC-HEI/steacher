@@ -1,0 +1,32 @@
+[
+  {
+    "name": "swiss-ai/apertus-70b-instruct"
+  },
+  {
+    "name": "GDX/gpt-oss:120b"
+  },
+  {
+    "name": "nebius/fp4"
+  },
+  {
+    "name": "openai/gpt-oss-120b"
+  },
+  {
+    "name": "meta-llama/llama-3.1-8b-instruct"
+  },
+  {
+    "name": "moonshotai/kimi-k2-thinking"
+  },
+  {
+    "name": "allenai/olmo-3-32b-think:free"
+  },
+  {
+    "name": "moonshotai/kimi-k2-thinking"
+  },
+  {
+    "name": "google/gemini-2.5-flash"
+  },
+  {
+    "name": "google/gemini-3-pro-preview"
+  }
+]

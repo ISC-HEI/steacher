@@ -1,6 +1,10 @@
 from django.db import models
+from django.core.exceptions import ValidationError
 from exercises.models import Exercise, Trace
 from accounts.models import User
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ModelEvalExperiment(models.Model):
@@ -20,10 +24,70 @@ class ModelEvalExperiment(models.Model):
     locked = models.BooleanField(default=False)
 
     # JSON: [{"name": "openai/gpt-4o", "quantizations": ["fp8"], "reasoning": {"effort": "high", "exclude": false}}, ...]
-    model_configs = models.JSONField(default=list)
+    model_configs = models.JSONField(default=list, help_text="List of model configurations, each with name, quantizations, and reasoning parameters.")
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        """
+        Validate model configurations by testing each one.
+        
+        Before saving a new or unlocked experiment, tests each model in model_configs
+        with a simple test prompt to ensure it responds successfully. Raises ValidationError
+        if any model fails to respond.
+        """
+        super().clean()
+        
+        # Skip validation if experiment is locked (already in use)
+        if self.locked:
+            return
+        
+        # Skip validation if no model configs
+        if not self.model_configs:
+            return
+        
+        # Import here to avoid circular imports
+        from .openrouter import call_model
+        
+        test_messages = [{"role": "user", "content": "Test"}]
+        test_system_prompt = "You are a helpful assistant."
+        
+        failed_models = []
+        
+        for model_config in self.model_configs:
+            model_name = model_config.get('name')
+            if not model_name:
+                failed_models.append("(unnamed model config)")
+                continue
+            
+            try:
+                # Use same routing logic as production
+                result = call_model(model_config, test_messages, test_system_prompt)
+                
+                # Check if result indicates an error
+                if result.get('response', '').startswith('ERROR:'):
+                    error_msg = result.get('metadata', {}).get('error', 'Unknown error')
+                    failed_models.append(f"{model_name}: {error_msg}")
+                    logger.error(f"Model validation failed for {model_name}: {error_msg}")
+                else:
+                    logger.info(f"Model validation successful for {model_name}")
+                    
+            except Exception as e:
+                failed_models.append(f"{model_name}: {str(e)}")
+                logger.error(f"Model validation exception for {model_name}: {e}")
+        
+        if failed_models:
+            error_message = "The following models failed validation:\n" + "\n".join(f"• {err}" for err in failed_models)
+            raise ValidationError({'model_configs': error_message})
+
+    def save(self, *args, **kwargs):
+        """
+        Save the experiment after validating model configurations.
+        """
+        # Run clean() to validate models before saving
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = "Model Evaluation Experiment"

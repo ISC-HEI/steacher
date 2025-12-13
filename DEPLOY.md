@@ -752,12 +752,15 @@ docker compose exec -T db psql -U steacher_admin steacher_prod -c  "
 ```
 
 
-# Replay db backup locally
+# Replay Database Backup Locally
 
+Play them one at a time
+
+```bash
 CONTAINER=my-local-postgres
 DB=steacher
 DB_USER=postgres
-PROD_BACKUP=/Users/ren/switchdrive/backup/dev/AI_x_teaching/pi_learning/backup/db_2025-10-12_13-38-54.sql
+PROD_BACKUP=/Users/ren/switchdrive/backup/dev/AI_x_teaching/pi_learning/backup/db_2025-12-12_17-22-40.sql
 
 
 docker exec -i my-local-postgres psql -U postgres -d postgres -c "DROP DATABASE IF EXISTS steacher;"
@@ -773,6 +776,10 @@ docker exec -i my-local-postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1
         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='newrelic') THEN
           CREATE ROLE newrelic LOGIN;
         END IF;
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='metabase_readonly') THEN
+          CREATE ROLE metabase_readonly LOGIN;
+        END IF;
       END\$\$;"
 
 docker run --rm -i --network container:my-local-postgres   -e PGPASSWORD="myverysecretpassword" postgres:17   psql -h 127.0.0.1 -U postgres -d steacher -v ON_ERROR_STOP=1 < "$PROD_BACKUP"
+```

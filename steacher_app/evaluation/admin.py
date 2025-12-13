@@ -25,7 +25,7 @@ class ModelEvalExperimentAdmin(admin.ModelAdmin):
     form = ModelEvalExperimentAdminForm
     list_display = ['name', 'created_by', 'created_at', 'locked', 'evaluate_link', 'stats_link']
     filter_horizontal = ['exercises']
-    readonly_fields = ['locked', 'created_at']
+    readonly_fields = ['created_at']
     
     def evaluate_link(self, obj):
         if obj.id:

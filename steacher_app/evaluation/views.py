@@ -33,6 +33,33 @@ def experiment_evaluate(request, experiment_id):
             # No more traces to evaluate
             return redirect('evaluation:experiment_stats', experiment_id=experiment.id)
 
+    # Sanitize conversation history for display (handle legacy dict content)
+    # This prevents template errors when markdown filter receives a dict
+    if pending and pending.conversation_history:
+        sanitized_history = []
+        for msg in pending.conversation_history:
+            content = msg.get('content', '')
+            if isinstance(content, dict):
+                content = content.get('guidance_text', '') or content.get('text', '') or str(content)
+            sanitized_history.append({
+                'role': msg.get('role'),
+                'content': content
+            })
+        pending.conversation_history = sanitized_history
+
+    # Sanitize model responses (also handle legacy dict content)
+    if pending and pending.model_responses:
+        sanitized_responses = {}
+        for letter, resp in pending.model_responses.items():
+            content = resp.get('response', '')
+            if isinstance(content, dict):
+                content = content.get('guidance_text', '') or content.get('text', '') or str(content)
+            
+            # Create copy to avoid mutating original dictionary if needed elsewhere
+            sanitized_responses[letter] = resp.copy()
+            sanitized_responses[letter]['response'] = content
+        pending.model_responses = sanitized_responses
+
     if request.method == 'POST':
         action = request.POST.get('action')
 

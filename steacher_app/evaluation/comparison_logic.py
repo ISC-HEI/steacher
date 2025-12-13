@@ -3,7 +3,7 @@ import random
 import logging
 from exercises.models import Trace, Attempt
 from .models import ModelEvalExperiment, ModelComparisonEval
-from .openrouter import call_openrouter_model
+from .openrouter import call_model
 
 logger = logging.getLogger(__name__)
 
@@ -58,15 +58,25 @@ def generate_next_comparison(experiment: ModelEvalExperiment, evaluator) -> Mode
         if tr.user_content:
             messages.append({"role": "user", "content": tr.user_content})
         if tr.assistant_content:
-            messages.append({"role": "assistant", "content": tr.assistant_content})
+            # Extract text from assistant_content dict
+            if isinstance(tr.assistant_content, dict):
+                content = tr.assistant_content.get('guidance_text', '') or tr.assistant_content.get('text', '') or str(tr.assistant_content)
+            else:
+                content = tr.assistant_content
+            messages.append({"role": "assistant", "content": content})
     messages.append({"role": "user", "content": trace.user_content})
 
     system_prompt = history[0].system_prompt if history else trace.system_prompt
 
     # Get original model response
+    # Extract text if assistant_content is a dict
+    orig_content = trace.assistant_content
+    if isinstance(orig_content, dict):
+        orig_content = orig_content.get('guidance_text', '') or orig_content.get('text', '') or str(orig_content)
+
     original_response = {
         'model': trace.assistant_metadata.get('model', 'gemini-2.5-flash'),
-        'response': trace.assistant_content,
+        'response': orig_content,
         'reasoning': trace.assistant_metadata.get('thoughts', []),
         'is_original': True,
         'metadata': trace.assistant_metadata,
@@ -81,7 +91,7 @@ def generate_next_comparison(experiment: ModelEvalExperiment, evaluator) -> Mode
     # Generate responses
     responses = [original_response]
     for model_config in other_models:
-        result = call_openrouter_model(model_config, messages, system_prompt)
+        result = call_model(model_config, messages, system_prompt)
         responses.append({
             'model': model_config['name'],
             'response': result['response'],

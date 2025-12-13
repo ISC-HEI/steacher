@@ -1,0 +1,49 @@
+
+
+
+
+SELECT 
+    r.value ->> 'model' as model_name,
+    c.value as comment
+FROM evaluation_modelcomparisoneval e
+CROSS JOIN LATERAL jsonb_each(e.model_responses) r
+CROSS JOIN LATERAL jsonb_each_text(e.model_comments) c
+WHERE NOT e.skipped
+  AND c.key = r.key
+  AND c.value IS NOT NULL
+  AND c.value != ''
+-- ORDER BY r.value ->> 'model';
+
+
+
+
+
+-- | model_name                       | comment                                                                                                                                                                                                                                                                                      |
+-- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+-- | gemini-2.5-flash                 | the most socratic answer                                                                                                                                                                                                                                                                     |
+-- | GDX/gpt-oss:120b                 | too much guidance                                                                                                                                                                                                                                                                            |
+-- | openai/gpt-oss-120b              | too much guidance                                                                                                                                                                                                                                                                            |
+-- | google/gemini-3-pro-preview      | too much guidance                                                                                                                                                                                                                                                                            |
+-- | meta-llama/llama-3.1-8b-instruct | wrong guidance! the == looks good now. it's about the return statement                                                                                                                                                                                                                       |
+-- | moonshotai/kimi-k2-thinking      | this is not Socratic; it just gives away the answer.                                                                                                                                                                                                                                         |
+-- | gemini-2.5-flash                 | this gives away too much of the answer without really explaining it.                                                                                                                                                                                                                         |
+-- | meta-llama/llama-3.1-8b-instruct | the first paragraph is a little bit confusing.                                                                                                                                                                                                                                               |
+-- | openai/gpt-oss-120b              | this gives away too much the answer, but maybe at this point that's okay, because the student has already tried enough.                                                                                                                                                                      |
+-- | swiss-ai/apertus-70b-instruct    | this is not Socratic; you're just giving away the answer.                                                                                                                                                                                                                                    |
+-- | GDX/gpt-oss:120b                 | you are talking about some curly braces that don't have the corresponding closing brace, but it's not the case, so that's wrong.                                                                                                                                                             |
+-- | meta-llama/llama-3.1-8b-instruct | this is wrong to congratulate the students and say that their line 3 correctly verifies the divisibility because it's not working like that. So the phrasing is incorrect, even though later you say what has to be done, but this is just wrong to congratulate the students at this point. |
+-- | meta-llama/llama-3.1-8b-instruct | the beginning of the sentence is quite strange.                                                                                                                                                                                                                                              |
+-- | swiss-ai/apertus-70b-instruct    | way too many instructions.                                                                                                                                                                                                                                                                   |
+-- | meta-llama/llama-3.1-8b-instruct | the answer is empty. There must have been a bug.                                                                                                                                                                                                                                             |
+-- | gemini-2.5-flash                 | mmm, I'm not sure you were really given the right to provide the complete answer                                                                                                                                                                                                             |
+-- | swiss-ai/apertus-70b-instruct    | way too verbose, plus you are answering in English.                                                                                                                                                                                                                                          |
+-- | google/gemini-3-pro-preview      | Error from model: google/gemini-3-pro-preview                                                                                                                                                                                                                                                |
+-- | openai/gpt-oss-120b              | way too verbose                                                                                                                                                                                                                                                                              |
+-- | GDX/gpt-oss:120b                 | way too verbose                                                                                                                                                                                                                                                                              |
+-- | swiss-ai/apertus-70b-instruct    | wrong, there are still many mistakes                                                                                                                                                                                                                                                         |
+-- | swiss-ai/apertus-70b-instruct    | Too verbose, and you're giving away the correction. This is not Socratic at all.                                                                                                                                                                                                             |
+-- | swiss-ai/apertus-70b-instruct    | this gives away the answer. It's unacceptable.                                                                                                                                                                                                                                               |
+-- | swiss-ai/apertus-70b-instruct    | Error from model: swiss-ai/apertus-70b-instruct                                                                                                                                                                                                                                              |
+-- | GDX/gpt-oss:120b                 | too many advices at once                                                                                                                                                                                                                                                                     |
+-- | GDX/gpt-oss:120b                 | misleading                                                                                                                                                                                                                                                                                   |
+-- | google/gemini-2.5-flash          | wrong output format                                                                                                                                                                                                                                                                          |
