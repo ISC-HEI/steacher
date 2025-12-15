@@ -5,6 +5,9 @@ import io
 import os
 import logging
 import math
+import secrets
+from django.utils import timezone
+from datetime import timedelta
 from pathlib import Path
 from django.conf import settings
 from .models import Trace, TraceImage, Exercise, Attempt, Course, create_trace_for, localized_name
@@ -389,10 +392,11 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         guidance_text: str = tutor_response.guidance_text
 
         # If there's text to highlight and we have images, process the first image
+        highlighted_image_token = None  # Track the token for the highlighted image
         if TOGGLE_HIGHLIGHT and loaded_response.get("text_to_highlight") and trace_image_objects:
             try:
                 logger.info(f"Processing image highlight, text to be highlighted: {loaded_response.get('text_to_highlight')}")
-                # Get the image bytes from the first uploaded image
+                # Get the image bytes from the first uploaded image (for the moment)
                 img_bytes = trace_image_objects[0].image_bytes
                 img_mim_type =  trace_image_objects[0].image_type
 
@@ -411,6 +415,24 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
 
                 # Add visual highlight to the image at the bounding box
                 highlighted_image = add_highlighter(im_pil, treated_bbox)
+                
+                # Convert PIL Image to bytes (JPEG format for consistency)
+                img_buffer = io.BytesIO()
+                highlighted_image.save(img_buffer, format='JPEG', quality=85) # 85% quality is pretty much inperceptible but saves a lot of space
+                highlighted_img_bytes = img_buffer.getvalue()
+                
+                # Create a TraceImage for the highlighted image
+                highlighted_trace_img = TraceImage.objects.create(
+                    image=highlighted_img_bytes,
+                    upload_token= secrets.token_urlsafe(32),
+                    image_type='image/jpeg',
+                    image_source='assistant_generated',  # Mark as AI-generated
+                    token_expires_at=timezone.now(),  # Unecessary but required field
+                    file_size=len(highlighted_img_bytes),
+                    uploaded_at=timezone.now(),
+                )
+                highlighted_image_token = highlighted_trace_img.upload_token
+                logger.info(f"Created highlighted TraceImage with token: {highlighted_image_token}")
 
                 # Save highlighted image for debugging/export
                 export_dir = os.path.join(settings.BASE_DIR, 'exports')
@@ -527,6 +549,18 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
             logger.info(f"Linked {len(trace_image_objects)} TraceImage(s) to Trace {created_trace.id}")
         except Exception as e:
             logger.error(f"Failed to link TraceImage objects to Trace {created_trace.id}: {e}")
+    
+    # Link the highlighted image to the trace if it was created
+    if highlighted_image_token:
+        try:
+            highlighted_trace_img = TraceImage.objects.get(upload_token=highlighted_image_token)
+            highlighted_trace_img.trace = created_trace
+            highlighted_trace_img.save(update_fields=['trace'])
+            logger.info(f"Linked highlighted TraceImage {highlighted_image_token} to Trace {created_trace.id}")
+        except TraceImage.DoesNotExist:
+            logger.warning(f"Highlighted TraceImage with token {highlighted_image_token} not found")
+        except Exception as e:
+            logger.error(f"Failed to link highlighted TraceImage to Trace {created_trace.id}: {e}")
 
     # 9. Prepare the data to be returned to the view
     # Add images array to user_submission for ChatbotPanel display
@@ -545,6 +579,13 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
             'guidance_text': loaded_response.get('guidance_text', '') if loaded_response else '',
         } if loaded_response else None,
     }
+    
+    # Add assistant_images if a highlighted image was generated
+    if highlighted_image_token:
+        response_data['assistant_images'] = [{
+            'image_token': highlighted_image_token,
+            'caption': 'Highlighted text in your image'
+        }]
 
     return response_data
 

@@ -23,6 +23,7 @@ interface Message {
     role: 'user' | 'assistant';
     content: string;
     images?: ImageAttachment[];
+    assistant_images?: Array<{ image_token: string; caption?: string }>;
 }
 
 const MobileChatComponent = defineComponent({
@@ -751,7 +752,7 @@ const MobileChatComponent = defineComponent({
                 const data = await response.json();
                 
                 if (data.status === 'success') {
-                    this.handleAssistantResponse(data.guidance || '');
+                    this.handleAssistantResponse(data.guidance || '', data.assistant_images);
                 } else {
                     this.showError(data.message || 'Failed to get response');
                 }
@@ -765,7 +766,7 @@ const MobileChatComponent = defineComponent({
             }
         },
         
-        handleAssistantResponse(guidance: string) {
+        handleAssistantResponse(guidance: string, assistant_images?: any[]) {
             const isComplete = guidance.includes('<exercise_completed>');
             const isSolutionReveal = guidance.includes('<solution_revealed>');
             
@@ -779,9 +780,24 @@ const MobileChatComponent = defineComponent({
                 this.showCompletionButtons = true;
             }
             
-            this.messages.push({
+            const message: any = {
                 role: 'assistant',
                 content: cleanContent,
+            };
+            
+            if (assistant_images && assistant_images.length > 0) {
+                // Transform image_token to url format (same as views_mobile.py)
+                message.assistant_images = assistant_images.map(img => ({
+                    url: `/exercises/image/${img.image_token}`,
+                    caption: img.caption || 'Highlighted text in your image'
+                }));
+            }
+            
+            this.messages.push(message);
+            
+            // Force scroll and refresh after adding message
+            this.$nextTick(() => {
+                this.scrollToBottom();
             });
         },
 

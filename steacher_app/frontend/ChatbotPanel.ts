@@ -154,6 +154,21 @@ export const ChatbotPanel = defineComponent({
                     
                     <div v-html="renderMarkdown(message.cleanedContent)"></div>
                     
+                    <!-- Assistant-generated images (e.g., highlighted images) -->
+                    <div v-if="message.assistant_images && message.assistant_images.length > 0" 
+                         class="assistant-images mt-4" 
+                         data-feature="ai-modified-images">
+                      <div v-for="(img, imgIdx) in message.assistant_images" 
+                           :key="'ai-img-' + imgIdx"
+                           class="ai-image-container mb-3">
+                        <img :src="'/exercises/image/' + img.image_token" 
+                             :alt="img.caption || 'AI annotated image'"
+                             class="ai-modified-image"
+                             @click="openImageModal('/exercises/image/' + img.image_token)"
+                             style="max-width: 100%; height: auto; cursor: zoom-in; border-radius: 4px;" />
+                      </div>
+                    </div>
+                    
                     <div class="thumbs-container" v-if="message.trace_id">
                         <button
                             class="button is-small is-white"

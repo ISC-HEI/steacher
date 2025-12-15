@@ -258,6 +258,15 @@ class TraceImage(models.Model):
         default=0,
         help_text="Position in upload chain (0=first, max 2 for 3 photos total)"
     )
+    image_source = models.CharField(
+        max_length=20,
+        choices=[
+            ('user_upload', 'User Upload'),
+            ('assistant_generated', 'Assistant Generated'),
+        ],
+        default='user_upload',
+        help_text="Source of the image: uploaded by user or modified by AI assistant"
+    )
 
     @property
     def image_bytes(self) -> bytes:
