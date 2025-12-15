@@ -100,11 +100,11 @@ class TutorResponse(BaseModel):  # used for structured output validation with Ge
                 logger.warning(f"Failed to load response as JSON: {e}. Falling back to Regex.")
                 
             # Regex Fallbacks (try to extract a key field from the text and match until the next key or the end of the text is reached)
-            guidance_match = re.search(r'guidance[_ ]text:\s*(.*?)(?:transcript:|error[_ ]description:|highlighted[_ ]text[_ ]match:|$)', text_out, re.DOTALL | re.IGNORECASE)
-            transcript_match = re.search(r'transcript:\s*(.*?)(?:guidance[_ ]text:|error[_ ]description:|highlighted[_ ]text[_ ]match:|$)', text_out, re.DOTALL | re.IGNORECASE)
-            error_desc_match = re.search(r'error[_ ]description:\s*(.*?)(?:guidance[_ ]text:|transcript:|highlighted[_ ]text[_ ]match:|$)', text_out, re.DOTALL | re.IGNORECASE)
-            highlighted_text_match = re.search(r'highlighted[_ ]text[_ ]match:\s*(.*?)(?:guidance[_ ]text:|transcript:|error[_ ]description:|$)', text_out, re.DOTALL | re.IGNORECASE)
-
+            guidance_match = re.search(r'guidance[_ ]text:\s*(.*?)(?:transcript[_ ]:|error[_ ]description:|highlighted[_ ]text[_ ]:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            transcript_match = re.search(r'transcript[_ ]:\s*(.*?)(?:guidance[_ ]text:|error[_ ]description:|highlighted[_ ]text[_ ]:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            error_desc_match = re.search(r'error[_ ]description:\s*(.*?)(?:guidance[_ ]text:|transcript[_ ]:|highlighted[_ ]text[_ ]:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            highlighted_text_match = re.search(r'highlighted[_ ]text[_ ]:\s*(.*?)(?:guidance[_ ]text:|transcript[_ ]:|error[_ ]description:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            
             if guidance_match:
                 loaded_response = {
                     "guidance_text": guidance_match.group(1).strip(),
