@@ -100,17 +100,17 @@ class TutorResponse(BaseModel):  # used for structured output validation with Ge
                 logger.warning(f"Failed to load response as JSON: {e}. Falling back to Regex.")
                 
             # Regex Fallbacks (try to extract a key field from the text and match until the next key or the end of the text is reached)
-            guidance_match = re.search(r'guidance[_ ]text:\s*(.*?)(?:transcript[_ ]:|error[_ ]description:|highlighted[_ ]text[_ ]:|$)', text_out, re.DOTALL | re.IGNORECASE)
-            transcript_match = re.search(r'transcript[_ ]:\s*(.*?)(?:guidance[_ ]text:|error[_ ]description:|highlighted[_ ]text[_ ]:|$)', text_out, re.DOTALL | re.IGNORECASE)
-            error_desc_match = re.search(r'error[_ ]description:\s*(.*?)(?:guidance[_ ]text:|transcript[_ ]:|highlighted[_ ]text[_ ]:|$)', text_out, re.DOTALL | re.IGNORECASE)
-            highlighted_text_match = re.search(r'highlighted[_ ]text[_ ]:\s*(.*?)(?:guidance[_ ]text:|transcript[_ ]:|error[_ ]description:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            guidance_match = re.search(r'guidance[_ ]text:\s*(.*?)(?:transcript[_ ]:|error[_ ]description:|text[_ ]to[_ ]highlight[_ ]:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            transcript_match = re.search(r'transcript[_ ]:\s*(.*?)(?:guidance[_ ]text:|error[_ ]description:|text[_ ]to[_ ]highlight[_ ]:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            error_desc_match = re.search(r'error[_ ]description:\s*(.*?)(?:guidance[_ ]text:|transcript[_ ]:|text[_ ]to[_ ]highlight[_ ]:|$)', text_out, re.DOTALL | re.IGNORECASE)
+            highlighted_text_match = re.search(r'text[_ ]to[_ ]highlight[_ ]:\s*(.*?)(?:guidance[_ ]text:|transcript[_ ]:|error[_ ]description:|$)', text_out, re.DOTALL | re.IGNORECASE)
             
             if guidance_match:
                 loaded_response = {
                     "guidance_text": guidance_match.group(1).strip(),
                     "transcript": transcript_match.group(1).strip() if transcript_match else "",
                     "error_desc": error_desc_match.group(1).strip() if error_desc_match else "",
-                    "highlighted_text" : highlighted_text_match.group(1).strip() if highlighted_text_match else ""
+                    "text_to_highlight" : highlighted_text_match.group(1).strip() if highlighted_text_match else ""
                 }
             else:
                 # Last resort: treat whole text as guidance
