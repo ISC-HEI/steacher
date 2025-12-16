@@ -522,7 +522,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
                 trace_image_obj = trace_image_objects[0]
                 bbox_entry = {
                     'bbox': list(treated_bbox),
-                    'color': 'yellow'  # Default color matching add_highlighter default
+                    'color': '#FFB000'  # Default color matching add_highlighter default
                 }
                 if not trace_image_obj.highlight_bboxes:
                     trace_image_obj.highlight_bboxes = []

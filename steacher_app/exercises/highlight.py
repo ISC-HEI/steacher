@@ -10,7 +10,15 @@ from .schemas import HighlightResponse
 gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 logger = logging.getLogger(__name__)
 
-def add_highlighter(img:Image, bounding_box:list[int], color:str="yellow", margin:list[int] = [5,10]):
+# TODO: Integrate Colorblind friendly palette for highlighting.
+# The default has been changed to "#FFB000", one of the colors from the "IBM" palette (see https://davidmathlogic.com/colorblind/#%23648FFF-%23785EF0-%23DC267F-%23FE6100-%23FFB000)
+# If multiple highlighting per images was to be implemented, here are the codes of the other IBM color palette:
+# - #FE6100
+# - #DC267F
+# - #785EF0
+# - #648FFF
+
+def add_highlighter(img:Image, bounding_box:list[int], color:str="#FFB000", margin:list[int] = [5,10]):
     """
     Add a highlighting (transparent colored rectangle with rounded corners, for a "stabylo effect") to an image. A margin can also be added in x and y directions.
 
@@ -21,7 +29,7 @@ def add_highlighter(img:Image, bounding_box:list[int], color:str="yellow", margi
     bounding_box : [int, int, int, int]
         Bounding box in the following format: [x0, y0, x1, y1]
     color : String
-        The color of the highlighting, default: "yellow"
+        The color of the highlighting, default: "#648FFF" (yellow color from the colorblind friendly "IBM" palette)
     margin : [int, int]
         Margin to add around the bounding box [margin_x, margin_y], default = [5, 10]
             

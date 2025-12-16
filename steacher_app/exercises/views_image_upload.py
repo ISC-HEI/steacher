@@ -336,7 +336,7 @@ def serve_highlighted_image(request, token):
         # Apply all highlights in order
         for bbox_entry in img.highlight_bboxes:
             bbox = bbox_entry.get('bbox', [])
-            color = bbox_entry.get('color', 'yellow') # color is from the IBM palette, see function add_highlighter's header from highlight.py
+            color = bbox_entry.get('color', '#FFB000') # color is from the IBM palette, see function add_highlighter's header from highlight.py
             
             if bbox and len(bbox) == 4:
                 img_pil = add_highlighter(img_pil, bbox, color=color)
