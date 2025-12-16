@@ -33,6 +33,7 @@ students_urlpatterns = [
     # Image upload / token endpoints
     path('image/upload-token/', views_image_upload.generate_upload_token, name='generate_upload_token'),
     path('image/<str:token>/', views_image_upload.serve_trace_image, name='serve_trace_image'),
+    path('image-highlighted/<str:token>/', views_image_upload.serve_highlighted_image, name='serve_highlighted_image'),
     path('image/image-status/<str:token>/', views_image_upload.image_status, name='image_status'),
     # Mobile (unauthenticated) upload page and submit endpoint
     path('upload/<str:token>/', views_image_upload.mobile_upload_page, name='mobile_upload_page'),

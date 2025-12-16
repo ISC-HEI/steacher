@@ -23,7 +23,36 @@ interface Message {
     role: 'user' | 'assistant';
     content: string;
     images?: ImageAttachment[];
-    assistant_images?: Array<{ image_token: string; caption?: string }>;
+}
+
+
+// Helper function to normalize images (outside of component because needed before the methods are available)
+function normalizeImages(images: any[]): ImageAttachment[] {
+    if (!images || !Array.isArray(images)) {
+        return [];
+    }
+    return images.map((img: any) => {
+        if ('type' in img) {
+            return img as ImageAttachment;
+        }
+
+        // Construct the correct URL based on whether the image has highlights
+        let imageUrl = '';
+        if (img.image_token) {
+            if (img.has_highlights) {
+                imageUrl = `/exercises/image-highlighted/${img.image_token}`;
+            } else {
+                imageUrl = `/exercises/image/${img.image_token}`;
+            }
+        } else if (img.url) {
+            imageUrl = img.url;
+        }
+
+        return {
+            type: 'remote' as const,
+            url: imageUrl
+        } as RemoteImage;
+    });
 }
 
 const MobileChatComponent = defineComponent({
@@ -81,25 +110,16 @@ const MobileChatComponent = defineComponent({
         // Clean initial messages of any special tags and mark images as remote
         const cleanedMessages = this.initialMessages.map(msg => {
             const cleaned = { ...msg };
-            
+
             if (msg.role === 'assistant' && msg.content) {
                 cleaned.content = msg.content.replace('<exercise_completed>', '')
                                            .replace('<solution_revealed>', '')
                                            .trim();
             }
-            
+
             // Ensure images have the 'type' field
             if (cleaned.images && Array.isArray(cleaned.images)) {
-                cleaned.images = cleaned.images.map((img: any) => {
-                    if ('type' in img) {
-                        return img as ImageAttachment;
-                    }
-                    // Mark existing images as remote
-                    return {
-                        type: 'remote' as const,
-                        url: (img.url || '') as string
-                    } as RemoteImage;
-                });
+                cleaned.images = normalizeImages(cleaned.images);
             }
             
             return cleaned;
@@ -752,7 +772,7 @@ const MobileChatComponent = defineComponent({
                 const data = await response.json();
                 
                 if (data.status === 'success') {
-                    this.handleAssistantResponse(data.guidance || '', data.assistant_images);
+                    this.handleAssistantResponse(data);
                 } else {
                     this.showError(data.message || 'Failed to get response');
                 }
@@ -766,7 +786,8 @@ const MobileChatComponent = defineComponent({
             }
         },
         
-        handleAssistantResponse(guidance: string, assistant_images?: any[]) {
+        handleAssistantResponse(data: any) {
+            const guidance = data.guidance || '';
             const isComplete = guidance.includes('<exercise_completed>');
             const isSolutionReveal = guidance.includes('<solution_revealed>');
             
@@ -780,24 +801,36 @@ const MobileChatComponent = defineComponent({
                 this.showCompletionButtons = true;
             }
             
-            const message: any = {
-                role: 'assistant',
-                content: cleanContent,
-            };
+            // Update the last user message with server-side images (replace local blob URLs with remote URLs)
+            // The server returns the images that were just uploaded in user_submission
+            const rawImages = data.user_submission?.images || [];
             
-            if (assistant_images && assistant_images.length > 0) {
-                // Transform image_token to url format (same as views_mobile.py)
-                message.assistant_images = assistant_images.map(img => ({
-                    url: `/exercises/image/${img.image_token}`,
-                    caption: img.caption || 'Highlighted text in your image'
-                }));
+            if (rawImages && Array.isArray(rawImages) && rawImages.length > 0) {
+                const normalizedImages = normalizeImages(rawImages);
+                
+                // Find the last user message and update its images with server URLs
+                for (let i = this.messages.length - 1; i >= 0; i--) {
+                    const message = this.messages[i];
+                    if (message && message.role === 'user') {
+                        // Clean up old blob URLs to prevent memory leaks
+                        if (message.images) {
+                            message.images.forEach(img => {
+                                if (img.type === 'local') {
+                                    URL.revokeObjectURL(img.url);
+                                }
+                            });
+                        }
+                        // Replace with server images
+                        message.images = normalizedImages;
+                        break;
+                    }
+                }
             }
             
-            this.messages.push(message);
-            
-            // Force scroll and refresh after adding message
-            this.$nextTick(() => {
-                this.scrollToBottom();
+            // Add assistant's response (without images - images belong to the user's message)
+            this.messages.push({
+                role: 'assistant',
+                content: cleanContent,
             });
         },
 

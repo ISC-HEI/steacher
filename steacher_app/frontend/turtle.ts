@@ -1153,7 +1153,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         const assistantMsg: any = { role: 'assistant', content: result.guidance };
                         if (result.assistant_trace_id) assistantMsg.trace_id = result.assistant_trace_id;
                         if (result.thoughts) assistantMsg.thoughts = result.thoughts;
-                        if (result.assistant_images) assistantMsg.assistant_images = result.assistant_images;
                         chatbotPanel.displayMessage(assistantMsg);
                     }
                 } catch (error) {
@@ -1217,7 +1216,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         const assistantMsg: any = { role: 'assistant', content: result.guidance };
                         if (result.assistant_trace_id) assistantMsg.trace_id = result.assistant_trace_id;
                         if (result.thoughts) assistantMsg.thoughts = result.thoughts;
-                        if (result.assistant_images) assistantMsg.assistant_images = result.assistant_images;
                         chatbotPanel.displayMessage(assistantMsg);
                     }
                 } catch (error) {

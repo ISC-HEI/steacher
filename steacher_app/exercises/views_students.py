@@ -509,23 +509,18 @@ def exercise_detail(request, pk):
                 'guidance_text': tr.assistant_content.get('guidance_text', ''),
             }
         
-        # Include AI-highlighted images (highlighted images) if they exist
-        assistant_images = tr.images.filter(image_source='assistant_generated').order_by('uploaded_at')
-        if assistant_images.exists():
-            llm_response['assistant_images'] = [
-                {
-                    'image_token': img.upload_token,
-                    'caption': 'Highlighted text in your image'
-                } 
-                for img in assistant_images
-            ]
-        
         interactions.append({
             'user_submission': {
                 'role': 'user',
                 'content': tr.user_content or '',
                 'metadata': tr.user_metadata or {},
-                'images': [{'image_token': img.upload_token} for img in tr.images.filter(image_source='user_upload').order_by('uploaded_at')],
+                'images': [
+                    {
+                        'image_token': img.upload_token,
+                        'has_highlights': bool(img.highlight_bboxes)
+                    } 
+                    for img in tr.images.order_by('uploaded_at')
+                ],
             },
             'llm_response': llm_response,
         })

@@ -63,25 +63,7 @@
             
             <!-- AI Message -->
             <div v-if="message.role === 'assistant'" class="mobile-chat-message ai">
-                <div class="mobile-chat-message-bubble">
-                    <div v-html="renderMarkdown(message.content)"></div>
-                    
-                    <!-- AI-modified images (e.g., highlighted images) -->
-                    <div v-if="message.assistant_images && message.assistant_images.length > 0" 
-                         class="assistant-images" 
-                         data-feature="ai-modified-images"
-                         style="margin-top: 12px;">
-                        <div v-for="(img, imgIdx) in message.assistant_images" 
-                             :key="'ai-img-' + imgIdx"
-                             class="ai-image-container">
-                            <img :src="img.url" 
-                                 :alt="img.caption || 'AI annotated image'"
-                                 class="ai-modified-image"
-                                 @click="openFullScreen(img.url)"
-                                 style="max-width: 100%; height: auto; border-radius: 4px; cursor: pointer;" />
-                        </div>
-                    </div>
-                </div>
+                <div class="mobile-chat-message-bubble" v-html="renderMarkdown(message.content)"></div>
             </div>
         </template>
         

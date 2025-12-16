@@ -5,9 +5,6 @@ import io
 import os
 import logging
 import math
-import secrets
-from django.utils import timezone
-from datetime import timedelta
 from pathlib import Path
 from django.conf import settings
 from .models import Trace, TraceImage, Exercise, Attempt, Course, create_trace_for, localized_name
@@ -16,7 +13,7 @@ from .schemas import ExerciseData, AnswerData, TutorResponse, get_pydantic_schem
 from statistics import mean, pstdev
 from google import genai
 from google.genai.types import UserContent, ModelContent, Part, GenerateContentConfig, ThinkingConfig
-from exercises.highlight import add_highlighter, treat_gemini_bbox, find_text_in_image
+from exercises.highlight import treat_gemini_bbox, find_text_in_image
 from PIL import Image
 
 
@@ -391,58 +388,6 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         loaded_response: dict = tutor_response.to_dict()
         guidance_text: str = tutor_response.guidance_text
 
-        # If there's text to highlight and we have images, process the first image
-        highlighted_image_token = None  # Track the token for the highlighted image
-        if TOGGLE_HIGHLIGHT and loaded_response.get("text_to_highlight") and trace_image_objects:
-            try:
-                logger.info(f"Processing image highlight, text to be highlighted: {loaded_response.get('text_to_highlight')}")
-                # Get the image bytes from the first uploaded image (for the moment)
-                img_bytes = trace_image_objects[0].image_bytes
-                img_mim_type =  trace_image_objects[0].image_type
-
-                # Find the text in the image using Gemini API
-                found_text = find_text_in_image(loaded_response["text_to_highlight"], img_bytes, img_mim_type)
-                logger.info(f"Found text result: {found_text}")
-                returned_bbox = found_text["bounding_box"]
-
-                # Load image bytes into PIL Image and get its size for bbox normalization
-                im_pil = Image.open(io.BytesIO(img_bytes))
-                img_size = (im_pil.height, im_pil.width)
-
-                # Treat the bounding box coordinates
-                treated_bbox = treat_gemini_bbox(returned_bbox, img_size)
-                logger.info(f"Treated bbox: {treated_bbox}")
-
-                # Add visual highlight to the image at the bounding box
-                highlighted_image = add_highlighter(im_pil, treated_bbox)
-                
-                # Convert PIL Image to bytes (JPEG format for consistency)
-                img_buffer = io.BytesIO()
-                highlighted_image.save(img_buffer, format='JPEG', quality=85) # 85% quality is pretty much inperceptible but saves a lot of space
-                highlighted_img_bytes = img_buffer.getvalue()
-                
-                # Create a TraceImage for the highlighted image
-                highlighted_trace_img = TraceImage.objects.create(
-                    image=highlighted_img_bytes,
-                    upload_token= secrets.token_urlsafe(32),
-                    image_type='image/jpeg',
-                    image_source='assistant_generated',  # Mark as AI-generated
-                    token_expires_at=timezone.now(),  # Unecessary but required field
-                    file_size=len(highlighted_img_bytes),
-                    uploaded_at=timezone.now(),
-                )
-                highlighted_image_token = highlighted_trace_img.upload_token
-                logger.info(f"Created highlighted TraceImage with token: {highlighted_image_token}")
-
-                # Save highlighted image for debugging/export
-                export_dir = os.path.join(settings.BASE_DIR, 'exports')
-                os.makedirs(export_dir, exist_ok=True)
-                output_path = os.path.join(export_dir, 'test_highlight.jpeg')
-                highlighted_image.save(output_path, format='JPEG')
-                logger.info(f"Successfully saved highlighted image to: {output_path}")
-
-            except Exception as highlight_error:
-                logger.error(f"Failed to highlight image: {highlight_error}", exc_info=True)
 
     except Exception as e:
         logger.error(f"Gemini generate_content failed for exercise {exercise.id}: {e}")
@@ -549,24 +494,56 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
             logger.info(f"Linked {len(trace_image_objects)} TraceImage(s) to Trace {created_trace.id}")
         except Exception as e:
             logger.error(f"Failed to link TraceImage objects to Trace {created_trace.id}: {e}")
+
     
-    # Link the highlighted image to the trace if it was created
-    if highlighted_image_token:
+    # If there's text to highlight and we have images, process the first image
+    if TOGGLE_HIGHLIGHT and loaded_response.get("text_to_highlight") and trace_image_objects:
         try:
-            highlighted_trace_img = TraceImage.objects.get(upload_token=highlighted_image_token)
-            highlighted_trace_img.trace = created_trace
-            highlighted_trace_img.save(update_fields=['trace'])
-            logger.info(f"Linked highlighted TraceImage {highlighted_image_token} to Trace {created_trace.id}")
-        except TraceImage.DoesNotExist:
-            logger.warning(f"Highlighted TraceImage with token {highlighted_image_token} not found")
-        except Exception as e:
-            logger.error(f"Failed to link highlighted TraceImage to Trace {created_trace.id}: {e}")
+            logger.info(f"Processing image highlight, text to be highlighted: {loaded_response.get('text_to_highlight')}")
+            # Get the image bytes from the first uploaded image
+            img_bytes = trace_image_objects[0].image_bytes
+            img_mim_type =  trace_image_objects[0].image_type
+
+            # Find the text in the image using Gemini API
+            found_text = find_text_in_image(loaded_response["text_to_highlight"], img_bytes, img_mim_type)
+            logger.info(f"Found text result: {found_text}")
+            returned_bbox = found_text["bounding_box"]
+
+            # Load image bytes into PIL Image and get its size for bbox normalization
+            im_pil = Image.open(io.BytesIO(img_bytes))
+            img_size = (im_pil.height, im_pil.width)
+
+            # Treat the bounding box coordinates
+            treated_bbox = treat_gemini_bbox(returned_bbox, img_size)
+            logger.info(f"Treated bbox: {treated_bbox}")
+
+            # Save bbox to TraceImage for frontend rendering
+            if returned_bbox and returned_bbox != []:  # Only save if bbox was found
+                trace_image_obj = trace_image_objects[0]
+                bbox_entry = {
+                    'bbox': list(treated_bbox),
+                    'color': 'yellow'  # Default color matching add_highlighter default
+                }
+                if not trace_image_obj.highlight_bboxes:
+                    trace_image_obj.highlight_bboxes = []
+                trace_image_obj.highlight_bboxes.append(bbox_entry)
+                trace_image_obj.save(update_fields=['highlight_bboxes'])
+                logger.info(f"Saved highlight bbox to TraceImage {trace_image_obj.id}: {bbox_entry}")
+
+        except Exception as highlight_error:
+            logger.error(f"Failed to highlight image: {highlight_error}", exc_info=True)
 
     # 9. Prepare the data to be returned to the view
     # Add images array to user_submission for ChatbotPanel display
     user_submission_with_images = {
         **interaction_log['user_submission'],
-        'images': [{'image_token': img.upload_token} for img in trace_image_objects]
+        'images': [
+            {
+                'image_token': img.upload_token,
+                'has_highlights': bool(img.highlight_bboxes)
+            }
+            for img in trace_image_objects
+        ]
     }
     response_data = {
         'guidance': tutor_answer,
@@ -579,13 +556,6 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
             'guidance_text': loaded_response.get('guidance_text', '') if loaded_response else '',
         } if loaded_response else None,
     }
-    
-    # Add assistant_images if a highlighted image was generated
-    if highlighted_image_token:
-        response_data['assistant_images'] = [{
-            'image_token': highlighted_image_token,
-            'caption': 'Highlighted text in your image'
-        }]
 
     return response_data
 

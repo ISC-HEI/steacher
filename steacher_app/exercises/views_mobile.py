@@ -196,32 +196,24 @@ def mobile_exercise(request, exercise_id):
         if user_content.startswith("I have a specific question:"):
             user_content = user_content.replace("I have a specific question:", "", 1).strip()
         
-        # Build llm_response with assistant_images if they exist
-        llm_response = {
-            'role': 'assistant',
-            'content': guidance_text,
-            'trace_id': tr.id,
-        }
-        
-        # Include AI-generated images (highlighted images) if they exist
-        assistant_images = tr.images.filter(image_source='assistant_generated').order_by('uploaded_at')
-        if assistant_images.exists():
-            llm_response['assistant_images'] = [
-                {
-                    'image_token': img.upload_token,
-                    'caption': 'Highlighted text in your image'
-                } 
-                for img in assistant_images
-            ]
-        
         interactions.append({
             'user_submission': {
                 'role': 'user',
                 'content': user_content,
                 'metadata': tr.user_metadata or {},
-                'images': [{'image_token': img.upload_token} for img in tr.images.filter(image_source='user_upload').order_by('uploaded_at')],
+                'images': [
+                    {
+                        'image_token': img.upload_token,
+                        'has_highlights': bool(img.highlight_bboxes)
+                    } 
+                    for img in tr.images.order_by('uploaded_at')
+                ],
             },
-            'llm_response': llm_response,
+            'llm_response': {
+                'role': 'assistant',
+                'content': guidance_text,
+                'trace_id': tr.id,
+            },
         })
     
     # Localize exercise fields
@@ -250,7 +242,15 @@ def mobile_exercise(request, exercise_id):
             }
             if interaction['user_submission']['images']:
                 msg['images'] = [
-                    {'url': reverse('exercises:serve_trace_image', args=[img['image_token']])}
+                    {
+                        'image_token': img['image_token'],
+                        'has_highlights': img.get('has_highlights', False),
+                        'url': (
+                            reverse('exercises:serve_highlighted_image', args=[img['image_token']])
+                            if img.get('has_highlights')
+                            else reverse('exercises:serve_trace_image', args=[img['image_token']])
+                        )
+                    }
                     for img in interaction['user_submission']['images']
                 ]
             messages_for_vue.append(msg)
@@ -261,15 +261,6 @@ def mobile_exercise(request, exercise_id):
                 'role': 'assistant',
                 'content': interaction['llm_response']['content'],
             }
-            # Include assistant_images if they exist
-            if 'assistant_images' in interaction['llm_response']:
-                ai_msg['assistant_images'] = [
-                    {
-                        'url': reverse('exercises:serve_trace_image', args=[img['image_token']]),
-                        'caption': img.get('caption', 'Highlighted text in your image')
-                    }
-                    for img in interaction['llm_response']['assistant_images']
-                ]
             messages_for_vue.append(ai_msg)
             logger.info(f"Added AI message: {ai_msg['content'][:50]}")
     

@@ -258,14 +258,10 @@ class TraceImage(models.Model):
         default=0,
         help_text="Position in upload chain (0=first, max 2 for 3 photos total)"
     )
-    image_source = models.CharField(
-        max_length=20,
-        choices=[
-            ('user_upload', 'User Upload'),
-            ('assistant_generated', 'Assistant Generated'),
-        ],
-        default='user_upload',
-        help_text="Source of the image: uploaded by user or modified by AI assistant"
+    highlight_bboxes = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of bounding boxes with highlighting info. Format: [{'bbox': [x0, y0, x1, y1], 'color': 'yellow'}, ...]"
     )
 
     @property
