@@ -9,7 +9,7 @@ from pathlib import Path
 from django.conf import settings
 from .models import Trace, TraceImage, Exercise, Attempt, Course, create_trace_for, localized_name
 from django.contrib.contenttypes.models import ContentType
-from .schemas import ExerciseData, AnswerData, TutorResponse, get_pydantic_schema_as_string, strip_markdown_fences
+from .schemas import ExerciseData, AnswerData, get_tutor_response_schema, get_pydantic_schema_as_string, strip_markdown_fences
 from statistics import mean, pstdev
 from google import genai
 from google.genai.types import UserContent, ModelContent, Part, GenerateContentConfig, ThinkingConfig
@@ -336,12 +336,19 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
             if tr.assistant_content:
                 history_parts.append(ModelContent(parts=[Part(text=tr.assistant_content_text())]))
 
+        # Check if images are present to determine schema
+        image_tokens = data.get('image_tokens', [])
+        has_images = bool(image_tokens)
+        
+        # Get appropriate schema based on whether images are present
+        TutorResponseSchema = get_tutor_response_schema(has_images=has_images)
+
         # Reduce temperature for reveal_solution to increase determinism/compliance
         _temp = 0.2 if action == 'reveal_solution' else 0.7
         chat_config = GenerateContentConfig(
             system_instruction=prompt,
             response_mime_type="application/json",
-            response_json_schema=TutorResponse.model_json_schema(),  # Backend enforces schema conformance via guided generation + validation (not pure constrained decoding)
+            response_json_schema=TutorResponseSchema.model_json_schema(),
             temperature=_temp,
             #FIXME: not working ATM response_logprobs=True, logprobs=5,
             thinking_config=genai.types.ThinkingConfig(include_thoughts=True), # capture thoughts for the assistant_metadata
@@ -355,7 +362,6 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         user_complete_input = [Part(text=user_prompt_content)]
 
         # Add uploaded images if present
-        image_tokens = data.get('image_tokens', [])
         if image_tokens:
             for token in image_tokens[:3]: # limit to 3 images for now
                 try:
@@ -384,7 +390,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
                     logger.error(f"Failed to load image with token {token}: {e}")
 
         gen_response = chat_session.send_message(user_complete_input)
-        tutor_response = TutorResponse.from_gemini_response(gen_response)
+        tutor_response = TutorResponseSchema.from_gemini_response(gen_response)
         loaded_response: dict = tutor_response.to_dict()
         guidance_text: str = tutor_response.guidance_text
 
@@ -393,7 +399,9 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         logger.error(f"Gemini generate_content failed for exercise {exercise.id}: {e}")
         # As a fallback, return a graceful error-style message
         gen_response = None
-        tutor_response = TutorResponse(guidance_text="I'm sorry, I couldn't process your request right now. Please try again.", error_desc=str(e), transcript="")
+        # Use the same schema that was determined earlier, or default to text-only
+        FallbackSchema = get_tutor_response_schema(has_images=has_images if 'has_images' in locals() else False)
+        tutor_response = FallbackSchema(guidance_text="I'm sorry, I couldn't process your request right now. Please try again.")
         loaded_response: dict = tutor_response.to_dict()
         guidance_text: str = loaded_response["guidance_text"]
     llm_duration = time.time() - llm_start_time

@@ -24,7 +24,7 @@ import newrelic.agent as nr
 
 from .models import Exercise, ExerciseAsset, Course, Attempt, UserInvite, ChatThread, CohortMembership, Trace, TraceEval, create_trace_for, localized_name, Cohort
 from .prompting import build_system_prompt
-from .schemas import TutorResponse
+from .schemas import get_tutor_response_schema
 from .consumers import get_state, presence_heartbeat, presence_count
 from .authz import (
     assert_can_view_exercise,
@@ -975,11 +975,14 @@ def chat_thread_send(request, thread_id: int):
                 history_parts.append(ModelContent(parts=[Part(text=m.get('content', ''))]))
 
         try:
+            # Study chat doesn't include images, so use text-only schema
+            TutorResponseSchema = get_tutor_response_schema(has_images=False)
+            
             # Create chat session with structured output
             chat_config = GenerateContentConfig(
                 system_instruction=system_prompt,
                 response_mime_type="application/json",
-                response_json_schema=TutorResponse.model_json_schema(),
+                response_json_schema=TutorResponseSchema.model_json_schema(),
                 temperature=0.6,
             )
             chat_session = gemini_client.chats.create(
@@ -990,8 +993,8 @@ def chat_thread_send(request, thread_id: int):
             
             gen_response = chat_session.send_message([Part(text=user_text)])
             
-            # Parse response using TutorResponse (structured outputs guarantee valid JSON)
-            tutor_response = TutorResponse.from_gemini_response(gen_response)
+            # Parse response using the right TutorResponse
+            tutor_response = TutorResponseSchema.from_gemini_response(gen_response)
             assistant_text = tutor_response.guidance_text
         except Exception as e:
             logger.exception("Error calling AI service in chat_thread_send")
