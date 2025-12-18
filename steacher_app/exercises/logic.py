@@ -478,6 +478,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
             'usage': interaction_log['llm_response']['metadata']['usage'],
             'finish_reason': interaction_log['llm_response']['metadata']['finish_reason'],
             'time_taken': overall_duration,
+            'output_model': chat_config.response_json_schema
         }
     }
     if uncertainty_metrics:
