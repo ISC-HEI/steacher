@@ -133,7 +133,7 @@
             <div class="mobile-chat-input-actions">
                 <button class="mobile-chat-input-button" 
                         @click="openCamera" 
-                        :disabled="isRecording || isTranscribing || isLoading"
+                        :disabled="isRecording || isTranscribing || isLoading || pendingImages.length > 0"
                         title="Take photo">
                     <i class="fas fa-camera"></i>
                 </button>

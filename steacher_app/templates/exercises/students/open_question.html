@@ -18,7 +18,7 @@
                     </div>
                     
                     <!-- Upload Picture Button (only if allowed and under limit) -->
-                    <div v-if="exercise.allow_image_upload && pendingImages.length < 3" class="mb-3">
+                    <div v-if="exercise.allow_image_upload && pendingImages.length < 1" class="mb-3">
                         <button @click="showUploadModal" class="button is-light" :disabled="loadingState !== 'idle'">
                             <span class="icon"><i class="fas fa-camera"></i></span>
                             <span v-if="pendingImages.length === 0">Upload a picture of your answer</span>

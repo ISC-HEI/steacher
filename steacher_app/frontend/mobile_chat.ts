@@ -413,8 +413,8 @@ const MobileChatComponent = defineComponent({
         addImage(blob: Blob) {
             console.log('[MobileChat] addImage called, blob size:', blob.size);
             
-            if (this.pendingImages.length >= 3) {
-                alert('Maximum 3 images allowed');
+            if (this.pendingImages.length >= 1) {
+                alert('Maximum 1 images allowed');
                 return;
             }
             
