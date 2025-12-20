@@ -1,0 +1,116 @@
+{% extends "exercises/base.html" %}
+{% load static %}
+
+{% block title %}Import Exercises from Documents{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="container">
+        <h1 class="title">Import Exercises</h1>
+        <p class="subtitle">Upload your existing exercises into steacher using our AI assistant.</p>
+        <div class="box">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <div class="field">
+                    <label class="label">{{ form.course.label }}</label>
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            {{ form.course }}
+                        </div>
+                    </div>
+                    {% if form.course.help_text %}
+                    <p class="help">{{ form.course.help_text }}</p>
+                    {% endif %}
+                    {% if form.course.errors %}
+                    <p class="help is-danger">{{ form.course.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                
+                <div class="field">
+                    <label class="label">{{ form.files.label }}</label>
+                    <div class="file has-name is-fullwidth">
+                        <label class="file-label">
+                            {{ form.files }}
+                            <span class="file-cta">
+                                <span class="file-icon">
+                                    <i class="fas fa-upload"></i>
+                                </span>
+                                <span class="file-label">
+                                    Choose files…
+                                </span>
+                            </span>
+                            <span class="file-name" id="file-name">
+                                No files selected
+                            </span>
+                        </label>
+                    </div>
+                    {% if form.files.help_text %}
+                    <p class="help">{{ form.files.help_text }}</p>
+                    {% endif %}
+                    {% if form.files.errors %}
+                    <p class="help is-danger">{{ form.files.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                
+                <div class="field">
+                    <label class="label">{{ form.teacher_instructions.label }}</label>
+                    <div class="control">
+                        {{ form.teacher_instructions }}
+                    </div>
+                    {% if form.teacher_instructions.help_text %}
+                    <p class="help">{{ form.teacher_instructions.help_text }}</p>
+                    {% endif %}
+                    {% if form.teacher_instructions.errors %}
+                    <p class="help is-danger">{{ form.teacher_instructions.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                
+                <div class="field">
+                    <div class="control">
+                        <button type="submit" class="button is-primary is-medium">
+                            <span class="icon">
+                                <i class="fas fa-magic"></i>
+                            </span>
+                            <span>Analyze Documents</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+        
+        <div class="content">
+            <h3>How it works</h3>
+            <ol>
+                <li><strong>Upload</strong> your documents (exams, worksheets, problem sets, etc.)</li>
+                <li><strong>Discuss</strong> with the AI assistant to confirm what exercises to extract</li>
+                <li><strong>Review</strong> the generated draft exercises and refine them individually</li>
+            </ol>
+            
+            <h3>Supported file formats</h3>
+            <ul>
+                <li><strong>PDF</strong> - Exam papers, worksheets</li>
+                <li><strong>TXT/MD</strong> - Plain text and Markdown</li>
+                <li><strong>CSV/JSON</strong> - Structured data</li>
+                <li><strong>TEX</strong> - LaTeX documents</li>
+                <li><strong>Images</strong> - Photos of handwritten exercises (OCR)</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<script>
+// Update file name display when files are selected
+document.querySelector('.file-input').addEventListener('change', function(e) {
+    const fileNameSpan = document.getElementById('file-name');
+    const files = e.target.files;
+    if (files.length === 0) {
+        fileNameSpan.textContent = 'No files selected';
+    } else if (files.length === 1) {
+        fileNameSpan.textContent = files[0].name;
+    } else {
+        fileNameSpan.textContent = `${files.length} files selected`;
+    }
+});
+</script>
+{% endblock %}

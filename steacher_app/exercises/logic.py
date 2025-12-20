@@ -569,24 +569,11 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     return response_data
 
 
-def generate_authoring_update(*, exercise_payload: dict, messages: list, course: Course, mode: str = 'edit') -> dict:
+def _build_authoring_system_prompt(exercise_payload: dict, course: Course, mode: str) -> str:
     """
-    Stateless helper for the teacher-facing authoring assistant.
-
-    Input:
-    - exercise_payload: current exercise DTO as seen by the form (dict)
-    - messages: list of {role: 'user'|'assistant', content: str}
-    - course: Course instance (for course-level prompts if any)
-    - mode: 'edit' (modify the exercise) or 'feedback' (just provide feedback)
-
-    Output dict:
-    - 'assistant_message': str (short assistant reply)
-    - 'updated_exercise': dict (complete DTO to apply on the form)
-    - 'system_prompt': str (the system prompt used for the LLM)
-    - 'assistant_metadata': dict (metadata about the assistant's response, like the LLM response time, model, etc.)
+    Build the system prompt for authoring assistant.
+    Extracted as a helper to be reused by both sync and async versions.
     """
-
-    # 1) Build system prompt specialized for authoring or feedback
     mode = (mode or 'edit').lower()
     if mode not in ('edit', 'feedback'):
         mode = 'edit'
@@ -689,48 +676,21 @@ Here is the current state of the exercise you are helping the teacher with:
 ```
 
 """
+    
+    return system_prompt
 
-    messages_for_llm = [{"role": "system", "content": str(system_prompt)}]
 
-    # Append the short-lived in-page messages (user/assistant conversation)
-    for m in messages:
-        role = m.get('role', 'user')
-        content = m.get('content', '')
-        if not isinstance(content, str):
-            content = str(content)
-        messages_for_llm.append({"role": role, "content": content})
-
-    # 3) Ask for a JSON object in the response, without a strict schema
-    try:
-        start_time = time.time()
-        kwargs = {
-            "model": MODEL_PRO,
-            "messages": messages_for_llm,
-            "temperature": 0.2,
-        }
-        # important: do not use a response format {type: text} for feedback mode, it will not work
-        if mode == 'edit':
-            kwargs["response_format"] = {"type": "json_object"}
-            
-        completion = client.chat.completions.create(**kwargs)
-                
-            
-        logger.debug(f"Completion time: {time.time() - start_time}, {completion}")
-    except Exception as e:
-        logger.error(f"Failed to create completion for authoring assistant: {e}, messages: {messages_for_llm}")
-        # Return a response that indicates failure but doesn't crash the frontend
-        return {
-            'assistant_message': f"Error contacting AI assistant: {e}",
-            'updated_exercise': exercise_payload,
-        }
-
-    content = (completion.choices[0].message.content or '').strip()
-
+def _parse_authoring_response(content: str, exercise_payload: dict, mode: str) -> tuple[str, dict]:
+    """
+    Parse the LLM response for authoring assistant.
+    Returns (assistant_message, updated_exercise).
+    Extracted as a helper to be reused by both sync and async versions.
+    """
     if mode == 'edit':
         # Strip accidental Markdown code fencing if any
         content = strip_markdown_fences(content)
 
-        # 4) Parse JSON response
+        # Parse JSON response
         def _looks_like_exercise(obj: dict) -> bool:
             if not isinstance(obj, dict):
                 return False
@@ -786,12 +746,73 @@ Here is the current state of the exercise you are helping the teacher with:
             elif isinstance(hints, list):
                 updated_exercise['answer_data']['hints'] = "\n".join(hints)
 
-    
-    else: # feedback mode
+    else:  # feedback mode
         # Enforce no-op updates in feedback mode
         updated_exercise = exercise_payload
         # use the content as the assistant message
         assistant_message = content.strip() if content else ''
+    
+    return assistant_message, updated_exercise
+
+
+def generate_authoring_update(*, exercise_payload: dict, messages: list, course: Course, mode: str = 'edit') -> dict:
+    """
+    Stateless helper for the teacher-facing authoring assistant.
+
+    Input:
+    - exercise_payload: current exercise DTO as seen by the form (dict)
+    - messages: list of {role: 'user'|'assistant', content: str}
+    - course: Course instance (for course-level prompts if any)
+    - mode: 'edit' (modify the exercise) or 'feedback' (just provide feedback)
+
+    Output dict:
+    - 'assistant_message': str (short assistant reply)
+    - 'updated_exercise': dict (complete DTO to apply on the form)
+    - 'system_prompt': str (the system prompt used for the LLM)
+    - 'assistant_metadata': dict (metadata about the assistant's response, like the LLM response time, model, etc.)
+    """
+    
+    # Build system prompt using helper
+    system_prompt = _build_authoring_system_prompt(exercise_payload, course, mode)
+    
+    messages_for_llm = [{"role": "system", "content": str(system_prompt)}]
+
+    # Append the short-lived in-page messages (user/assistant conversation)
+    for m in messages:
+        role = m.get('role', 'user')
+        content = m.get('content', '')
+        if not isinstance(content, str):
+            content = str(content)
+        messages_for_llm.append({"role": role, "content": content})
+
+    # 3) Ask for a JSON object in the response, without a strict schema
+    try:
+        start_time = time.time()
+        kwargs = {
+            "model": MODEL_PRO,
+            "messages": messages_for_llm,
+            "temperature": 0.2,
+        }
+        # important: do not use a response format {type: text} for feedback mode, it will not work
+        if mode == 'edit':
+            kwargs["response_format"] = {"type": "json_object"}
+            
+        completion = client.chat.completions.create(**kwargs)
+                
+            
+        logger.debug(f"Completion time: {time.time() - start_time}, {completion}")
+    except Exception as e:
+        logger.error(f"Failed to create completion for authoring assistant: {e}, messages: {messages_for_llm}")
+        # Return a response that indicates failure but doesn't crash the frontend
+        return {
+            'assistant_message': f"Error contacting AI assistant: {e}",
+            'updated_exercise': exercise_payload,
+        }
+
+    content = (completion.choices[0].message.content or '').strip()
+    
+    # Parse response using helper
+    assistant_message, updated_exercise = _parse_authoring_response(content, exercise_payload, mode)
 
     return {
         'assistant_message': assistant_message,

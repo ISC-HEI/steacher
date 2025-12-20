@@ -1069,6 +1069,7 @@ def exercise_form(request, course_pk, exercise_pk=None, module_pk=None):
         "course_pk": course.pk,
         "course_name": course.name,
         "course_description": course.description,
+        "draft_notes": exercise.draft_notes,
     }
 
     return render(request, 'exercises/teacher/exercise_form.html', {

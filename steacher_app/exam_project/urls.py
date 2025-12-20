@@ -46,6 +46,7 @@ urlpatterns = [
     path('m/', include((exercises_urls.mobile_urlpatterns, 'mobile'), namespace='mobile')),
     path('exercises/', include((exercises_urls.urlpatterns, 'exercises'), namespace='exercises')),
     path('teachers/', include((exercises_urls.teachers_urlpatterns, 'teachers'), namespace='teachers')),
+    path('teacher/authoring-assistant/', include('authoring_tools.urls')),
     path('evaluation/', include('evaluation.urls')),
     path('', home, name='dashboard_root'),  # Root auto-detects mobile and redirects accordingly
 ]

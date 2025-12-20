@@ -30,6 +30,9 @@
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    
+    <!-- Bulma Switch Control -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma-switch-control@1.2.2/css/main.min.css" integrity="sha256-qY8oS44uwjdo/BblVuK4gGsOV8ggx/O4uyMzxtQiG/E=" crossorigin="anonymous">
 
     <!-- KaTeX CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.25/dist/katex.min.css">
@@ -69,6 +72,14 @@
         <div id="navbarBasicExample" class="navbar-menu">
             <div class="navbar-end">
                 {% if user.is_authenticated %}
+                {% if user|can_author_any_course %}
+                <a class="navbar-item" href="{% url 'authoring_tools:upload' %}">
+                    <span class="icon">
+                        <i class="fas fa-file-import"></i>
+                    </span>
+                    <span>Import Exercises</span>
+                </a>
+                {% endif %}
                 <div class="navbar-item">
                     {% if instructor_email %}
                     <a href="https://teams.microsoft.com/l/chat/0/0?users={{ instructor_email|urlencode }}" class="button is-small is-info mr-4" target="_blank" rel="noopener">

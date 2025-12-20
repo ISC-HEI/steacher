@@ -41,14 +41,13 @@ def can_view_course(user: User, course: Course) -> bool:
     except Exception:
         return False
 
-def can_view_exercise(user: User, exercice: Exercise):
+def can_view_exercise(user: User, exercice: Exercise) -> bool:
     """
     Check if the user can view the exercise.
-    
     Allows:
     - Course owner/editor/viewer: can view ANY exercise (including hidden ones)
-    - Cohort member (student): can ONLY view visible exercises
-    - Cohort teacher/assistant: can ONLY view visible exercises (same as students)
+    - Cohort member (student): can ONLY view visible exercises (same as students)
+    - Cohort teacher/assistant: can view visible exercises
     """
     course = exercice.module.course
     role = get_user_course_role(user, course)
@@ -71,6 +70,31 @@ def can_view_exercise(user: User, exercice: Exercise):
 def can_edit_course(user: User, course: Course) -> bool:
     role = get_user_course_role(user, course)
     return role in {'owner', 'editor'}
+
+
+def can_edit_any_course(user: User) -> bool:
+    """
+    Check if user has editing permissions for any course.
+    Returns True if user is a course owner/editor OR cohort owner/teacher.
+    Used to show/hide teacher-only features like Import Exercises.
+    """
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    try:
+        # Check CourseMembership (owner/editor)
+        has_course_role = CourseMembership.objects.filter(
+            user=user, role__in=['owner', 'editor']
+        ).exists()
+        if has_course_role:
+            return True
+        
+        # Check CohortMembership (owner/teacher can also author)
+        has_cohort_role = CohortMembership.objects.filter(
+            user=user, role__in=['owner', 'teacher']
+        ).exists()
+        return has_cohort_role
+    except Exception:
+        return False
 
 
 def get_user_cohort_role(user: User, cohort: Cohort) -> str | None:
@@ -98,27 +122,41 @@ def assert_can_view_course(user: User, course: Course):
         raise PermissionDenied("Forbidden")
 
 
-def assert_can_edit_course(user: User, course: Course):
+def assert_can_edit_course(user: User, course: Course) -> None:
+    """
+    Raises:
+        PermissionDenied: if the user does not have editing permissions for the course.
+    """
     if not can_edit_course(user, course):
         raise PermissionDenied("Forbidden")
 
 
 def assert_can_view_cohort(user: User, cohort: Cohort):
+    """
+    Raises:
+        PermissionDenied: if the user does not have view permissions for the cohort.
+    """
     role = get_user_cohort_role(user, cohort)
     if role not in {'owner', 'teacher', 'assistant', 'student'}:
         raise PermissionDenied("Forbidden")
 
 
-def assert_can_manage_cohort(user: User, cohort: Cohort):
+def assert_can_manage_cohort(user: User, cohort: Cohort) -> None:
+    """
+    Raises:
+        PermissionDenied: if the user does not have management permissions for the cohort.
+    """
     if not can_manage_cohort_students(user, cohort):
         raise PermissionDenied("Forbidden")
 
 
-def course_roles_required(roles=None, *, course_kw='course_pk'):
+def course_roles_required(roles=None, *, course_kw='course_pk') -> None:
     """
     Decorator to check if the user has the required role in the course.
     Allows: any course owner/editor/viewer.
     Attaches `request.course` and `request.course_role` if permission is granted.
+    Raises:
+        PermissionDenied: if the user does not have the required role in the course.    
     """
     roles: set[str] = set(roles or [])
 

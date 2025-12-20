@@ -140,6 +140,53 @@ steacher_app/evaluation/
 6. Admin configuration
 7. Migrations and testing
 
+## Usage Instructions
+
+1. **Set up OpenRouter API key**:
+   - Add `OPENROUTER_API_KEY` to your environment variables
+   - Example: `export OPENROUTER_API_KEY="your-key-here"`
+
+2. **Create an experiment** (via Django admin at `/admin/evaluation/modelevalexperiment/`):
+   - Name: e.g., "Python Guidance Comparison"
+   - Description: Optional context
+   - Exercises: Select which exercises to sample from
+   - Model configs: JSON array of model configurations
+   
+   Example model_configs:
+   ```json
+   [
+     {
+       "name": "openai/gpt-oss-120b",
+       "quantizations": ["int8"],
+       "reasoning": {"effort": "high", "exclude": false}
+     },
+     {
+       "name": "x-ai/grok-4-fast"
+     },
+     {
+       "name": "anthropic/claude-sonnet-4.5"
+     },
+     {
+       "name": "deepseek/deepseek-chat-v3-0324",
+       "quantizations": ["int8"]
+     }
+   ]
+   ```
+
+3. **Start evaluating**:
+   - Click "Evaluate" link in admin to open the evaluation interface
+   - System shows one random trace from experiment exercises
+   - 4 model responses displayed as A/B/C/D (shuffled, blind)
+   - Conversation history shown at top
+   - Rank responses by typing: `abcd` or `(ab)cd` for ties
+   - Add optional comments per model and global comment
+   - Submit or Skip to continue
+
+4. **View statistics**:
+   - Click "View Stats" button during evaluation
+   - Or click "Stats" link in admin
+   - Shows win rates, total comparisons, model performance
+
 ## Future Enhancements (Not in Scope)
 
 - Export comparisons to CSV

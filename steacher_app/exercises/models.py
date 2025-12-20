@@ -360,6 +360,10 @@ class Exercise(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     allow_image_upload = models.BooleanField(default=False) # user can input images
+    
+    # Draft exercise fields (for bulk import feature)
+    is_draft = models.BooleanField(default=False, help_text="Whether this exercise is a draft (hidden from students until published).")
+    draft_notes = models.TextField(blank=True, help_text="AI-generated notes about this exercise (what worked, questions, suggestions). Format is a 'full text', not structured like a json.")
 
     # Reverse link to all Trace rows that reference this Exercise as owner (e.g., authoring)
     traces = GenericRelation('Trace', related_query_name='exercise_owner')

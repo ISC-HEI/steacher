@@ -389,8 +389,8 @@
                 <div class="ai-assistant-content">
                     <div v-if="assistantError" class="notification is-danger is-light">[[ assistantError ]]</div>
                     <div v-if="messages.length === 0" class="has-text-grey">The authoring assistant helps you improve your exercise. Messages from the authoring assistant will appear here.<br><br>Start by describing the changes you want in the text box below or paste content to improve. <br><br>E.g. you can write: "here's my question in french, format it to english and don't forget to ask the students to write comments in the code."<br><br> There are two modes: Improve and Feedback. In Improve mode, the assistant will improve the exercise based on your instructions. In Feedback mode, the assistant will provide text feedback without modifying the exercise.</div>
-                    <div v-for="(m, i) in messages" :key="i" style="margin-bottom: 0.75rem;">
-                        <p><strong>[[ m.role === 'user' ? 'You' : 'Assistant' ]]</strong></p>
+                    <div v-for="(m, i) in messages" :key="i" :class="{'draft-notes-message': m.mode === 'draft_notes'}" style="margin-bottom: 0.75rem;">
+                        <p><strong>[[ m.mode === 'draft_notes' ? '🤖 Import Notes' : (m.role === 'user' ? 'You' : 'Assistant') ]]</strong></p>
                         <div v-if="m.role === 'assistant'" class="content" v-html="renderMarkdown(m.content)"></div>
                         <div v-else class="content" style="white-space: pre-wrap;">[[ m.content ]]</div>
                         <hr v-if="i < messages.length - 1" style="margin: 0.5rem 0;">

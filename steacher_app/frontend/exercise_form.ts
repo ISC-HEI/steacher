@@ -122,6 +122,15 @@ document.addEventListener('DOMContentLoaded', function() {
             },
         },
         mounted() {
+            // If exercise has draft_notes, display them as first message in assistant panel
+            const draftNotes = (this.exercise as any).draft_notes;
+            if (draftNotes && typeof draftNotes === 'string' && draftNotes.trim()) {
+                this.messages.unshift({
+                    role: 'assistant',
+                    content: draftNotes,
+                    mode: 'draft_notes'
+                });
+            }
         },
         methods: {
             deepClone<T>(obj: T): T {
@@ -209,6 +218,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.loading = false;
                 }
             },
+            detectSourceLanguage(): string {
+                // Detect which language has content (first non-empty wins)
+                const langs = ['en', 'fr', 'de'];
+                for (const lang of langs) {
+                    if (this.exercise.title_i18n?.[lang]?.trim()) return lang;
+                    if (this.exercise.description_i18n?.[lang]?.trim()) return lang;
+                    if (this.exercise.question_i18n?.[lang]?.trim()) return lang;
+                }
+                return 'en'; // fallback
+            },
             async translateLanguage(targetLang: 'fr'|'de') {
                 this.assistantError = null;
                 this.sending = true;
@@ -219,7 +238,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 try {
-                    console.log('[translate_i18n] sending single target', targetLang);
+                    const sourceLang = this.detectSourceLanguage();
+                    console.log('[translate_i18n] sending single target', targetLang, 'from source', sourceLang);
                     const response = await csrfFetch('/teachers/ai/translate_i18n/', {
                         method: 'POST',
                         headers: {
@@ -227,12 +247,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         },
                         body: JSON.stringify({
                             course_pk: this.course_pk,
-                            source_lang: 'en',
+                            source_lang: sourceLang,
                             targets: [targetLang],
                             fields: {
-                                title: this.exercise.title_i18n?.['en'] || '',
-                                description: this.exercise.description_i18n?.['en'] || '',
-                                question: this.exercise.question_i18n?.['en'] || '',
+                                title: this.exercise.title_i18n?.[sourceLang] || '',
+                                description: this.exercise.description_i18n?.[sourceLang] || '',
+                                question: this.exercise.question_i18n?.[sourceLang] || '',
                             },
                             course_context: { name: this.course_name, description: this.course_description },
                         }),
@@ -254,7 +274,11 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             async translateAll() {
                 console.log('[translate_i18n] translateAll', this.course_pk);
-                const targets: ('fr'|'de')[] = ['fr', 'de'];
+                const sourceLang = this.detectSourceLanguage();
+                // Translate to all other languages
+                const allLangs: ('en'|'fr'|'de')[] = ['en', 'fr', 'de'];
+                const targets = allLangs.filter(lang => lang !== sourceLang) as ('fr'|'de'|'en')[];
+                
                 this.assistantError = null;
                 this.sending = true;
                 let csrf2: string;
@@ -264,7 +288,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
                 try {
-                    console.log('[translate_i18n] sending batch', targets);
+                    console.log('[translate_i18n] sending batch', targets, 'from source', sourceLang);
                     const response = await csrfFetch('/teachers/ai/translate_i18n/', {
                         method: 'POST',
                         headers: {
@@ -272,12 +296,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         },
                         body: JSON.stringify({
                             course_pk: this.course_pk,
-                            source_lang: 'en',
+                            source_lang: sourceLang,
                             targets,
                             fields: {
-                                title: this.exercise.title_i18n?.['en'] || '',
-                                description: this.exercise.description_i18n?.['en'] || '',
-                                question: this.exercise.question_i18n?.['en'] || '',
+                                title: this.exercise.title_i18n?.[sourceLang] || '',
+                                description: this.exercise.description_i18n?.[sourceLang] || '',
+                                question: this.exercise.question_i18n?.[sourceLang] || '',
                             },
                             course_context: { name: this.course_name, description: this.course_description },
                         }),

@@ -1,0 +1,171 @@
+{% extends "exercises/base.html" %}
+{% load static %}
+
+{% block title %}Review Exercises{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="container">
+        <h1 class="title">Review Exercises</h1>
+        <p class="subtitle">Course: {{ session.course.name }}{% if session.module %} - Module: {{ session.module.name }}{% endif %}</p>
+        
+        <div id="building-notification" class="notification is-info is-light" {% if session.status != 'building' %}style="display: none;"{% endif %}>
+            <span class="icon">
+                <i class="fas fa-spinner fa-spin"></i>
+            </span>
+            <strong>Building exercises in progress...</strong> The page will auto-refresh to show exercises as they're created.
+        </div>
+        
+        {% if session.status == 'analyzing' %}
+        <div class="notification is-warning is-light">
+            <span class="icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </span>
+            <strong>Exercises not created yet.</strong> Please go back to the <a href="{% url 'authoring_tools:analysis' session.id %}">analysis page</a> and click "Create Exercises".
+        </div>
+        {% endif %}
+        
+        <div class="field">
+            <input id="auto-refresh-switch" type="checkbox" name="auto-refresh" class="switch is-rounded" checked="checked">
+            <label for="auto-refresh-switch">Auto-refresh (every 5 seconds)</label>
+        </div>
+        
+        <div class="box">
+            <table class="table is-fullwidth is-striped is-hoverable">
+                <thead>
+                    <tr>
+                        <th>Order</th>
+                        <th>Title</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="exercise-list">
+                    <tr>
+                        <td colspan="5" class="has-text-centered">
+                            <span class="icon">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </span>
+                            Loading exercises...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="button is-success is-medium">
+                <span class="icon">
+                    <i class="fas fa-check"></i>
+                </span>
+                <span>Complete Session</span>
+            </button>
+            <a href="{% url 'teachers:course_detail' pk=session.course.id %}" class="button is-light is-medium">
+                <span>Back to Course</span>
+            </a>
+        </form>
+    </div>
+</section>
+
+<script>
+const sessionId = {{ session.id }};
+let refreshInterval = null;
+
+async function loadExercises() {
+    try {
+        const response = await fetch(`/teacher/authoring-assistant/${sessionId}/review/`, {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        
+        const data = await response.json();
+        const tbody = document.getElementById('exercise-list');
+        
+        // Update notification visibility based on whether any exercise is still generating
+        let anyGenerating = false;
+        if (data.exercises.length > 0) {
+            anyGenerating = data.exercises.some(ex => ex.draft_notes === "Generating content...");
+        }
+        
+        const notification = document.getElementById('building-notification');
+        if (notification) {
+            notification.style.display = anyGenerating ? 'block' : 'none';
+        }
+        
+        if (data.exercises.length === 0) {
+            // Show different message based on session status
+            const status = '{{ session.status }}';
+            let message = '';
+            
+            if (status === 'building') {
+                message = '<tr><td colspan="5" class="has-text-centered p-5"><span class="icon has-text-info"><i class="fas fa-spinner fa-spin fa-2x"></i></span><p class="mt-3"><strong>Building exercises...</strong></p><p class="has-text-grey">The AI is creating exercises from your documents. This may take a few minutes.</p></td></tr>';
+            } else if (status === 'analyzing') {
+                message = '<tr><td colspan="5" class="has-text-centered p-5 has-background-warning-light"><span class="icon has-text-warning"><i class="fas fa-exclamation-triangle fa-2x"></i></span><p class="mt-3"><strong>No exercises created yet</strong></p><p class="has-text-grey">Go back to the analysis page and click "Create Exercises".</p></td></tr>';
+            } else {
+                message = '<tr><td colspan="5" class="has-text-centered p-5"><span class="icon has-text-grey"><i class="fas fa-inbox fa-2x"></i></span><p class="mt-3 has-text-grey">No exercises found.</p></td></tr>';
+            }
+            
+            tbody.innerHTML = message;
+            return;
+        }
+        
+        tbody.innerHTML = data.exercises.map(ex => {
+            // Check if exercise is still generating content
+            const isGenerating = ex.draft_notes === "Generating content...";
+            
+            let statusBadge;
+            if (isGenerating) {
+                statusBadge = '<span class="tag is-info is-light"><span class="icon is-small mr-1"><i class="fas fa-spinner fa-spin"></i></span> Processing...</span>';
+            } else if (ex.is_draft) {
+                statusBadge = '<span class="tag is-warning">DRAFT</span>';
+            } else {
+                statusBadge = '<span class="tag is-success">Published</span>';
+            }
+            
+            return `
+            <tr>
+                <td>${ex.order + 1}</td>
+                <td>${ex.title || '(Untitled)'}</td>
+                <td><span class="tag">${ex.exercise_type}</span></td>
+                <td>${statusBadge}</td>
+                <td>
+                    <a href="/exercises/${ex.id}/" target="_blank" class="button is-small is-info">
+                        <span class="icon"><i class="fas fa-edit"></i></span>
+                        <span>Edit</span>
+                    </a>
+                </td>
+            </tr>
+        `}).join('');
+    } catch (error) {
+        console.error('Error loading exercises:', error);
+    }
+}
+
+function startAutoRefresh() {
+    refreshInterval = setInterval(loadExercises, 5000);
+}
+
+function stopAutoRefresh() {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    loadExercises();
+    startAutoRefresh();
+    
+    const toggle = document.getElementById('auto-refresh-switch');
+    toggle.addEventListener('change', () => {
+        if (toggle.checked) {
+            startAutoRefresh();
+        } else {
+            stopAutoRefresh();
+        }
+    });
+});
+</script>
+{% endblock %}

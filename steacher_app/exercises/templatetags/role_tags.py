@@ -1,7 +1,6 @@
 from django import template
 from django.urls import reverse
-
-from exercises.models import CourseMembership, CohortMembership
+from exercises.authz import can_edit_any_course
 
 
 register = template.Library()
@@ -14,18 +13,15 @@ def teacher_home_url(user):
     - Teachers (course owner/editor or cohort owner/teacher) → teachers:dashboard
     - Everyone else → exercises:dashboard
     """
-    try:
-        if user and getattr(user, 'is_authenticated', False):
-            is_course_editor = CourseMembership.objects.filter(
-                user=user, role__in=['owner', 'editor']
-            ).exists()
-            is_cohort_teacher = CohortMembership.objects.filter(
-                user=user, role__in=['owner', 'teacher']
-            ).exists()
-            if is_course_editor or is_cohort_teacher:
-                return reverse('teachers:dashboard')
-    except Exception:
-        pass
+    if can_edit_any_course(user):
+        return reverse('teachers:dashboard')
     return reverse('exercises:dashboard')
 
 
+@register.filter
+def can_author_any_course(user):
+    """
+    Template filter wrapper for authz.can_edit_any_course().
+    Used to show/hide the Import Exercises link in navbar.
+    """
+    return can_edit_any_course(user)

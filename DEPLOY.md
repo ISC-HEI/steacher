@@ -827,3 +827,21 @@ docker run --rm -i --network container:my-local-postgres   -e PGPASSWORD="myvery
    ORDER BY total_exec_time DESC
    LIMIT 20;
    ```
+
+
+# Running redis locally
+
+```bash
+docker run -d --name redis-dev -p 6379:6379 redis:alpine
+```
+
+To flush all data:
+```bash
+docker exec redis-dev redis-cli FLUSHALL
+```
+
+
+To check the data:
+```bash
+docker exec redis-dev redis-cli KEYS *
+```

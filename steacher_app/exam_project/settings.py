@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'accounts',  # only used for custom user model (prefered language)
     'exercises',
     'evaluation',
+    'authoring_tools',
 ]
 
 MIDDLEWARE = [
