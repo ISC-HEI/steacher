@@ -8,7 +8,7 @@
     "watch:codemirror": "rollup --config rollup.codemirror.config.mjs --watch",
     "watch:mobile": "rollup --config rollup.mobile.config.mjs --watch",
     "watch:ts": "tsc --watch",
-    "watch": "npm run watch:ts & npm run watch:codemirror & npm run watch:mobile",
+    "watch": "concurrently \"npm run watch:ts\" \"npm run watch:codemirror\" \"npm run watch:mobile\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -41,6 +41,7 @@
     "@rollup/plugin-node-resolve": "^16.0.1",
     "@rollup/plugin-typescript": "^12.1.2",
     "@types/canvas-confetti": "^1.9.0",
+    "concurrently": "^9.2.1",
     "rollup": "^4.44.2",
     "tslib": "^2.8.1",
     "typescript": "^5.4.5"

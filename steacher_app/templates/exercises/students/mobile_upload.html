@@ -383,7 +383,7 @@
             <p>Your answer has been uploaded. You can now return to your computer.</p>
             
             <div class="button-group">
-                <button id="another-btn" class="btn-primary">Take Another Photo</button>
+                <!-- button id="another-btn" class="btn-primary">Take Another Photo</button -->
                 <button id="close-btn" class="btn-secondary">Close</button>
             </div>
         </div>
@@ -413,7 +413,7 @@
                 cropImage: document.getElementById('crop-image'),
                 uploadBtn: document.getElementById('upload-btn'),
                 retakeBtn: document.getElementById('retake-btn'),
-                anotherBtn: document.getElementById('another-btn'),
+                //anotherBtn: document.getElementById('another-btn'),
                 closeBtn: document.getElementById('close-btn'),
                 openCameraBtn: document.getElementById('open-camera-btn'),
                 errorContainer: document.getElementById('error-container')
@@ -474,7 +474,7 @@
                             viewMode: 1,
                             dragMode: 'move',
                             aspectRatio: NaN,
-                            autoCropArea: 0.95,
+                            autoCropArea: 1,
                             responsive: true,
                             movable: false,
                             zoomable: false,
@@ -534,10 +534,10 @@
                         // Update UI based on whether more photos allowed
                         if (data.next_token) {
                             currentToken = data.next_token;
-                            elements.anotherBtn.style.display = '';
+                            //elements.anotherBtn.style.display = '';
                         } else {
                             currentToken = null;
-                            elements.anotherBtn.style.display = 'none';
+                            //elements.anotherBtn.style.display = 'none';
                         }
                         
                         showView('success');
@@ -565,7 +565,7 @@
                 elements.openCameraBtn.textContent = 'Open Camera';
                 document.querySelector('.waiting-view p').textContent = 'Tap the button below to open your camera';
                 elements.retakeBtn.textContent = 'Retake';
-                elements.anotherBtn.textContent = 'Take Another Photo';
+                //elements.anotherBtn.textContent = 'Take Another Photo';
                 // Auto-trigger camera button on load (works on most modern mobile browsers)
                 window.addEventListener('load', () => {
                     setTimeout(() => {
@@ -576,7 +576,7 @@
                 elements.openCameraBtn.textContent = 'Upload Photo';
                 document.querySelector('.waiting-view p').textContent = 'Click the button below to select an image';
                 elements.retakeBtn.textContent = 'Choose Another';
-                elements.anotherBtn.textContent = 'Upload Another Photo';
+                //elements.anotherBtn.textContent = 'Upload Another Photo';
                 elements.photoInput.removeAttribute('capture');
             }
             
@@ -584,7 +584,7 @@
             elements.photoInput.addEventListener('change', handleFileSelect);
             elements.uploadBtn.addEventListener('click', uploadImage);
             elements.retakeBtn.addEventListener('click', resetForNewPhoto);
-            elements.anotherBtn.addEventListener('click', resetForNewPhoto);
+            //elements.anotherBtn.addEventListener('click', resetForNewPhoto);
             elements.openCameraBtn.addEventListener('click', triggerCamera);
             elements.closeBtn.addEventListener('click', () => {
                 window.close();

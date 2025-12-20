@@ -72,7 +72,7 @@ export const ChatbotPanel = defineComponent({
                  :key="'user-' + index">
               <!-- Create collapsible for all user messages with action metadata -->
               <template v-if="message.metadata && message.metadata.action">
-                <details class="collapsible-message">
+                <details class="collapsible-message" open>
                   <summary v-html="getMessageSummary(message)"></summary>
                   <div class="mt-2">
                     <div v-if="message.content" v-html="renderMarkdown(message.content)"></div>
@@ -80,8 +80,8 @@ export const ChatbotPanel = defineComponent({
                       <div v-for="(img, imgIdx) in message.images" 
                            :key="imgIdx"
                            style="width: 100%; max-width: 100%; cursor: pointer;"
-                           @click="openImageModal('/exercises/image/' + img.image_token)">
-                        <img :src="'/exercises/image/' + img.image_token" 
+                           @click="openImageModal(getImageUrl(img))">
+                        <img :src="getImageUrl(img)" 
                              alt="User uploaded image"
                              style="width: 100%; max-width: 100%; height: auto; border: 1px solid #e6e6e6; border-radius: 4px; background: #fff;" />
                       </div>
@@ -617,6 +617,18 @@ export const ChatbotPanel = defineComponent({
       textarea.style.height = 'auto';
       // Set the height to the scroll height to fit the content
       textarea.style.height = `${textarea.scrollHeight}px`;
+    },
+
+    getImageUrl(this: any, img: any): string {
+      /**
+       * Determine the correct image URL to display.
+       * If the image has highlights, use the highlighted image endpoint.
+       * Otherwise, use the original image endpoint.
+       */
+      if (img.has_highlights) {
+        return '/exercises/image-highlighted/' + img.image_token;
+      }
+      return '/exercises/image/' + img.image_token;
     },
 
     openImageModal(this: any, imageUrl: string) {

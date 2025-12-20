@@ -201,7 +201,13 @@ def mobile_exercise(request, exercise_id):
                 'role': 'user',
                 'content': user_content,
                 'metadata': tr.user_metadata or {},
-                'images': [{'image_token': img.upload_token} for img in tr.images.order_by('uploaded_at')],
+                'images': [
+                    {
+                        'image_token': img.upload_token,
+                        'has_highlights': bool(img.highlight_bboxes)
+                    } 
+                    for img in tr.images.order_by('uploaded_at')
+                ],
             },
             'llm_response': {
                 'role': 'assistant',
@@ -236,7 +242,15 @@ def mobile_exercise(request, exercise_id):
             }
             if interaction['user_submission']['images']:
                 msg['images'] = [
-                    {'url': reverse('exercises:serve_trace_image', args=[img['image_token']])}
+                    {
+                        'image_token': img['image_token'],
+                        'has_highlights': img.get('has_highlights', False),
+                        'url': (
+                            reverse('exercises:serve_highlighted_image', args=[img['image_token']])
+                            if img.get('has_highlights')
+                            else reverse('exercises:serve_trace_image', args=[img['image_token']])
+                        )
+                    }
                     for img in interaction['user_submission']['images']
                 ]
             messages_for_vue.append(msg)

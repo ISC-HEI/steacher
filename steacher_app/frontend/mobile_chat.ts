@@ -25,6 +25,36 @@ interface Message {
     images?: ImageAttachment[];
 }
 
+
+// Helper function to normalize images (outside of component because needed before the methods are available)
+function normalizeImages(images: any[]): ImageAttachment[] {
+    if (!images || !Array.isArray(images)) {
+        return [];
+    }
+    return images.map((img: any) => {
+        if ('type' in img) {
+            return img as ImageAttachment;
+        }
+
+        // Construct the correct URL based on whether the image has highlights
+        let imageUrl = '';
+        if (img.image_token) {
+            if (img.has_highlights) {
+                imageUrl = `/exercises/image-highlighted/${img.image_token}`;
+            } else {
+                imageUrl = `/exercises/image/${img.image_token}`;
+            }
+        } else if (img.url) {
+            imageUrl = img.url;
+        }
+
+        return {
+            type: 'remote' as const,
+            url: imageUrl
+        } as RemoteImage;
+    });
+}
+
 const MobileChatComponent = defineComponent({
     props: {
         exerciseId: {
@@ -80,25 +110,16 @@ const MobileChatComponent = defineComponent({
         // Clean initial messages of any special tags and mark images as remote
         const cleanedMessages = this.initialMessages.map(msg => {
             const cleaned = { ...msg };
-            
+
             if (msg.role === 'assistant' && msg.content) {
                 cleaned.content = msg.content.replace('<exercise_completed>', '')
                                            .replace('<solution_revealed>', '')
                                            .trim();
             }
-            
+
             // Ensure images have the 'type' field
             if (cleaned.images && Array.isArray(cleaned.images)) {
-                cleaned.images = cleaned.images.map((img: any) => {
-                    if ('type' in img) {
-                        return img as ImageAttachment;
-                    }
-                    // Mark existing images as remote
-                    return {
-                        type: 'remote' as const,
-                        url: (img.url || '') as string
-                    } as RemoteImage;
-                });
+                cleaned.images = normalizeImages(cleaned.images);
             }
             
             return cleaned;
@@ -344,7 +365,8 @@ const MobileChatComponent = defineComponent({
             });
         },
 
-        confirmCrop() {
+        confirmCrop(event?: Event) {
+            if (event) event.stopPropagation();
             console.log('[MobileChat] confirmCrop called');
             if (!this.cropper) {
                 console.error('[MobileChat] Cropper not initialized!');
@@ -373,7 +395,8 @@ const MobileChatComponent = defineComponent({
             }
         },
 
-        cancelCrop() {
+        cancelCrop(event?: Event) {
+            if (event) event.stopPropagation();
             this.closeCropper();
             this.openCamera();
         },
@@ -390,8 +413,8 @@ const MobileChatComponent = defineComponent({
         addImage(blob: Blob) {
             console.log('[MobileChat] addImage called, blob size:', blob.size);
             
-            if (this.pendingImages.length >= 3) {
-                alert('Maximum 3 images allowed');
+            if (this.pendingImages.length >= 1) {
+                alert('Maximum 1 images allowed');
                 return;
             }
             
@@ -414,7 +437,8 @@ const MobileChatComponent = defineComponent({
             }
         },
         
-        handleMicrophoneDown() {
+        handleMicrophoneDown(event?: Event) {
+            if (event) event.preventDefault();
             console.log('[MobileChat] Microphone pressed down');
             this.pressStartTime = Date.now();
             
@@ -423,7 +447,8 @@ const MobileChatComponent = defineComponent({
             }
         },
         
-        handleMicrophoneUp() {
+        handleMicrophoneUp(event?: Event) {
+            if (event) event.preventDefault();
             console.log('[MobileChat] Microphone released');
             
             if (this.pressStartTime === null) {
@@ -747,7 +772,7 @@ const MobileChatComponent = defineComponent({
                 const data = await response.json();
                 
                 if (data.status === 'success') {
-                    this.handleAssistantResponse(data.guidance || '');
+                    this.handleAssistantResponse(data);
                 } else {
                     this.showError(data.message || 'Failed to get response');
                 }
@@ -761,7 +786,8 @@ const MobileChatComponent = defineComponent({
             }
         },
         
-        handleAssistantResponse(guidance: string) {
+        handleAssistantResponse(data: any) {
+            const guidance = data.guidance || '';
             const isComplete = guidance.includes('<exercise_completed>');
             const isSolutionReveal = guidance.includes('<solution_revealed>');
             
@@ -775,6 +801,33 @@ const MobileChatComponent = defineComponent({
                 this.showCompletionButtons = true;
             }
             
+            // Update the last user message with server-side images (replace local blob URLs with remote URLs)
+            // The server returns the images that were just uploaded in user_submission
+            const rawImages = data.user_submission?.images || [];
+            
+            if (rawImages && Array.isArray(rawImages) && rawImages.length > 0) {
+                const normalizedImages = normalizeImages(rawImages);
+                
+                // Find the last user message and update its images with server URLs
+                for (let i = this.messages.length - 1; i >= 0; i--) {
+                    const message = this.messages[i];
+                    if (message && message.role === 'user') {
+                        // Clean up old blob URLs to prevent memory leaks
+                        if (message.images) {
+                            message.images.forEach(img => {
+                                if (img.type === 'local') {
+                                    URL.revokeObjectURL(img.url);
+                                }
+                            });
+                        }
+                        // Replace with server images
+                        message.images = normalizedImages;
+                        break;
+                    }
+                }
+            }
+            
+            // Add assistant's response (without images - images belong to the user's message)
             this.messages.push({
                 role: 'assistant',
                 content: cleanContent,
@@ -812,8 +865,8 @@ const MobileChatComponent = defineComponent({
             document.body.style.overflow = '';
         },
 
-        toggleZoom(event: Event) {
-            event.stopPropagation();
+        toggleZoom(event?: Event) {
+            if (event) event.stopPropagation();
             this.isZoomed = !this.isZoomed;
         },
 

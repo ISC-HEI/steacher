@@ -24,95 +24,252 @@ def strip_markdown_fences(content: str) -> str:
     return content
 
 
-class TutorResponse(BaseModel):  # used for structured output validation with Gemini API.
+def get_tutor_response_schema(has_images: bool = False):
     """
-    Response from AI tutor (exercise guidance or study chat). For example, 
+    Factory function to return appropriate TutorResponse schema based on context.
+    When has_images=True, includes transcript and error_desc fields.
+    When has_images=False, only includes guidance_text field.
+    
+    Args:
+        has_images: Whether the student uploaded images with their submission
+        
+    Returns:
+        A TutorResponse class (either with or without image-specific fields, TutorResponseWithImages or TutorResponseTextOnly)
+    """
+    if has_images:
+        class TutorResponseWithImages(BaseModel):
+            """Response from AI tutor when images are provided."""
+            transcript: str = Field(
+                default="",
+                description="A complete LaTeX retranscription of the student worksheet picture. Must be written in valid LaTeX format. Include the student's paging, line breaks, etc. Illustrations and graphs should be replaced by a short description of their content. The content of this field is not shown to the student. Ensure all LaTeX backslashes are double-escaped (e.g., \\\\frac instead of \\frac) so the output remains valid JSON. For teacher debugging only."
+            )
+            error_desc: str = Field(
+                default="",
+                description="A concise description of the mistakes made by the student that you spotted. For teacher debugging only."
+            )
+            text_to_highlight: str = Field(
+                default="",
+                description="An extract of the transcript with the exact text containing the student mistake."
+            )
+            guidance_text: str = Field(
+                description="The Socratic guidance text for the student. This is the only field shown to the student."
+            )
+            
+            def to_dict(self) -> dict:
+                """Convert to dictionary format matching existing assistant_content structure in Trace model."""
+                return {
+                    "guidance_text": self.guidance_text,
+                    "error_desc": self.error_desc or "",
+                    "transcript": self.transcript or "",
+                    "text_to_highlight": self.text_to_highlight or "",
+                }
+            
+            @classmethod
+            def from_gemini_response(cls, response: Any) -> 'TutorResponseWithImages':
+                """Factory method to create a TutorResponseWithImages from a Google GenAI response object."""
+                if hasattr(response, 'parsed') and response.parsed:
+                    try:
+                        if isinstance(response.parsed, cls):
+                            return response.parsed
+                        if isinstance(response.parsed, dict):
+                            return cls(**response.parsed)
+                    except Exception as e:
+                        logger.warning(f"response.parsed present but validation failed: {e}")
+                
+                raw_text = getattr(response, 'text', '') or ''
+                return cls.parse_text(raw_text)
+            
+            @staticmethod
+            def parse_text(text_out: str) -> 'TutorResponseWithImages':
+                """Parses a raw string (with potential Markdown fences) into TutorResponseWithImages."""
+                if not text_out:
+                    return TutorResponseWithImages(guidance_text="")
+                
+                try:
+                    text_out = strip_markdown_fences(text_out)
+                    
+                    try:
+                        loaded_response = json.loads(text_out)
+                        return TutorResponseWithImages(**loaded_response)
+                    except Exception as e:
+                        logger.warning(f"Failed to load response as JSON: {e}. Falling back to Regex.")
+                    
+                    # Regex Fallbacks
+                    guidance_match = re.search(r'guidance[_ ]text:\s*(.*?)(?:transcript[_ ]:|error[_ ]description:|text[_ ]to[_ ]highlight:|$)', text_out, re.DOTALL | re.IGNORECASE)
+                    transcript_match = re.search(r'transcript[_ ]:\s*(.*?)(?:guidance[_ ]text:|error[_ ]description:|text[_ ]to[_ ]highlight:|$)', text_out, re.DOTALL | re.IGNORECASE)
+                    error_desc_match = re.search(r'error[_ ]desc(?:ription)?:\s*(.*?)(?:guidance[_ ]text:|transcript[_ ]:|text[_ ]to[_ ]highlight:|$)', text_out, re.DOTALL | re.IGNORECASE)
+                    highlighted_text_match = re.search(r'(?:text[_ ]to[_ ]highlight):\s*(.*?)(?:guidance[_ ]text:|transcript[_ ]:|error[_ ]desc:|$)', text_out, re.DOTALL | re.IGNORECASE)
+                    
+                    if guidance_match:
+                        loaded_response = {
+                            "guidance_text": guidance_match.group(1).strip(),
+                            "transcript": transcript_match.group(1).strip() if transcript_match else "",
+                            "error_desc": error_desc_match.group(1).strip() if error_desc_match else "",
+                            "text_to_highlight": highlighted_text_match.group(1).strip() if highlighted_text_match else ""
+                        }
+                    else:
+                        loaded_response = {"guidance_text": text_out}
+                    
+                    return TutorResponseWithImages(**loaded_response)
+                
+                except Exception as e:
+                    logger.exception(f"Error parsing TutorResponseWithImages from text: {e}")
+                    return TutorResponseWithImages(guidance_text=text_out)
+        
+        return TutorResponseWithImages
+    
+    else:
+        class TutorResponseTextOnly(BaseModel):
+            """Response from AI tutor for text-only interactions."""
+            guidance_text: str = Field(
+                description="The Socratic guidance text for the student."
+            )
+            
+            def to_dict(self) -> dict:
+                """Convert to dictionary format matching existing assistant_content structure in Trace model."""
+                return {
+                    "guidance_text": self.guidance_text
+                }
+            
+            @classmethod
+            def from_gemini_response(cls, response: Any) -> 'TutorResponseTextOnly':
+                """Factory method to create a TutorResponseTextOnly from a Google GenAI response object."""
+                if hasattr(response, 'parsed') and response.parsed:
+                    try:
+                        if isinstance(response.parsed, cls):
+                            return response.parsed
+                        if isinstance(response.parsed, dict):
+                            return cls(**response.parsed)
+                    except Exception as e:
+                        logger.warning(f"response.parsed present but validation failed: {e}")
+                
+                raw_text = getattr(response, 'text', '') or ''
+                return cls.parse_text(raw_text)
+            
+            @staticmethod
+            def parse_text(text_out: str) -> 'TutorResponseTextOnly':
+                """Parses a raw string (with potential Markdown fences) into TutorResponseTextOnly."""
+                if not text_out:
+                    return TutorResponseTextOnly(guidance_text="")
+                
+                try:
+                    text_out = strip_markdown_fences(text_out)
+                    
+                    try:
+                        loaded_response = json.loads(text_out)
+                        return TutorResponseTextOnly(**loaded_response)
+                    except Exception as e:
+                        logger.warning(f"Failed to load response as JSON: {e}. Falling back to Regex.")
+                    
+                    # Try to extract guidance_text field
+                    guidance_match = re.search(r'guidance[_ ]text:\s*(.*?)$', text_out, re.DOTALL | re.IGNORECASE)
+                    if guidance_match:
+                        return TutorResponseTextOnly(guidance_text=guidance_match.group(1).strip())
+                    else:
+                        return TutorResponseTextOnly(guidance_text=text_out)
+                
+                except Exception as e:
+                    logger.exception(f"Error parsing TutorResponseTextOnly from text: {e}")
+                    return TutorResponseTextOnly(guidance_text=text_out)
+        
+        return TutorResponseTextOnly
+
+
+class HighlightResponse(BaseModel):
+    """
+    Response from AI text finder (find_text_in_image). For example: 
 ```json
 {
-  "transcript" : "$y = x - 8$\\n$y = 3x + 1$\\n$x - 8 = 3x + 1$\\n$-2x = 9$\\n$x = 4.5$\\n$y = x - 8 = 4.5 - 8 = 3.5$",
-  "error_desc" : "The exercise description asks to solve for y = x + 8",
-  "guidance_text" : "You should check again your signs in the first equation.",
+  "bounding_box" : "[10, 100, 70, 140]",
+  "comment" : ""
 }
 ```
     """
-    transcript: Optional[str] = Field(
-        default="",
-        description="A complete LaTeX retranscription of the student worksheet picture, if provided. In case you didn't receive an image, simply leave this field empty. Must be written in valid LaTeX format. Include the student's paging, line breaks, etc. Illustrations and graphs should be replaced by a short description of their content. The content of this field is not shown to the student. Ensure all LaTeX backslashes are double-escaped (e.g., \\frac instead of \frac) so the output remains valid JSON. For teacher debugging only."
+    bounding_box: List[int] = Field(
+        default_factory=list,
+        description="2D bounding box [y0, x0, y1, x1] or empty if not found"
     )
-    error_desc: Optional[str] = Field(
+    comment: str = Field(
         default="",
-        description="A concise description of the mistakes made by the student that you spotted. For teacher debugging only."
+        description="Error message or empty if successful"
     )
-    guidance_text: str = Field(
-        description="The Socratic guidance text for the student. This is the only field shown to the student."
-    )    
-
-    def to_dict(self) -> dict:
-        """Convert to dictionary format matching existing assistant_content structure in Trace model."""
-        return {
-            "guidance_text": self.guidance_text,
-            "error_desc": self.error_desc or "",
-            "transcript": self.transcript or "",
-        }
-
+    elapsed_time: float = Field(
+        default=0.0,
+        description="Time taken for API call in seconds"
+    )
+    
     @classmethod
-    def from_gemini_response(cls, response: Any) -> 'TutorResponse':
+    def from_gemini_response(cls, response: Any, elapsed_time: float) -> 'HighlightResponse':
         """
-        Factory method to create a TutorResponse from a Google GenAI response object.
+        Factory method to create a HighlightResponse from a Google GenAI response object.
         Prioritizes strict JSON parsing (response.parsed) but falls back to text parsing.
+        
+        Args:
+            response: The Gemini API response object
+            elapsed_time: Time taken for the API call in seconds
         """
         # 1. Try the SDK's automatic parsing (if available and successful)
         if hasattr(response, 'parsed') and response.parsed:
             try:
-                if isinstance(response.parsed, cls):
-                    return response.parsed
                 if isinstance(response.parsed, dict):
-                    return cls(**response.parsed)
+                    parsed_dict = response.parsed.copy()
+                    parsed_dict['elapsed_time'] = elapsed_time
+                    return cls(**parsed_dict)
             except Exception as e:
                 logger.warning(f"response.parsed present but validation failed: {e}")
 
         # 2. Fallback: Parse the raw text manually
-        # Handle cases where response.text might be None
         raw_text = getattr(response, 'text', '') or ''
-        return cls.parse_text(raw_text)
-
+        return cls.parse_text(raw_text, elapsed_time)
+    
     @staticmethod
-    def parse_text(text_out: str) -> 'TutorResponse':
-        """Parses a raw string (with potential Markdown fences) into TutorResponse."""
+    def parse_text(text_out: str, elapsed_time: float = 0.0) -> 'HighlightResponse':
+        """Parses a raw string (with potential Markdown fences) into HighlightResponse."""
         if not text_out:
-            return TutorResponse(guidance_text="")
+            return HighlightResponse(
+                bounding_box=[],
+                comment="ERROR: Empty response",
+                elapsed_time=elapsed_time
+            )
 
-        try:    
+        try:
             # Remove markdown code fences
             text_out = strip_markdown_fences(text_out)
 
             # Attempt clean JSON parse
             try:
                 loaded_response = json.loads(text_out)
-                return TutorResponse(**loaded_response)
-            except Exception as e:
-                logger.warning(f"Failed to load response as JSON: {e}. Falling back to Regex.")
-                
-            # Regex Fallbacks (try to extract a key field from the text and match until the next key or the end of the text is reached)
-            guidance_match = re.search(r'guidance[_ ]text:\s*(.*?)(?:transcript:|error[_ ]description:|$)', text_out, re.DOTALL | re.IGNORECASE)
-            transcript_match = re.search(r'transcript:\s*(.*?)(?:guidance[_ ]text:|error[_ ]description:|$)', text_out, re.DOTALL | re.IGNORECASE)
-            error_desc_match = re.search(r'error[_ ]description:\s*(.*?)(?:guidance[_ ]text:|transcript:|$)', text_out, re.DOTALL | re.IGNORECASE)
+                loaded_response['elapsed_time'] = elapsed_time
+                return HighlightResponse(**loaded_response)
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to load response as JSON: {e}. Falling back to regex.")
             
-            if guidance_match:
-                loaded_response = {
-                    "guidance_text": guidance_match.group(1).strip(),
-                    "transcript": transcript_match.group(1).strip() if transcript_match else "",
-                    "error_desc": error_desc_match.group(1).strip() if error_desc_match else "",
-                }
-            else:
-                # Last resort: treat whole text as guidance
-                loaded_response = {"guidance_text": text_out}
-
-            return TutorResponse(**loaded_response)
+            # Regex fallback to extract bounding_box and comment
+            bbox_match = re.search(r'bounding[_ ]box["\s:]*\[([\d,\s]+)\]', text_out, re.IGNORECASE)
+            comment_match = re.search(r'comment["\s:]*"([^"]*)"', text_out, re.IGNORECASE)
+            
+            bounding_box = []
+            if bbox_match:
+                try:
+                    bounding_box = [int(x.strip()) for x in bbox_match.group(1).split(',')]
+                except ValueError:
+                    logger.warning(f"Failed to parse bounding box coordinates: {bbox_match.group(1)}")
+            
+            comment = comment_match.group(1) if comment_match else "ERROR: Failed to parse response"
+            
+            return HighlightResponse(
+                bounding_box=bounding_box,
+                comment=comment,
+                elapsed_time=elapsed_time
+            )
 
         except Exception as e:
-            logger.exception(f"Error parsing TutorResponse from text: {e}")
-            return TutorResponse(guidance_text=text_out)
+            logger.exception(f"Error parsing HighlightResponse from text: {e}")
+            return HighlightResponse(
+                bounding_box=[],
+                comment=f"ERROR: {str(e)}",
+                elapsed_time=elapsed_time
+            )
 
 
 class TestCase(BaseModel):

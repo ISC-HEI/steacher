@@ -1,15 +1,21 @@
 import json
 import openai
 import time
+import io
+import os
+import logging
+import math
+from pathlib import Path
 from django.conf import settings
 from .models import Trace, TraceImage, Exercise, Attempt, Course, create_trace_for, localized_name
 from django.contrib.contenttypes.models import ContentType
-from .schemas import ExerciseData, AnswerData, TutorResponse, get_pydantic_schema_as_string, strip_markdown_fences
-import logging
-import math
+from .schemas import ExerciseData, AnswerData, get_tutor_response_schema, get_pydantic_schema_as_string, strip_markdown_fences
 from statistics import mean, pstdev
 from google import genai
-from google.genai.types import UserContent, ModelContent, Part, GenerateContentConfig
+from google.genai.types import UserContent, ModelContent, Part, GenerateContentConfig, ThinkingConfig
+from exercises.highlight import treat_gemini_bbox, find_text_in_image
+from PIL import Image
+
 
 # TODO: remove the openai client once all calls are migrated to the google client
 client = openai.OpenAI(api_key=settings.GEMINI_API_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
@@ -23,6 +29,9 @@ MODEL_PRO = "gemini-2.5-pro"
 MODEL_LATEST = "gemini-3-pro-preview"  # TODO: thorough test before production use
 
 IMAGE_MAX_SIZE = 10 * 1024 * 1024  # 10MB
+
+# Toggle the highlight function currently in test
+TOGGLE_HIGHLIGHT = True
 
 def _compute_uncertainty_from_logprobs(resp, first_k: int = 10, threshold_nll_nats: float = 4.8) -> dict:
     """
@@ -327,12 +336,19 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
             if tr.assistant_content:
                 history_parts.append(ModelContent(parts=[Part(text=tr.assistant_content_text())]))
 
+        # Check if images are present to determine schema
+        image_tokens = data.get('image_tokens', [])
+        has_images = bool(image_tokens)
+        
+        # Get appropriate schema based on whether images are present
+        TutorResponseSchema = get_tutor_response_schema(has_images=has_images)
+
         # Reduce temperature for reveal_solution to increase determinism/compliance
         _temp = 0.2 if action == 'reveal_solution' else 0.7
         chat_config = GenerateContentConfig(
             system_instruction=prompt,
             response_mime_type="application/json",
-            response_json_schema=TutorResponse.model_json_schema(),  # Backend enforces schema conformance via guided generation + validation (not pure constrained decoding)
+            response_json_schema=TutorResponseSchema.model_json_schema(),
             temperature=_temp,
             #FIXME: not working ATM response_logprobs=True, logprobs=5,
             thinking_config=genai.types.ThinkingConfig(include_thoughts=True), # capture thoughts for the assistant_metadata
@@ -346,7 +362,6 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         user_complete_input = [Part(text=user_prompt_content)]
 
         # Add uploaded images if present
-        image_tokens = data.get('image_tokens', [])
         if image_tokens:
             for token in image_tokens[:3]: # limit to 3 images for now
                 try:
@@ -375,15 +390,18 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
                     logger.error(f"Failed to load image with token {token}: {e}")
 
         gen_response = chat_session.send_message(user_complete_input)
-        tutor_response = TutorResponse.from_gemini_response(gen_response)
+        tutor_response = TutorResponseSchema.from_gemini_response(gen_response)
         loaded_response: dict = tutor_response.to_dict()
         guidance_text: str = tutor_response.guidance_text
+
 
     except Exception as e:
         logger.error(f"Gemini generate_content failed for exercise {exercise.id}: {e}")
         # As a fallback, return a graceful error-style message
         gen_response = None
-        tutor_response = TutorResponse(guidance_text="I'm sorry, I couldn't process your request right now. Please try again.", error_desc=str(e), transcript="")
+        # Use the same schema that was determined earlier, or default to text-only
+        FallbackSchema = get_tutor_response_schema(has_images=has_images if 'has_images' in locals() else False)
+        tutor_response = FallbackSchema(guidance_text="I'm sorry, I couldn't process your request right now. Please try again.")
         loaded_response: dict = tutor_response.to_dict()
         guidance_text: str = loaded_response["guidance_text"]
     llm_duration = time.time() - llm_start_time
@@ -460,6 +478,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
             'usage': interaction_log['llm_response']['metadata']['usage'],
             'finish_reason': interaction_log['llm_response']['metadata']['finish_reason'],
             'time_taken': overall_duration,
+            'output_model': chat_config.response_json_schema
         }
     }
     if uncertainty_metrics:
@@ -485,11 +504,55 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
         except Exception as e:
             logger.error(f"Failed to link TraceImage objects to Trace {created_trace.id}: {e}")
 
+    
+    # If there's text to highlight and we have images, process the first image
+    if TOGGLE_HIGHLIGHT and loaded_response.get("text_to_highlight") and trace_image_objects:
+        try:
+            logger.info(f"Processing image highlight, text to be highlighted: {loaded_response.get('text_to_highlight')}")
+            # Get the image bytes from the first uploaded image
+            img_bytes = trace_image_objects[0].image_bytes
+            img_mim_type =  trace_image_objects[0].image_type
+
+            # Find the text in the image using Gemini API
+            found_text = find_text_in_image(loaded_response["text_to_highlight"], img_bytes, img_mim_type)
+            logger.info(f"Found text result: {found_text}")
+            returned_bbox = found_text["bounding_box"]
+
+            # Load image bytes into PIL Image and get its size for bbox normalization
+            im_pil = Image.open(io.BytesIO(img_bytes))
+            img_size = (im_pil.height, im_pil.width)
+
+            # Treat the bounding box coordinates
+            treated_bbox = treat_gemini_bbox(returned_bbox, img_size)
+            logger.info(f"Treated bbox: {treated_bbox}")
+
+            # Save bbox to TraceImage for frontend rendering
+            if returned_bbox and returned_bbox != []:  # Only save if bbox was found
+                trace_image_obj = trace_image_objects[0]
+                bbox_entry = {
+                    'bbox': list(treated_bbox),
+                    'color': '#FFB000'  # Default color matching add_highlighter default
+                }
+                if not trace_image_obj.highlight_bboxes:
+                    trace_image_obj.highlight_bboxes = []
+                trace_image_obj.highlight_bboxes.append(bbox_entry)
+                trace_image_obj.save(update_fields=['highlight_bboxes'])
+                logger.info(f"Saved highlight bbox to TraceImage {trace_image_obj.id}: {bbox_entry}")
+
+        except Exception as highlight_error:
+            logger.error(f"Failed to highlight image: {highlight_error}", exc_info=True)
+
     # 9. Prepare the data to be returned to the view
     # Add images array to user_submission for ChatbotPanel display
     user_submission_with_images = {
         **interaction_log['user_submission'],
-        'images': [{'image_token': img.upload_token} for img in trace_image_objects]
+        'images': [
+            {
+                'image_token': img.upload_token,
+                'has_highlights': bool(img.highlight_bboxes)
+            }
+            for img in trace_image_objects
+        ]
     }
     response_data = {
         'guidance': tutor_answer,
@@ -1067,3 +1130,4 @@ Based on all this context, please generate your response in the required JSON fo
             "error": "Failed to generate recommendation.",
             "details": str(e)
         }
+

@@ -146,7 +146,7 @@ def generate_upload_token(request):
     upload_url = request.build_absolute_uri(upload_path)
     # TESTING HACK: Uncomment to use ngrok URL for mobile QR code testing. Use with `ngrok http 8000`
     # upload_url = upload_url.replace('http://localhost:8000', 'https://3e9c8362cdea.ngrok-free.app')
-
+    
     try:
         qr = qrcode.make(upload_url)
         buf = BytesIO()
@@ -297,3 +297,59 @@ def image_status(request, token):
             response['next_token'] = img.next_token
         return JsonResponse(response)
     return JsonResponse({'status': 'pending'})
+
+
+def serve_highlighted_image(request, token):
+    """
+    Serve a highlighted version of a trace image.
+    Applies all stored bounding box highlights to the original image.
+    """
+    from .highlight import add_highlighter
+    import io
+    
+    img = get_object_or_404(TraceImage, upload_token=token)
+    
+    if not img.image:
+        return HttpResponse('No image', status=404)
+    
+    if not img.highlight_bboxes:
+        # No highlights, serve original image
+        try:
+            return HttpResponse(img.image, content_type=img.image_type)
+        except Exception:
+            logger.exception('Failed to serve image')
+            return HttpResponse('Failed to serve image', status=500)
+    
+    # Authorization: if linked to a trace, verify ownership or teacher status
+    if img.trace:
+        if img.trace.user != request.user:
+            # check if the user is a teacher
+            if not img.trace.course.memberships.filter(user=request.user, role__in=['teacher', 'owner']).exists():
+                return HttpResponse('Unauthorized', status=403)
+            else:
+                return HttpResponse('Forbidden', status=403)
+    
+    try:
+        # Load original image
+        img_pil = Image.open(io.BytesIO(img.image_bytes))
+        
+        # Apply all highlights in order
+        for bbox_entry in img.highlight_bboxes:
+            bbox = bbox_entry.get('bbox', [])
+            color = bbox_entry.get('color', '#FFB000') # color is from the IBM palette, see function add_highlighter's header from highlight.py
+            
+            if bbox and len(bbox) == 4:
+                img_pil = add_highlighter(img_pil, bbox, color=color)
+        
+        # Convert back to bytes
+        output = io.BytesIO()
+        img_pil.save(output, format='JPEG')
+        output.seek(0)
+        
+        return HttpResponse(output.getvalue(), content_type='image/jpeg')
+    
+    except Exception:
+        logger.exception('Failed to generate highlighted image')
+        return HttpResponse('Failed to generate highlighted image', status=500)
+
+
