@@ -783,3 +783,47 @@ docker exec -i my-local-postgres psql -U postgres -d postgres -v ON_ERROR_STOP=1
 
 docker run --rm -i --network container:my-local-postgres   -e PGPASSWORD="myverysecretpassword" postgres:17   psql -h 127.0.0.1 -U postgres -d steacher -v ON_ERROR_STOP=1 < "$PROD_BACKUP"
 ```
+
+
+# Monitoring db performance (`pg_stat_statements`)
+
+    docker compose exec db bash
+
+
+1. Restart the database container:
+   ```bash
+   docker-compose restart db
+   ```
+
+2. Connect to the database and enable the extension:
+   ```bash
+   docker-compose exec db psql -U postgres -d steacher
+   ```
+   
+   Then run:
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+   ```
+
+3. Use these queries to find slow queries:
+   ```sql
+   -- Top 20 slowest queries by average time
+   SELECT 
+       calls,
+       mean_exec_time::numeric(10,2) as avg_ms,
+       total_exec_time::numeric(10,2) as total_ms,
+       LEFT(query, 100) as query_preview
+   FROM pg_stat_statements
+   ORDER BY mean_exec_time DESC
+   LIMIT 20;
+   
+   -- Top 20 queries by total time (most impactful)
+   SELECT 
+       calls,
+       mean_exec_time::numeric(10,2) as avg_ms,
+       total_exec_time::numeric(10,2) as total_ms,
+       LEFT(query, 100) as query_preview
+   FROM pg_stat_statements
+   ORDER BY total_exec_time DESC
+   LIMIT 20;
+   ```

@@ -390,6 +390,7 @@ def cohort_detail(request, pk): # pylint: disable=unused-argument
         Attempt.objects
         .filter(user_id__in=student_ids, cohort=selected_cohort)
         .select_related('exercise__module')
+        .prefetch_related('traces')
     )
 
     attempts_by_student = {}
