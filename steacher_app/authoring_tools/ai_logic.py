@@ -366,8 +366,7 @@ Problem statement:
         
         logger.info(f"[Phase II Async] Calling async authoring assistant for exercise {exercise.id}")
         
-        # Call async authoring assistant
-        
+        # Call async authoring assistant (timeout handled at Gemini level)
         print(f"--- [Async Thread] Calling Gemini for exercise {exercise.id}... ---")
         result = await generate_authoring_update_async(
             exercise_payload=exercise_payload,
@@ -541,11 +540,19 @@ def run_full_import_pipeline(session_id: int):
             print(f"DEBUG: Phase 1 complete. Found {len(segmentation_result.exercises)} exercises.", flush=True)
             logger.info(f"[Full Pipeline] Phase 1 complete. Found {len(segmentation_result.exercises)} exercises.")
             
+        except TimeoutError:
+            print(f"DEBUG: Phase 1 timed out after 60 seconds", flush=True)
+            logger.error(f"[Full Pipeline] Phase 1 timed out after 60 seconds")
+            session.status = 'timeout'
+            session.error_message = "Phase I (document analysis) timed out after 60 seconds"
+            session.save()
+            return
         except Exception as e:
             print(f"DEBUG: Phase 1 failed: {e}", flush=True)
             logger.error(f"[Full Pipeline] Phase 1 failed: {e}", exc_info=True)
-            # Mark as error if needed, but for now we might leave it or set a specific error state?
-            # session.status = 'error' # If we had an error status
+            session.status = 'error'
+            session.error_message = f"Phase I failed: {str(e)}"
+            session.save()
             return
 
         # 3. Phase 2: Generation (Async)
@@ -561,3 +568,10 @@ def run_full_import_pipeline(session_id: int):
     except Exception as e:
         print(f"DEBUG: Critical error in pipeline: {e}", flush=True)
         logger.error(f"[Full Pipeline] Critical error: {e}", exc_info=True)
+        try:
+            session = AuthoringSession.objects.get(id=session_id)
+            session.status = 'error'
+            session.error_message = f"Critical error: {str(e)}"
+            session.save()
+        except Exception:
+            pass

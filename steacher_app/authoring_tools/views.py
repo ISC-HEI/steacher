@@ -220,6 +220,7 @@ def review_exercises(request, session_id):
             'course_pk': session.course.id,
             'message_to_teacher': message_to_teacher,
             'errors_to_teacher': errors_to_teacher,
+            'error_message': session.error_message or '',
             'exercises': [{
                 'id': ex.id,
                 'title': ex.title,

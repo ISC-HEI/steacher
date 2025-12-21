@@ -7,12 +7,15 @@ from .models import Trace, TraceImage, Exercise, Attempt, Course, create_trace_f
 from .schemas import get_tutor_response_schema, strip_markdown_fences
 from statistics import mean, pstdev
 from google import genai
-from google.genai.types import UserContent, ModelContent, Part, GenerateContentConfig
+from google.genai.types import UserContent, ModelContent, Part, GenerateContentConfig, HttpOptions
 from exercises.highlight import treat_gemini_bbox, find_text_in_image
 from PIL import Image
 
 
-gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+gemini_client = genai.Client(
+    api_key=settings.GEMINI_API_KEY, 
+    http_options=HttpOptions(timeout=60_000) # timeout is in milliseconds
+)
 
 logger = logging.getLogger(__name__)
 

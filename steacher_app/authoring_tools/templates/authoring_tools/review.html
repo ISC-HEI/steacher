@@ -57,8 +57,23 @@
                 </div>
             </div>
 
+            <!-- Import Failed Alert -->
+            <div class="notification is-danger" v-if="hasError">
+                <div class="columns is-vcentered is-mobile">
+                    <div class="column is-narrow">
+                        <span class="icon is-large has-text-danger" style="height: auto; width: auto; margin-right: 1rem;">
+                            <i class="fas fa-3x fa-exclamation-circle"></i>
+                        </span>
+                    </div>
+                    <div class="column">
+                        <strong>Import Failed</strong>
+                        <p class="mt-2">The import process encountered an error. Please try again.</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Critical Error Alert -->
-            <div class="notification is-danger is-light" v-if="errorsToTeacher">
+            <div class="notification is-danger is-light" v-if="errorsToTeacher && !hasError">
                 <div class="columns is-vcentered is-mobile">
                     <div class="column is-narrow">
                         <span class="icon is-large has-text-danger" style="height: auto; width: auto; margin-right: 1rem;">

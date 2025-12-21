@@ -822,7 +822,10 @@ def set_module_visibility(request, module_id):
         module.visible = visible
         module.save(update_fields=['visible'])
         Module.objects.filter(pk=module.pk).update(updated_at=models.F('updated_at'))
-        Exercise.objects.filter(module=module).update(visible=visible)
+        
+        # Update all non-archived exercises to match module visibility
+        # Archived exercises must stay invisible (enforced by DB constraint)
+        Exercise.objects.filter(module=module, archived=False).update(visible=visible)
 
         return JsonResponse({
             'status': 'success',

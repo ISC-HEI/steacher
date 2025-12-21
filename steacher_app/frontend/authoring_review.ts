@@ -15,10 +15,11 @@ const ReviewApp = defineComponent({
     setup() {
         const exercises = ref<Exercise[]>([]);
         const loading = ref(true);
-        const sessionStatus = ref<string>('analyzing'); // analyzing, building, active, completed
+        const sessionStatus = ref<string>('analyzing'); // analyzing, building, active, completed, timeout, error
         const coursePk = ref<number>(0);
         const messageToTeacher = ref<string | null>(null);
         const errorsToTeacher = ref<string | null>(null);
+        const errorMessage = ref<string | null>(null);
         const error = ref<string | null>(null);
         const refreshInterval = ref<number | null>(null);
         const sessionId = parseInt((document.getElementById('session-id') as HTMLInputElement)?.value || '0');
@@ -26,6 +27,10 @@ const ReviewApp = defineComponent({
         const allExercisesReady = computed(() => {
             if (exercises.value.length === 0) return false;
             return exercises.value.every(ex => !ex.is_draft);
+        });
+
+        const hasError = computed(() => {
+            return sessionStatus.value === 'timeout' || sessionStatus.value === 'error';
         });
 
         const isProcessing = computed(() => {
@@ -46,6 +51,7 @@ const ReviewApp = defineComponent({
                 coursePk.value = data.course_pk;
                 messageToTeacher.value = data.message_to_teacher || null;
                 errorsToTeacher.value = data.errors_to_teacher || null;
+                errorMessage.value = data.error_message || null;
                 
             } catch (err) {
                 console.error(err);
@@ -102,8 +108,10 @@ const ReviewApp = defineComponent({
             coursePk,
             messageToTeacher,
             errorsToTeacher,
+            errorMessage,
             allExercisesReady,
             isProcessing,
+            hasError,
             markAsValidated,
             error
         };

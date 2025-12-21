@@ -9,10 +9,12 @@ class AuthoringSession(models.Model):
     Tracks a teacher's document import session for bulk exercise creation.
     """
     STATUS_CHOICES = [
-        ('analyzing', 'Analyzing'),
-        ('active', 'Active'),
-        ('building', 'Building'),
-        ('completed', 'Completed'),
+        ('analyzing', 'Analyzing'),  # the LLM is analyzing the documents
+        ('active', 'Active'),  
+        ('building', 'Building'),  # all exercises have been built but not validated yet
+        ('completed', 'Completed'),  # all exercises have been built AND validated
+        ('timeout', 'Timeout'),  # the call to the LLM timed out
+        ('error', 'Error'),  # the call to the LLM failed
     ]
     
     course = models.ForeignKey('exercises.Course', on_delete=models.CASCADE, related_name='authoring_sessions')
@@ -24,6 +26,10 @@ class AuthoringSession(models.Model):
         help_text="Teacher's guidance about what to extract (e.g., 'Only exercises 7-12')"
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='analyzing')
+    error_message = models.TextField(
+        blank=True,
+        help_text="Error message if status is 'timeout' or 'error'"
+    )
     segmentation_data = models.JSONField(
         null=True,
         blank=True,
