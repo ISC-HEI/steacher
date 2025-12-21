@@ -580,7 +580,7 @@ def _build_authoring_system_prompt(exercise_payload: dict, course: Course, mode:
 Your task is to provide concise, actionable feedback as bullet points. 
 Focus on: clarity of question, ambiguity, prerequisite fit, alignment between question, hints, and unit tests, and pedagogy.
 
-You feedback should point to improvements, not to positive points.
+Only mention improvements: your feedback should **only point to improvements**, not to existing positive points. So, if an aspect of the exercice is already good, don't mention it.
 
 For example, check if the exercise is missing test cases, or if the hints are not clear, or if the different translations are not correct or out of sync.
 
@@ -600,7 +600,7 @@ The exercise is provided to you as a JSON object under the 'Current Exercise Con
         system_prompt += """# Output format
 Your response is a plain text string with the feedback. You may use markdown code fences."""
 
-    else:  # Edit mode: provide JSON updates
+    else:  # Edit mode: provide JSON updates --------------------------------------------------------------
         system_prompt = f"""You are an AI exercise authoring assistant. You are given a json that contains the current exercise.
 Your goal is to help a teacher create or improve an exercise. The current state of the exercise is provided to you as a JSON object under the 'Current Exercise Context' heading.
 
@@ -618,7 +618,7 @@ Do not use markdown or code fences. The exercise object MUST be the value of the
 
 """
 
-    # review guidelines
+    # review guidelines. Common to both edit and feedback modes.
     system_prompt += """## Exercise Review Checklist
 When reviewing exercises, consider:
 - **Edge cases**: Does the exercise handle edge cases?
@@ -628,6 +628,10 @@ When reviewing exercises, consider:
 - **Alternative solutions**: Should multiple implementation approaches be accepted? Do provided solutions cover all possible approaches?
 - **Translations**: Check that title_i18n, description_i18n, and question_i18n are properly translated into all three languages (en, fr, de) and convey the same requirements and difficulty level.
 
+## Additional Guidelines
+- Stars (`*`) at the beginning of the exercice title indicate the difficulty level of the exercise. Don't change that unless asked to do so. If the exercise is not rated, don't add any stars.
+- The description_i18n is most of the time empty and that's fine. Don't add a description unless asked to do so.
+- If no `additional_context` is provided, try to generate some based on the exercise type and the course context. This context is very important to guide the AI tutor when helping the student.
 """
 
     # 2) Build a single, consolidated system prompt

@@ -356,7 +356,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // For edit mode with empty message, use default improvement prompt
                 // For feedback mode, empty message is allowed (general feedback)
                 const content = (mode === 'edit' && message === '') 
-                    ? 'Improve the exercise question.' 
+                    ? '[Clicked on Improve Exercise button]' 
                     : message;
 
                 this.assistantError = null;

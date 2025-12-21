@@ -273,9 +273,9 @@ class HighlightResponse(BaseModel):
 
 
 class TestCase(BaseModel):
-    """Pydantic model for a test case. This is used for automated unit testing. Applies to programming exercises only (e.g. Python, Scala).
+    """An individual test case. This is used for automated unit testing. Applies to programming exercises only (e.g. Python, Scala). Note that students can test their code locally using a shell (which has nothing to do with this unit testing system).
     Never just write a `description` without a `test_code`. You may omit the `expected_output` if your `test_code` uses assertions, but if it prints something to the console, you must have an `expected_output`.
-    The AI assistant will not have to run the unit tests itself, as it will be run by the system. The AI assistant will see the test results in the student's prompt and shall assess if the student code is correct.
+    The AI assistant will **not** have to run the unit tests itself, as it will be run by the system. The AI assistant will see the test results in the student's prompt and shall assess if the student code is correct.
     Exceptions in the code cause the test to fail, so make sure to handle them. You don't need to use a try/except block, just let the exception bubble up.
     Avoid non-deterministic tests, like tests that depend on the order of elements in a list. If necessary (e.g. working with random numbers), make sure to set the seed to a fixed value.
     Extra output beyond `expected_output` will cause the test to fail.
@@ -290,7 +290,7 @@ class TestCase(BaseModel):
 
 
 class UnitTests(BaseModel):
-    """Pydantic model for unit tests structure."""
+    """Unit tests for this exercise. """
     setup_code: str = Field(default="", description="Setup code that will be prepended to each test case. Optional. Typically used to set up the environment for the tests, like importing modules or defining helper functions.")
     test_cases: List[TestCase] = Field(default_factory=list, description="List of test cases.")
     timeout_seconds: int = Field(default=5, description="Timeout in seconds per test case. To prevent infinite loops.")
@@ -308,7 +308,7 @@ class ExerciseData(BaseModel):
     Not all question types require all these fields, so leave them empty if not applicable.
     For backend and frontend, so this data is shown to the student.
     """
-    answer_template: str = Field(default="", description="A template for the answer. It might be a starter code, a query, or a text. ATM this is not translated so write it in English.")
+    answer_template: str = Field(default="", description="A template for the answer. It might be a starter code, a query, or a text. This is not translated into the student's preferred language, so write it in English. It is often empty, because it is often beneficial for the student to start from scratch.")
     db: str = Field(default="", description="For SQL exercises only. The name of the database asset file to use.")
 
     class Config:
@@ -329,15 +329,16 @@ class AnswerData(BaseModel):
     Hints should be in English, and the assistant will translate them into the language of the student. Ideally, hints should be progressive (easier → harder).
     Hints should be progressive (easier → harder) and written in English. The AI tutor will translate them on-the-fly into the student's preferred language.
     It is not mandatory for the assistant to use the hints verbatim, but they should help it understand the exercise context and generate better guidance.''')
-    additional_context: str = Field(default="", description='''Additional context for the answer. This is only shown to the assistant, not to the student. It may include prerequisite assumptions.
+    additional_context: str = Field(default="", description='''Additional context for the answer. This is only shown to the assistant, not to the student. It may include prerequisite assumptions and things to watch out for.
     It could include additional information about the exercise, the context in which it is to be solved, etc. For example, if the students have not yet learned about a specific technique, 
     you could instruct the assistant not to talk about it.
-    Else you could also instruct the assistant to be quite permissive into the correct answers, because the question is exploratory and the correct answer is not always obvious.''')
+    Else you could also instruct the assistant to be quite permissive into the correct answers, because the question is exploratory and the correct answer is not always obvious.
+    Also very important: this should include **things to watch out for, like common mistakes, edge cases, etc.**''')
     expected_result: Optional[Any] = Field(default=None, description='''The expected result of the exercise, if applicable.
     Use `unit_tests` for comprehensive testing of programming exercises. If `unit_tests` are provided, they take precedence over this field.
     This field should be used for simpler cases where there's only a single, simple output to check (e.g., the result of a single SQL query). If you don't have an expected result, leave this field empty.
     For example, for a SQL exercise, it would be the result of a query. For a simple python exercise that prints to the console, it would be the content of the console output. For an open question, it would be the expected answer.''')
-    unit_tests: UnitTests = Field(default_factory=UnitTests, description="The unit tests to run (if applicable). These tests will be run by the system and the results will be added to the student's prompt for the assistant.")
+    unit_tests: Optional[UnitTests] = Field(default=None, description="The unit tests to run (if applicable). These tests will be run by the system and the results will be added to the student's prompt for the assistant.")
     correct_answers: List[CorrectAnswer] = Field(default_factory=list, description='''A list of correct answers to this question. 
     It's recommended to include multiple correct answers that reflect the expected diversity of student responses. It's the job of the assistant to propose an exhaustive list of correct answers.
     For example, for a scala program to print the numbers from 1 to 10, you could include both "(1 to 10).foreach(println)" and "for (i <- 1 to 10)\\n   println(i)" as they express the same logic in different ways.
