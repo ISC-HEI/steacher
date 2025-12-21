@@ -384,12 +384,10 @@ class TraceAdmin(admin.ModelAdmin):
             'fields': ('user', 'content_type', 'object_id', 'view_related_object_link', 'channel', 'rank_order', 'created_at')
         }),
         ('Content', {
-            'fields': ('system_prompt', 'user_content', 'assistant_content'),
-            'classes': ('collapse',)
+            'fields': ('system_prompt', 'user_content', 'assistant_content')
         }),
         ('Metadata', {
-            'fields': ('user_metadata', 'assistant_metadata'),
-            'classes': ('collapse',)
+            'fields': ('user_metadata', 'assistant_metadata')
         }),
     )
 

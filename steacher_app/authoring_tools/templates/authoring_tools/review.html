@@ -4,168 +4,315 @@
 {% block title %}Review Exercises{% endblock %}
 
 {% block content %}
+<input type="hidden" id="session-id" value="{{ session.id }}">
+{% csrf_token %}
+
 <section class="section">
     <div class="container">
         <h1 class="title">Review Exercises</h1>
         <p class="subtitle">Course: {{ session.course.name }}{% if session.module %} - Module: {{ session.module.name }}{% endif %}</p>
         
-        <div id="building-notification" class="notification is-info is-light" {% if session.status != 'building' %}style="display: none;"{% endif %}>
-            <span class="icon">
-                <i class="fas fa-spinner fa-spin"></i>
-            </span>
-            <strong>Building exercises in progress...</strong> The page will auto-refresh to show exercises as they're created.
-        </div>
-        
-        {% if session.status == 'analyzing' %}
-        <div class="notification is-warning is-light">
-            <span class="icon">
-                <i class="fas fa-exclamation-triangle"></i>
-            </span>
-            <strong>Exercises not created yet.</strong> Please go back to the <a href="{% url 'authoring_tools:analysis' session.id %}">analysis page</a> and click "Create Exercises".
-        </div>
-        {% endif %}
-        
-        <div class="field">
-            <input id="auto-refresh-switch" type="checkbox" name="auto-refresh" class="switch is-rounded" checked="checked">
-            <label for="auto-refresh-switch">Auto-refresh (every 5 seconds)</label>
-        </div>
-        
-        <div class="box">
-            <table class="table is-fullwidth is-striped is-hoverable">
-                <thead>
-                    <tr>
-                        <th>Order</th>
-                        <th>Title</th>
-                        <th>Type</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="exercise-list">
-                    <tr>
-                        <td colspan="5" class="has-text-centered">
+        <div id="review-app">
+            <!-- Persistent guidance message -->
+            <div class="notification is-info is-light mb-4" v-if="isProcessing">
+                <div class="columns is-vcentered is-mobile">
+                    <div class="column is-narrow">
+                        <span class="icon is-large has-text-info" style="height: auto; width: auto; margin-right: 1rem;">
+                            <i class="fas fa-3x fa-info-circle"></i>
+                        </span>
+                    </div>
+                    <div class="column">
+                        <p class="mb-2"><strong>Hang tight! We're extracting exercises from your documents (this takes 30s+).</strong></p>
+                        <p>Once exercises appear below, review each draft and click "Edit" to validate it.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Processing status message -->
+            <div id="building-notification" class="notification is-warning is-light" v-if="isProcessing">
+                <div class="columns is-vcentered is-mobile">
+                    <div class="column is-narrow">
+                        <span class="icon is-large" style="height: auto; width: auto; margin-right: 1rem;">
+                            <i class="fas fa-3x fa-spinner fa-spin"></i>
+                        </span>
+                    </div>
+                    <div class="column">
+                        <strong>Step 1. Extracting exercises from your documents. This might take 30s or more...</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Message to teacher from Phase I -->
+            <div class="notification is-success is-light" v-if="messageToTeacher && !isProcessing && !errorsToTeacher">
+                <div class="columns is-vcentered is-mobile">
+                    <div class="column is-narrow">
+                        <span class="icon is-large has-text-success" style="height: auto; width: auto; margin-right: 1rem;">
+                            <i class="fas fa-3x fa-check-circle"></i>
+                        </span>
+                    </div>
+                    <div class="column">
+                        <strong>Extraction Complete</strong>
+                        <p class="mt-2">[[ messageToTeacher ]]</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Critical Error Alert -->
+            <div class="notification is-danger is-light" v-if="errorsToTeacher">
+                <div class="columns is-vcentered is-mobile">
+                    <div class="column is-narrow">
+                        <span class="icon is-large has-text-danger" style="height: auto; width: auto; margin-right: 1rem;">
+                            <i class="fas fa-3x fa-triangle-exclamation"></i>
+                        </span>
+                    </div>
+                    <div class="column">
+                        <strong>Critical Issues Found</strong>
+                        <p class="mt-2">[[ errorsToTeacher ]]</p>
+                        <p class="mt-2 is-size-7"><strong>Recommendation:</strong> We recommend you restart the import process to fix these issues.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Validation Required Warning -->
+            <div class="notification mb-4" v-if="exercises.length > 0 && !allExercisesReady">
+                <div class="columns is-vcentered is-mobile">
+                    <div class="column is-narrow">
+                        <span class="icon is-large has-text-warning" style="height: auto; width: auto; margin-right: 1rem;">
+                            <i class="fas fa-3x fa-clipboard-list"></i>
+                        </span>
+                    </div>
+                    <div class="column">
+                         <strong>Please review and validate all draft exercises below.</strong>
+                         <p>To complete this session, you <em>must</em> Edit each draft exercise to validate it.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="box">
+                <table class="table is-fullwidth is-striped is-hoverable">
+                    <thead>
+                        <tr>
+                            <th>
+                                Order
+                                <span class="tooltip-container ml-1">
+                                    <span class="tooltip-icon">i</span>
+                                    <span class="tooltip-text">The order of the exercise in the module. It should reflect the order of the exercises in the documents you provided. You can always easily change the order later...</span>
+                                </span>
+                            </th>
+                            <th>
+                                Title
+                                <span class="tooltip-container ml-1">
+                                    <span class="tooltip-icon">i</span>
+                                    <span class="tooltip-text">The title of the exercise. It was automatically extracted from the documents you provided. You can always easily change the title later...</span>
+                                </span>
+                            </th>
+                            <th>
+                                Solution
+                                <span class="tooltip-container ml-1">
+                                    <span class="tooltip-icon">i</span>
+                                    <span class="tooltip-text">Shows whether a solution to the exercise was found in the documents you provided. If you think it's a mistake because you provided the solution, you might want to restart the import process. If no solution was found, the AI assistant will generate one for you. Make sure to review the solution carefully before validating the exercise!</span>
+                                </span>
+                            </th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="exercises.length === 0 && loading">
+                            <td colspan="5" class="has-text-centered p-5">
+                                <span class="icon is-large has-text-info">
+                                    <i class="fas fa-spinner fa-pulse fa-2x"></i>
+                                </span>
+                                <p class="mt-2">Loading...</p>
+                            </td>
+                        </tr>
+                        <tr v-else-if="exercises.length === 0 && !loading">
+                             <td colspan="5" class="has-text-centered p-5">
+                                <p class="has-text-grey">No exercises found yet. Please wait...</p>
+                            </td>
+                        </tr>
+                        <tr v-for="exercise in exercises" :key="exercise.id">
+                            <td>[[ exercise.order + 1 ]]</td>
+                            <td>[[ exercise.title || 'Exercise ' + (exercise.order + 1) ]]</td>
+                            <td class="has-text-centered">
+                                <div v-if="exercise.has_solution" class="tooltip-container">
+                                    <span class="icon has-text-success">
+                                        <i class="fas fa-check"></i>
+                                    </span>
+                                    <span class="tooltip-text">A solution for this exercise was successfully found in the documents you provided</span>
+                                </div>
+                            </td>
+                            <td>
+                                <span v-if="exercise.draft_notes === 'Generating content...'" class="tag is-info is-light">
+                                    <span class="icon is-small mr-1"><i class="fas fa-spinner fa-spin"></i></span> Processing
+                                </span>
+                                <span v-else-if="exercise.is_draft" class="tag is-warning">
+                                    Draft
+                                    <span class="tooltip-container ml-1">
+                                        <span class="tooltip-icon">i</span>
+                                        <span class="tooltip-text">This exercise needs review before it can be used</span>
+                                    </span>
+                                </span>
+                                <span v-else class="tag is-success">
+                                    Validated
+                                    <span class="tooltip-container ml-1">
+                                        <span class="tooltip-icon">i</span>
+                                        <span class="tooltip-text">This exercise has been reviewed and is ready to use</span>
+                                    </span>
+                                </span>
+                            </td>
+                            <td>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <a v-if="exercise.draft_notes !== 'Generating content...'"
+                                       :href="'/teachers/courses/' + coursePk + '/edit_exercise/' + exercise.id + '/'" 
+                                       target="_blank" 
+                                       class="button is-info is-small"
+                                       :title="'Review and validate this exercise'"
+                                       @click="markAsValidated(exercise)">
+                                        <span class="icon is-small"><i class="fas fa-edit"></i></span>
+                                        <span>Edit</span>
+                                    </a>
+                                    <button v-else
+                                            class="button is-info is-small"
+                                            disabled
+                                            :title="'Exercise is being generated, please wait'">
+                                        <span class="icon is-small"><i class="fas fa-edit"></i></span>
+                                        <span>Edit</span>
+                                    </button>
+                                    <span v-if="exercise.is_draft && exercise.draft_notes !== 'Generating content...'" 
+                                          class="has-text-info is-size-7 nag-animation"
+                                          style="white-space: nowrap;">
+                                        ← Click to review this exercise
+                                    </span>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="level mt-6">
+                <div class="level-left">
+                    <form method="post" action="{% url 'authoring_tools:abort' session.id %}" onsubmit="return confirm('Are you sure you want to abort? This will permanently delete the module and all generated exercises.');">
+                        {% csrf_token %}
+                        <button type="submit" class="button is-danger is-light">
                             <span class="icon">
-                                <i class="fas fa-spinner fa-spin"></i>
+                                <i class="fas fa-trash"></i>
                             </span>
-                            Loading exercises...
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+                            <span>Abort Import (Delete Module)</span>
+                            <span class="tooltip-container ml-1">
+                                <span class="tooltip-icon">i</span>
+                                <span class="tooltip-text">Sometimes the import process does not work as expected. If you think this is the case, you can abort the import and try again.</span>
+                            </span>
+                        </button>
+                    </form>
+                </div>
+                <div class="level-right">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div style="display: inline-flex; align-items: center; gap: 1rem;">
+                            <div class="tooltip-container" :style="!allExercisesReady ? 'cursor: not-allowed' : ''">
+                                <button type="submit" 
+                                        class="button is-success is-medium" 
+                                        :disabled="!allExercisesReady"
+                                        :style="!allExercisesReady ? 'pointer-events: none;' : ''">
+                                    <span class="icon">
+                                        <i class="fas fa-check-double"></i>
+                                    </span>
+                                    <span>Complete Session</span>
+                                </button>
+                                <span v-if="!allExercisesReady" class="tooltip-text">You must validate all draft exercises before completing the session</span>
+                            </div>
+                            
+                            <span v-if="!allExercisesReady" class="has-text-grey">
+                                <span class="icon has-text-warning"><i class="fas fa-arrow-left"></i></span>
+                                Validate (Edit) all drafts to finish
+                            </span>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
-        
-        <form method="post">
-            {% csrf_token %}
-            <button type="submit" class="button is-success is-medium">
-                <span class="icon">
-                    <i class="fas fa-check"></i>
-                </span>
-                <span>Complete Session</span>
-            </button>
-            <a href="{% url 'teachers:course_detail' pk=session.course.id %}" class="button is-light is-medium">
-                <span>Back to Course</span>
-            </a>
-        </form>
     </div>
 </section>
 
-<script>
-const sessionId = {{ session.id }};
-let refreshInterval = null;
+<style>
+.tooltip-container {
+    position: relative;
+    display: inline-block;
+    cursor: help;
+}
 
-async function loadExercises() {
-    try {
-        const response = await fetch(`/teacher/authoring-assistant/${sessionId}/review/`, {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        });
-        
-        const data = await response.json();
-        const tbody = document.getElementById('exercise-list');
-        
-        // Update notification visibility based on whether any exercise is still generating
-        let anyGenerating = false;
-        if (data.exercises.length > 0) {
-            anyGenerating = data.exercises.some(ex => ex.draft_notes === "Generating content...");
-        }
-        
-        const notification = document.getElementById('building-notification');
-        if (notification) {
-            notification.style.display = anyGenerating ? 'block' : 'none';
-        }
-        
-        if (data.exercises.length === 0) {
-            // Show different message based on session status
-            const status = '{{ session.status }}';
-            let message = '';
-            
-            if (status === 'building') {
-                message = '<tr><td colspan="5" class="has-text-centered p-5"><span class="icon has-text-info"><i class="fas fa-spinner fa-spin fa-2x"></i></span><p class="mt-3"><strong>Building exercises...</strong></p><p class="has-text-grey">The AI is creating exercises from your documents. This may take a few minutes.</p></td></tr>';
-            } else if (status === 'analyzing') {
-                message = '<tr><td colspan="5" class="has-text-centered p-5 has-background-warning-light"><span class="icon has-text-warning"><i class="fas fa-exclamation-triangle fa-2x"></i></span><p class="mt-3"><strong>No exercises created yet</strong></p><p class="has-text-grey">Go back to the analysis page and click "Create Exercises".</p></td></tr>';
-            } else {
-                message = '<tr><td colspan="5" class="has-text-centered p-5"><span class="icon has-text-grey"><i class="fas fa-inbox fa-2x"></i></span><p class="mt-3 has-text-grey">No exercises found.</p></td></tr>';
-            }
-            
-            tbody.innerHTML = message;
-            return;
-        }
-        
-        tbody.innerHTML = data.exercises.map(ex => {
-            // Check if exercise is still generating content
-            const isGenerating = ex.draft_notes === "Generating content...";
-            
-            let statusBadge;
-            if (isGenerating) {
-                statusBadge = '<span class="tag is-info is-light"><span class="icon is-small mr-1"><i class="fas fa-spinner fa-spin"></i></span> Processing...</span>';
-            } else if (ex.is_draft) {
-                statusBadge = '<span class="tag is-warning">DRAFT</span>';
-            } else {
-                statusBadge = '<span class="tag is-success">Published</span>';
-            }
-            
-            return `
-            <tr>
-                <td>${ex.order + 1}</td>
-                <td>${ex.title || '(Untitled)'}</td>
-                <td><span class="tag">${ex.exercise_type}</span></td>
-                <td>${statusBadge}</td>
-                <td>
-                    <a href="/exercises/${ex.id}/" target="_blank" class="button is-small is-info">
-                        <span class="icon"><i class="fas fa-edit"></i></span>
-                        <span>Edit</span>
-                    </a>
-                </td>
-            </tr>
-        `}).join('');
-    } catch (error) {
-        console.error('Error loading exercises:', error);
+.tooltip-icon {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    line-height: 14px;
+    text-align: center;
+    background: #3273dc;
+    color: white;
+    border-radius: 50%;
+    font-size: 10px;
+    font-weight: bold;
+    font-style: normal;
+}
+
+.tooltip-text {
+    visibility: hidden;
+    width: 220px;
+    background-color: #333;
+    color: #fff;
+    text-align: left;
+    border-radius: 6px;
+    padding: 8px;
+    position: absolute;
+    z-index: 1000;
+    bottom: 125%;
+    left: 50%;
+    margin-left: -110px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 12px;
+    line-height: 1.4;
+    pointer-events: none;
+}
+
+.tooltip-text::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: #333 transparent transparent transparent;
+}
+
+.tooltip-container:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
     }
 }
 
-function startAutoRefresh() {
-    refreshInterval = setInterval(loadExercises, 5000);
+.nag-animation {
+    animation: pulse 2s ease-in-out infinite;
 }
+</style>
 
-function stopAutoRefresh() {
-    if (refreshInterval) {
-        clearInterval(refreshInterval);
-        refreshInterval = null;
-    }
+<script type="importmap">
+{
+  "imports": {
+    "vue": "https://cdn.jsdelivr.net/npm/vue@3.4.27/dist/vue.esm-browser.js"
+  }
 }
-
-// Initialize
-document.addEventListener('DOMContentLoaded', () => {
-    loadExercises();
-    startAutoRefresh();
-    
-    const toggle = document.getElementById('auto-refresh-switch');
-    toggle.addEventListener('change', () => {
-        if (toggle.checked) {
-            startAutoRefresh();
-        } else {
-            stopAutoRefresh();
-        }
-    });
-});
 </script>
+<script type="module" src="{% static 'js/dist/authoring_review.js' %}"></script>
 {% endblock %}

@@ -1,24 +1,16 @@
-import json
-import openai
 import time
-import io
-import os
 import logging
 import math
-from pathlib import Path
+import json
 from django.conf import settings
 from .models import Trace, TraceImage, Exercise, Attempt, Course, create_trace_for, localized_name
-from django.contrib.contenttypes.models import ContentType
-from .schemas import ExerciseData, AnswerData, get_tutor_response_schema, get_pydantic_schema_as_string, strip_markdown_fences
+from .schemas import get_tutor_response_schema, strip_markdown_fences
 from statistics import mean, pstdev
 from google import genai
-from google.genai.types import UserContent, ModelContent, Part, GenerateContentConfig, ThinkingConfig
+from google.genai.types import UserContent, ModelContent, Part, GenerateContentConfig
 from exercises.highlight import treat_gemini_bbox, find_text_in_image
 from PIL import Image
 
-
-# TODO: remove the openai client once all calls are migrated to the google client
-client = openai.OpenAI(api_key=settings.GEMINI_API_KEY, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
 
 gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
@@ -574,6 +566,8 @@ def _build_authoring_system_prompt(exercise_payload: dict, course: Course, mode:
     Build the system prompt for authoring assistant.
     Extracted as a helper to be reused by both sync and async versions.
     """
+    from .schemas import CompleteExercise
+    
     mode = (mode or 'edit').lower()
     if mode not in ('edit', 'feedback'):
         mode = 'edit'
@@ -587,12 +581,19 @@ You feedback should point to improvements, not to positive points.
 
 For example, check if the exercise is missing test cases, or if the hints are not clear, or if the different translations are not correct or out of sync.
 
+# Exercise Schema Reference
+
+Below is the JSON schema for the exercise structure. Pay attention to the field descriptions to understand what each field is for and how it should be used:
+
+```json
+{CompleteExercise.model_json_schema()}
+```
+
 # Input 
 
 The exercise is provided to you as a JSON object under the 'Current Exercise Context' heading below.
 
-For reference, here is the exercise schema:
-{get_pydantic_schema_as_string()}"""
+"""
         system_prompt += """# Output format
 Your response is a plain text string with the feedback. You may use markdown code fences."""
 
@@ -603,10 +604,6 @@ Your goal is to help a teacher create or improve an exercise. The current state 
 If you are not sure about the exercise or how to improve it, ask the teacher for clarification (this is a conversation, so ask for clarification if needed). Else try to improve the exercise and return the updated exercise. For example, you may write better hints, improve the exercise data, add more test cases, etc.
 
 **IMPORTANT: Always write code examples in English.** Use English variable names, function names, comments, and string literals in all code. Even if the exercise is in French or German, the code itself must use English. For example, if an exercise is about fruits, use 'apple' not 'pomme', use 'count' not 'nombre', etc. This ensures consistency and makes code correction easier.
-
-Please adhere to the following JSON structure for the 'updated_exercise' Exercise object you return. **Do not invent new fields that are not defined in the schema below.**
-
-{get_pydantic_schema_as_string()}
 
 """
 
@@ -626,7 +623,7 @@ When reviewing exercises, consider:
 - **Clarity**: Is the problem statement unambiguous?
 - **Hints quality**: Do they guide without revealing the solution?
 - **Alternative solutions**: Should multiple implementation approaches be accepted? Do provided solutions cover all possible approaches?
-- **Translations**: Check that all translations convey the same requirements and difficulty level.
+- **Translations**: Check that title_i18n, description_i18n, and question_i18n are properly translated into all three languages (en, fr, de) and convey the same requirements and difficulty level.
 
 """
 
@@ -680,81 +677,6 @@ Here is the current state of the exercise you are helping the teacher with:
     return system_prompt
 
 
-def _parse_authoring_response(content: str, exercise_payload: dict, mode: str) -> tuple[str, dict]:
-    """
-    Parse the LLM response for authoring assistant.
-    Returns (assistant_message, updated_exercise).
-    Extracted as a helper to be reused by both sync and async versions.
-    """
-    if mode == 'edit':
-        # Strip accidental Markdown code fencing if any
-        content = strip_markdown_fences(content)
-
-        # Parse JSON response
-        def _looks_like_exercise(obj: dict) -> bool:
-            if not isinstance(obj, dict):
-                return False
-            keys = set(obj.keys())
-            if 'exercise_type' in keys and 'exercise_data' in keys:
-                return True
-            if 'title' in keys and ('answer_data' in keys or 'exercise_data' in keys):
-                return True
-            return False
-
-        parsed: dict
-        try:
-            parsed = json.loads(content)
-        except Exception:
-            parsed = {}
-
-        assistant_message = ''
-        updated_exercise = None
-
-        if isinstance(parsed, dict):
-            # Handle common deviations gracefully
-            if 'assistant_message' in parsed:
-                assistant_message = parsed.get('assistant_message') or ''
-            elif 'message' in parsed:
-                assistant_message = parsed.get('message') or ''
-
-            if 'updated_exercise' in parsed and isinstance(parsed['updated_exercise'], dict):
-                updated_exercise = parsed['updated_exercise']
-            elif 'exercise' in parsed and isinstance(parsed['exercise'], dict):
-                updated_exercise = parsed['exercise']
-            elif _looks_like_exercise(parsed):
-                # Model returned the exercise object at top-level; adopt it
-                updated_exercise = parsed
-
-        if updated_exercise is None:
-            updated_exercise = exercise_payload
-        if not assistant_message:
-            # As a last resort, show a generic note or echo raw content if short
-            assistant_message = "Proposed changes applied." if parsed else content[:300]
-
-        # Ensure updated_exercise remains a dict
-        if not isinstance(updated_exercise, dict):
-            updated_exercise = exercise_payload
-
-        # Normalize hints to be string[] for the form, as the AI might return objects
-        if 'answer_data' in updated_exercise and 'hints' in updated_exercise.get('answer_data', {}):
-            hints = updated_exercise['answer_data']['hints']
-            if isinstance(hints, list) and hints and isinstance(hints[0], dict):
-                # It's a list of objects, flatten it to a list of strings
-                updated_exercise['answer_data']['hints'] = "\n".join([
-                    str(h.get('hint', h)) for h in hints
-                ])
-            elif isinstance(hints, list):
-                updated_exercise['answer_data']['hints'] = "\n".join(hints)
-
-    else:  # feedback mode
-        # Enforce no-op updates in feedback mode
-        updated_exercise = exercise_payload
-        # use the content as the assistant message
-        assistant_message = content.strip() if content else ''
-    
-    return assistant_message, updated_exercise
-
-
 def generate_authoring_update(*, exercise_payload: dict, messages: list, course: Course, mode: str = 'edit') -> dict:
     """
     Stateless helper for the teacher-facing authoring assistant.
@@ -771,61 +693,89 @@ def generate_authoring_update(*, exercise_payload: dict, messages: list, course:
     - 'system_prompt': str (the system prompt used for the LLM)
     - 'assistant_metadata': dict (metadata about the assistant's response, like the LLM response time, model, etc.)
     """
-    
+    from .schemas import AuthoringAssistantResponse
+
     # Build system prompt using helper
     system_prompt = _build_authoring_system_prompt(exercise_payload, course, mode)
-    
-    messages_for_llm = [{"role": "system", "content": str(system_prompt)}]
 
-    # Append the short-lived in-page messages (user/assistant conversation)
+    # Build contents for Gemini
+    contents = []
+    
+    # Add system instruction as first user message
+    contents.append({
+        'role': 'user',
+        'parts': [genai.types.Part(text=system_prompt)]
+    })
+    contents.append({
+        'role': 'model',
+        'parts': [genai.types.Part(text="I understand. I'm ready to help you with this exercise.")]
+    })
+    
+    # Append the conversation history
     for m in messages:
-        role = m.get('role', 'user')
+        role = 'user' if m.get('role') == 'user' else 'model'
         content = m.get('content', '')
         if not isinstance(content, str):
             content = str(content)
-        messages_for_llm.append({"role": role, "content": content})
+        contents.append({
+            'role': role,
+            'parts': [genai.types.Part(text=content)]
+        })
 
-    # 3) Ask for a JSON object in the response, without a strict schema
+    # Call Gemini with strict schema
     try:
         start_time = time.time()
-        kwargs = {
-            "model": MODEL_PRO,
-            "messages": messages_for_llm,
-            "temperature": 0.2,
-        }
-        # important: do not use a response format {type: text} for feedback mode, it will not work
+        
+        config = {'temperature': 0.2}
         if mode == 'edit':
-            kwargs["response_format"] = {"type": "json_object"}
-            
-        completion = client.chat.completions.create(**kwargs)
-                
-            
-        logger.debug(f"Completion time: {time.time() - start_time}, {completion}")
+            config['response_mime_type'] = 'application/json'
+            config['response_json_schema'] = AuthoringAssistantResponse.model_json_schema()
+        
+        response = gemini_client.models.generate_content(
+            model=MODEL_PRO,
+            contents=contents,
+            config=config
+        )
+
+        logger.debug(f"Completion time: {time.time() - start_time}")
     except Exception as e:
-        logger.error(f"Failed to create completion for authoring assistant: {e}, messages: {messages_for_llm}")
-        # Return a response that indicates failure but doesn't crash the frontend
+        logger.error(f"Failed to create completion for authoring assistant: {e}")
         return {
             'assistant_message': f"Error contacting AI assistant: {e}",
             'updated_exercise': exercise_payload,
         }
 
-    content = (completion.choices[0].message.content or '').strip()
-    
-    # Parse response using helper
-    assistant_message, updated_exercise = _parse_authoring_response(content, exercise_payload, mode)
+    content = (response.text or '').strip()
+
+    # Parse response - Gemini with strict schema returns valid JSON
+    if mode == 'edit':
+        try:
+            # With strict schema enforcement, we can validate directly with Pydantic
+            authoring_response = AuthoringAssistantResponse.model_validate_json(response.text)
+            assistant_message = authoring_response.assistant_message
+            # Convert Pydantic model to dict for backward compatibility with existing code
+            updated_exercise = authoring_response.updated_exercise.model_dump()
+        except Exception as e:
+            logger.error(f"Failed to parse authoring response: {e}")
+            assistant_message = "Error parsing response"
+            updated_exercise = exercise_payload
+    else:
+        # Feedback mode: just return the text
+        assistant_message = content
+        updated_exercise = exercise_payload
 
     return {
         'assistant_message': assistant_message,
         'updated_exercise': updated_exercise,
         'system_prompt': system_prompt,
         'assistant_metadata': {
-            'model': completion.model,
+            'model': response.model_version if hasattr(response, 'model_version') else MODEL_PRO,
             'usage': {
-                'completion_tokens': completion.usage.completion_tokens,
-                'prompt_tokens': completion.usage.prompt_tokens,
-                'total_tokens': completion.usage.total_tokens,
+                'completion_tokens': response.usage_metadata.candidates_token_count if hasattr(response, 'usage_metadata') else 0,
+                'prompt_tokens': response.usage_metadata.prompt_token_count if hasattr(response, 'usage_metadata') else 0,
+                'total_tokens': response.usage_metadata.total_token_count if hasattr(response, 'usage_metadata') else 0,
             },
-            'finish_reason': completion.choices[0].finish_reason,
+            'finish_reason': response.candidates[0].finish_reason.name if response.candidates else 'UNKNOWN',
             'mode': mode,
         },
     }
@@ -836,6 +786,7 @@ def generate_i18n_translations(*, source_lang: str, targets: list, fields: dict,
     Returns { lang: { title?, description?, question? } }.
     Input fields are raw strings. No DB reads/writes here.
     """
+    
     system_prompt = (
         "You are a translation engine. Translate ONLY the provided fields into each of the TARGET languages. "
         "Preserve Markdown and fenced code blocks; do not translate or alter code or placeholders (backticks, triple backticks, {{var}}). "
@@ -861,17 +812,19 @@ def generate_i18n_translations(*, source_lang: str, targets: list, fields: dict,
         }
     }
 
-    msgs = [
-        { 'role': 'system', 'content': system_prompt },
-        { 'role': 'user', 'content': json.dumps(payload, ensure_ascii=False) },
-    ]
-    completion = client.chat.completions.create(
+    # Build prompt combining system instructions and payload
+    prompt = f"{system_prompt}\n\n{json.dumps(payload, ensure_ascii=False)}"
+    
+    response = gemini_client.models.generate_content(
         model=MODEL_FAST,
-        messages=msgs,
-        temperature=0.1,
-        response_format={"type": "json_object"},
+        contents=prompt,
+        config={
+            'temperature': 0.1,
+            'response_mime_type': 'application/json',
+        }
     )
-    content = (completion.choices[0].message.content or '').strip()
+    
+    content = (response.text or '').strip()
     content = strip_markdown_fences(content)
     try:
         obj = json.loads(content) if content else {}

@@ -5,7 +5,7 @@ app_name = 'authoring_tools'
 
 urlpatterns = [
     path('', views.upload_documents, name='upload'),
-    path('<int:session_id>/analysis/', views.analysis_session, name='analysis'),
-    path('<int:session_id>/create/', views.create_exercises, name='create_exercises'),
     path('<int:session_id>/review/', views.review_exercises, name='review'),
+    path('exercises/<int:exercise_id>/approve/', views.approve_import_notes, name='approve_notes'),
+    path('<int:session_id>/abort/', views.abort_session, name='abort'),
 ]

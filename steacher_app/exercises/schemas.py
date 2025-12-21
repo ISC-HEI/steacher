@@ -322,10 +322,13 @@ class AnswerData(BaseModel):
     Unified Pydantic model for **answer data** in the `answer_data` JSON field.
     Not all question types require all these fields, so leave them empty if not applicable.
     Backend only, so the student does not see these fields (because it includes answers, hints, etc. which should not be shown to the student).
+    All fields should be written in English - the AI tutor will translate it on-the-fly into the student's preferred language.
     """
     hints: str = Field(default="", description='''A string containing hints, with each hint on a new line. 
     It is not mandatory for the assistant to use the hints, but it should help it understand the exercise context and generate better hints.
-    Hints should be in English, and the assistant will translate them into the language of the student. Ideally, hints should be progressive (easier → harder).''')
+    Hints should be in English, and the assistant will translate them into the language of the student. Ideally, hints should be progressive (easier → harder).
+    Hints should be progressive (easier → harder) and written in English. The AI tutor will translate them on-the-fly into the student's preferred language.
+    It is not mandatory for the assistant to use the hints verbatim, but they should help it understand the exercise context and generate better guidance.''')
     additional_context: str = Field(default="", description='''Additional context for the answer. This is only shown to the assistant, not to the student. It may include prerequisite assumptions.
     It could include additional information about the exercise, the context in which it is to be solved, etc. For example, if the students have not yet learned about a specific technique, 
     you could instruct the assistant not to talk about it.
@@ -344,69 +347,28 @@ class AnswerData(BaseModel):
         extra = 'ignore'
 
 
-
-
-
-
-def get_pydantic_schema_as_string() -> str:
+class CompleteExercise(BaseModel):
     """
-    Get the Pydantic schema as a string to be used in the exercise assistant prompt.
+    Complete exercise structure for authoring assistant.
+    This is the schema that the AI must follow when updating exercises.
     """
+    title_i18n: dict = Field(description='Localized titles by language code. MUST contain keys "en", "fr", and "de" with translated title strings. Example: {"en": "Even or Odd", "fr": "Pair ou Impair", "de": "Gerade oder Ungerade"}. Make sure that the title does not give away any hints about the exercise\'s solution.')
+    description_i18n: dict = Field(description='Localized descriptions by language code. MUST contain keys "en", "fr", and "de" with translated description strings. Example: {"en": "Conditional statements", "fr": "Instructions conditionnelles", "de": "Bedingte Anweisungen"}. **Do leave it empty ({}) if it doesn\'t add value**. Description should be concise and to the point. E.g. \'Conditional statements and the modulo operator.\' instead of \'An exercise to practice conditional statements and the modulo operator.\'. Description must not give away any hints about the exercise\'s solution.')
+    question_i18n: dict = Field(description='Localized questions by language code. MUST contain keys "en", "fr", and "de" with translated question strings. Example: {"en": "Write a function...", "fr": "Écrivez une fonction...", "de": "Schreiben Sie eine Funktion..."}. The full question or prompt for the exercise. Markdown is supported and encouraged.')
+    exercise_type: str = Field(description="Exercise type: python, sql, scala, turtle, open_question. Determines the structure of exercise_data. Modify **only** if it makes sense.")
+    exercise_data: ExerciseData = Field(description="Exercise-specific data (answer_template, db for SQL, etc.)")
+    answer_data: AnswerData = Field(description="Answer data including hints, unit tests, correct answers, additional context")
+    allow_image_upload: bool = Field(default=False, description="Whether students can upload images as part of their answer (e.g., photos of handwritten work, diagrams, or screenshots)")
 
-    def format_schema(schema, indent=0):
-        output = ""
-        for key, value in schema.get('properties', {}).items():
-            output += ' ' * indent + f"- `{key}`"
-            if 'type' in value:
-                output += f" ({value['type']})"
-            if 'description' in value:
-                output += f": {value['description']}"
-            if 'items' in value:
-                if 'properties' in value['items']:
-                    output += "\n" + format_schema(value['items'], indent + 2)
-                elif '$ref' in value['items']:
-                     # Find the referenced schema in the definitions
-                    ref_name = value['items']['$ref'].split('/')[-1]
-                    ref_schema = schema.get('$defs', {}).get(ref_name)
-                    if ref_schema:
-                        output += f", where each item is an object with the following properties:\n" + format_schema(ref_schema, indent + 2)
-            output += "\n"
-        return output
+    class Config:
+        extra = 'ignore'
 
-    exercise_data_schema_str = format_schema(ExerciseData.model_json_schema())
-    answer_data_schema_str = format_schema(AnswerData.model_json_schema())
 
-    prompt = f"""
-    
-### Top-level Exercise fields
-- `pk` (integer, read-only): The primary key of the exercise. Do not modify.
-- `title_i18n` (object): The title of the exercise in English, German, and French. Make sure that the title does not give away any hints about the exercise's solution.
-  - `en` (string): English title.
-  - `de` (string): German title.
-  - `fr` (string): French title.
-- `order` (integer, read-only): The display order of the exercise within its module.
-- `description_i18n` (object, optional): A short description of the exercise in English, German, and French. Leave it empty if it doesn't add value. Description should be concise and to the point. E.g. "Conditional statements and the modulo operator." instead of "An exercise to practice conditional statements and the modulo operator.". Description must not give away any hints about the exercise's solution (a bad example would be "Using the `LIKE` operator to filter by a pattern and `ORDER BY` to sort the results." because this would indicate that the student should use the `LIKE` and `ORDER BY` operators). 
-  - `en` (string): English description.
-  - `de` (string): German description.
-  - `fr` (string): French description.
-- `question_i18n` (object): The full question or prompt for the exercise in English, German, and French. Markdown is supported and encouraged.
-  - `en` (string): English question.
-  - `de` (string): German question.
-  - `fr` (string): French question.
-- `exercise_type` (string): The type of the exercise (one of `python`, `sql`, `open_question`, `scala`, `turtle`). Determines the structure of `exercise_data`. Modify only if it makes sense.
-- `allow_image_upload` (boolean): Whether students can upload images as part of their answer (e.g., photos of handwritten work, diagrams, or screenshots). Useful for exercises where visual content is part of the solution.
-- `available_sql_assets` (array of strings, read-only): For SQL exercises, a list of available database assets. Can be used to set up the db field in `exercise_data` below.
-- `course_pk` (integer, read-only): The primary key of the course this exercise belongs to. Do not modify.
-- `course_name` (string, read-only): The name of the course this exercise belongs to. Do not modify.
-- `course_description` (string, read-only): The description of the course this exercise belongs to. Use this to get some context about the course. Do not modify.
+class AuthoringAssistantResponse(BaseModel):
+    """Response from the authoring assistant"""
+    assistant_message: str = Field(description="A friendly and concise explanation of changes made or a clarification request")
+    updated_exercise: CompleteExercise = Field(description="The complete modified exercise object")
 
-### Exercise Data Schema (`exercise_data`)
-{exercise_data_schema_str}
 
-### Answer Data Schema (`answer_data`)
-{answer_data_schema_str}
 
-"""
-
-    return prompt
 

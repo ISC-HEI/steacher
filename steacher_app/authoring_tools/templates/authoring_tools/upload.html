@@ -13,25 +13,25 @@
                 {% csrf_token %}
                 
                 <div class="field">
-                    <label class="label">{{ form.course.label }}</label>
+                    <label class="label">Course</label>
                     <div class="control">
                         <div class="select is-fullwidth">
-                            {{ form.course }}
+                            <select name="course" required>
+                                <option value="">Select a course...</option>
+                                {% for course in courses %}
+                                <option value="{{ course.id }}">{{ course.name }}</option>
+                                {% endfor %}
+                            </select>
                         </div>
                     </div>
-                    {% if form.course.help_text %}
-                    <p class="help">{{ form.course.help_text }}</p>
-                    {% endif %}
-                    {% if form.course.errors %}
-                    <p class="help is-danger">{{ form.course.errors.0 }}</p>
-                    {% endif %}
+                    <p class="help">Mandatory: select the course where exercises will be created</p>
                 </div>
                 
                 <div class="field">
-                    <label class="label">{{ form.files.label }}</label>
+                    <label class="label">Upload Files</label>
                     <div class="file has-name is-fullwidth">
                         <label class="file-label">
-                            {{ form.files }}
+                            <input type="file" class="file-input" name="files" accept="{{ accepted_formats }}" multiple required>
                             <span class="file-cta">
                                 <span class="file-icon">
                                     <i class="fas fa-upload"></i>
@@ -45,25 +45,15 @@
                             </span>
                         </label>
                     </div>
-                    {% if form.files.help_text %}
-                    <p class="help">{{ form.files.help_text }}</p>
-                    {% endif %}
-                    {% if form.files.errors %}
-                    <p class="help is-danger">{{ form.files.errors.0 }}</p>
-                    {% endif %}
+                    <p class="help">Maximum 50 pages total, 50MB total. Supported: PDF, ZIP, text files, code files, images</p>
                 </div>
                 
                 <div class="field">
-                    <label class="label">{{ form.teacher_instructions.label }}</label>
+                    <label class="label">Instructions (Optional)</label>
                     <div class="control">
-                        {{ form.teacher_instructions }}
+                        <textarea name="teacher_instructions" class="textarea" rows="4" placeholder='Optional: Tell me about these documents (e.g., "Only extract pages 1-5" or "Only extract exercises 7-12" or "This is a midterm exam covering recursion and data structures")'></textarea>
                     </div>
-                    {% if form.teacher_instructions.help_text %}
-                    <p class="help">{{ form.teacher_instructions.help_text }}</p>
-                    {% endif %}
-                    {% if form.teacher_instructions.errors %}
-                    <p class="help is-danger">{{ form.teacher_instructions.errors.0 }}</p>
-                    {% endif %}
+                    <p class="help">Provide context or specific instructions about what to extract from the documents</p>
                 </div>
                 
                 <div class="field">
@@ -83,17 +73,17 @@
             <h3>How it works</h3>
             <ol>
                 <li><strong>Upload</strong> your documents (exams, worksheets, problem sets, etc.)</li>
-                <li><strong>Discuss</strong> with the AI assistant to confirm what exercises to extract</li>
-                <li><strong>Review</strong> the generated draft exercises and refine them individually</li>
+                <li><strong>Wait</strong> for the AI to analyze and generate exercises automatically</li>
+                <li><strong>Review</strong> and validate the generated exercises before publishing</li>
             </ol>
             
             <h3>Supported file formats</h3>
             <ul>
                 <li><strong>PDF</strong> - Exam papers, worksheets</li>
-                <li><strong>TXT/MD</strong> - Plain text and Markdown</li>
-                <li><strong>CSV/JSON</strong> - Structured data</li>
+                <li><strong>Source code</strong> - Source code files</li>
                 <li><strong>TEX</strong> - LaTeX documents</li>
                 <li><strong>Images</strong> - Photos of handwritten exercises (OCR)</li>
+                <li><strong>ZIP</strong> - ZIP files containing multiple files</li>
             </ul>
         </div>
     </div>

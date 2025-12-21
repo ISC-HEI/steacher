@@ -1,7 +1,5 @@
 import io
-import json
 import logging
-import asyncio
 import threading
 from pathlib import Path
 from django.views.decorators.http import require_POST
@@ -9,15 +7,13 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
-from django.db import transaction
+from django.db import transaction, models
 from django.http import JsonResponse
 from pypdf import PdfReader
-from asgiref.sync import sync_to_async
 
 from .models import AuthoringSession, UploadedFile
-from .forms import DocumentUploadForm
-from .ai_logic import call_gemini_for_import, build_all_exercises_async
-from exercises.models import Course, Exercise, create_trace_for
+from .ai_logic import run_full_import_pipeline, TEXT_BASED_EXTENSIONS, ACCEPTED_UPLOAD_FORMATS
+from exercises.models import Exercise, Course
 from exercises.authz import assert_can_edit_course
 
 logger = logging.getLogger(__name__)
@@ -34,278 +30,150 @@ def upload_documents(request):
     """Page 1: Upload documents for import"""
     
     if request.method == 'POST':
-        form = DocumentUploadForm(request.user, request.POST, request.FILES)
+        # Get form data
+        course_id = request.POST.get('course')
+        files = request.FILES.getlist('files')
+        instructions = request.POST.get('teacher_instructions', '')
         
-        if form.is_valid():
-            course = form.cleaned_data['course']
-            files = request.FILES.getlist('files')
-            instructions = form.cleaned_data['teacher_instructions']
-            
-            # Check permissions
-            try:
-                assert_can_edit_course(request.user, course)
-            except PermissionDenied as e:
-                messages.error(request, str(e))
-                return render(request, 'authoring_tools/upload.html', {'form': form})
-            
-            # Check for existing active session FIRST (before expensive file processing)
-            existing = AuthoringSession.objects.filter(
-                course=course,
-                created_by=request.user,
-                status__in=['analyzing', 'active']
-            ).first()
-            
-            if existing:
-                messages.warning(request, "You have an active session for this course. Completing it first.")
-                existing.status = 'completed'
-                existing.save()
-                return redirect('authoring_tools:analysis', session_id=existing.id)
-            
-            # Supported MIME types (native Gemini support)
-            SUPPORTED_MIME_TYPES = {
-                'application/pdf',
-                'text/plain',
-                'text/markdown',
-                'image/png',
-                'image/jpeg',
-                'image/webp',
-                'image/heic',
-                'image/heif',
-            }
-            
-            # Text-based formats that we'll send as text/plain
-            TEXT_BASED_EXTENSIONS = {'.csv', '.json', '.tex', '.txt', '.md'}
-            
-            # Validate MIME types
-            for file in files:
-                file_ext = Path(file.name).suffix.lower()
-                
-                # Allow text-based formats (will be converted to text/plain)
-                if file_ext in TEXT_BASED_EXTENSIONS:
-                    continue
-                
-                # Check native MIME type support
-                if file.content_type not in SUPPORTED_MIME_TYPES:
-                    messages.error(
-                        request,
-                        f"Unsupported file type: {file.name} ({file.content_type}). "
-                        f"Supported: PDF, TXT, MD, CSV, JSON, TEX, and images (PNG, JPEG, WEBP)."
-                    )
-                    return render(request, 'authoring_tools/upload.html', {'form': form})
-            
-            # Validate total size
-            total_size = sum(f.size for f in files)
-            if total_size > MAX_TOTAL_SIZE_MB * 1024 * 1024:
-                messages.error(request, f"Total file size exceeds {MAX_TOTAL_SIZE_MB}MB")
-                return render(request, 'authoring_tools/upload.html', {'form': form})
-            
-            # Extract page counts and validate (only for PDFs)
-            total_pages = 0
-            file_data = []
-            
-            for file in files:
-                page_count = None
-                
-                # Only check page count for PDFs
-                if file.content_type == 'application/pdf':
-                    try:
-                        pdf = PdfReader(io.BytesIO(file.read()))
-                        page_count = len(pdf.pages)
-                        file.seek(0)  # Reset for later storage
-                    except Exception as e:
-                        messages.error(request, f"Error reading {file.name}: {str(e)}")
-                        return render(request, 'authoring_tools/upload.html', {'form': form})
-                    
-                    total_pages += page_count
-                
-                file_data.append({
-                    'file': file,
-                    'page_count': page_count
-                })
-            
-            if total_pages > MAX_TOTAL_PAGES:
-                messages.error(request, f"Total pages ({total_pages}) exceeds {MAX_TOTAL_PAGES}")
-                return render(request, 'authoring_tools/upload.html', {'form': form})
-            
-            # Create session and files
-            with transaction.atomic():
-                session = AuthoringSession.objects.create(
-                    course=course,
-                    created_by=request.user,
-                    teacher_instructions=instructions,
-                    status='analyzing'
-                )
-                
-                for data in file_data:
-                    file = data['file']
-                    UploadedFile.objects.create(
-                        session=session,
-                        filename=file.name,
-                        content_type=file.content_type,
-                        file_data=file.read(),
-                        size_bytes=file.size,
-                        page_count=data['page_count']
-                    )
-            
-            messages.success(request, "Files uploaded successfully!")
-            return redirect('authoring_tools:analysis', session_id=session.id)
-    
-    else:
-        form = DocumentUploadForm(request.user)
-    
-    return render(request, 'authoring_tools/upload.html', {'form': form})
-
-
-@login_required
-def analysis_session(request, session_id):
-    """Page 2: Chatbot analysis and discussion"""
-    
-    session = get_object_or_404(
-        AuthoringSession,
-        id=session_id,
-        created_by=request.user
-    )
-    
-    # Check permissions
-    try:
-        assert_can_edit_course(request.user, session.course)
-    except PermissionDenied as e:
-        messages.error(request, str(e))
-        return redirect('exercises:dashboard')
-    
-    if request.method == 'GET':
-        # Load conversation history
-        traces = session.traces.filter(channel='content_import').order_by('rank_order')
+        # Validate course
+        if not course_id:
+            messages.error(request, "Please select a course.")
+            return redirect('authoring_tools:upload')
         
-        return render(request, 'authoring_tools/analysis.html', {
-            'session': session,
-            'traces': traces
-        })
-    
-    elif request.method == 'POST':
-        # Handle chat message (AJAX)
         try:
-            data = json.loads(request.body)
-            user_message = data.get('message', '')
+            course = Course.objects.get(id=course_id)
+        except Course.DoesNotExist:
+            messages.error(request, "Invalid course selected.")
+            return redirect('authoring_tools:upload')
+        
+        # Validate files
+        if not files:
+            messages.error(request, "Please select at least one file.")
+            return redirect('authoring_tools:upload')
+        
+        # Check permissions
+        try:
+            assert_can_edit_course(request.user, course)
+        except PermissionDenied as e:
+            messages.error(request, str(e))
+            return redirect('authoring_tools:upload')
+        
+        # Check for existing active session FIRST (before expensive file processing)
+        existing = AuthoringSession.objects.filter(
+            course=course,
+            created_by=request.user,
+            status__in=['analyzing', 'active']
+        ).first()
+        
+        if existing:
+            messages.info(request, "Archiving previous active session to start a new one.")
+            existing.status = 'completed'
+            existing.save()
+        
+        # Supported MIME types (native Gemini support)
+        SUPPORTED_MIME_TYPES = {
+            'application/pdf',
+            'text/plain',
+            'text/markdown',
+            'image/png',
+            'image/jpeg',
+            'image/webp',
+            'image/heic',
+            'image/heif',
+        }
+        
+        # Validate MIME types
+        for file in files:
+            file_ext = Path(file.name).suffix.lower()
             
-            # Call Gemini
-            segmentation_result, thoughts = call_gemini_for_import(session, user_message)
+            # Allow ZIP files (will be skipped in processing for now)
+            if file_ext == '.zip':
+                continue
             
-            logger.info(f"Gemini returned {len(thoughts) if thoughts else 0} thoughts")
-
-            # Create user trace if message is not empty (AFTER call to avoid duplication in prompt)
-            if user_message:
-                create_trace_for(
-                    owner_obj=session,
-                    user=request.user,
-                    channel='content_import',
-                    user_content=user_message
+            # Allow text-based formats (will be converted to text/plain)
+            if file_ext in TEXT_BASED_EXTENSIONS:
+                continue
+            
+            # Check native MIME type support
+            if file.content_type not in SUPPORTED_MIME_TYPES:
+                messages.error(
+                    request,
+                    f"Unsupported file type: {file.name} ({file.content_type}). "
+                    f"Supported: PDF, ZIP, TXT, MD, CSV, JSON, TEX, and images (PNG, JPEG, WEBP)."
                 )
+                return redirect('authoring_tools:upload')
+        
+        # Validate total size
+        total_size = sum(f.size for f in files)
+        if total_size > MAX_TOTAL_SIZE_MB * 1024 * 1024:
+            messages.error(request, f"Total file size exceeds {MAX_TOTAL_SIZE_MB}MB")
+            return redirect('authoring_tools:upload')
+        
+        # Extract page counts and validate (only for PDFs)
+        total_pages = 0
+        file_data = []
+        
+        for file in files:
+            page_count = None
             
-            # Store segmentation in metadata along with thoughts (thoughts not shown in UI)
-            assistant_metadata = {'segmentation': segmentation_result.model_dump()}
-            if thoughts:
-                assistant_metadata['thoughts'] = thoughts
+            # Only check page count for PDFs
+            if file.content_type == 'application/pdf':
+                try:
+                    pdf = PdfReader(io.BytesIO(file.read()))
+                    page_count = len(pdf.pages)
+                    file.seek(0)  # Reset for later storage
+                except Exception as e:
+                    messages.error(request, f"Error reading {file.name}: {str(e)}")
+                    return redirect('authoring_tools:upload')
+                
+                total_pages += page_count
             
-            # Save the AI response as a trace
-            # We add a summary in assistant_content for admin readability, though the UI uses metadata
-            create_trace_for(
-                owner_obj=session,
-                user=request.user,
-                channel='content_import',
-                assistant_content={'message': 'Segmentation completed', 'summary': segmentation_result.message_to_teacher},
-                assistant_metadata=assistant_metadata
-            )
-            
-            # Store segmentation data in session for phase 2
-            session.segmentation_data = segmentation_result.model_dump()
-            session.save()
-            
-            return JsonResponse({
-                'segmentation': segmentation_result.model_dump()
+            file_data.append({
+                'file': file,
+                'page_count': page_count
             })
         
-        except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
-
-
-@login_required
-@require_POST
-async def create_exercises(request, session_id):
-    """
-    Async view that triggers Phase 2: Create exercises from segmentation data.
-    Uses fire-and-forget pattern with asyncio.create_task() to build exercises in parallel.
-    """
+        if total_pages > MAX_TOTAL_PAGES:
+            messages.error(request, f"Total pages ({total_pages}) exceeds {MAX_TOTAL_PAGES}")
+            return redirect('authoring_tools:upload')
+        
+        # Create session and files
+        with transaction.atomic():
+            session = AuthoringSession.objects.create(
+                course=course,
+                created_by=request.user,
+                teacher_instructions=instructions,
+                status='analyzing'
+            )
+            
+            for data in file_data:
+                file = data['file']
+                UploadedFile.objects.create(
+                    session=session,
+                    filename=file.name,
+                    content_type=file.content_type,
+                    file_data=file.read(),
+                    size_bytes=file.size,
+                    page_count=data['page_count']
+                )
+        
+        # Start background pipeline
+        thread = threading.Thread(target=run_full_import_pipeline, args=(session.id,), daemon=True)
+        thread.start()
+        
+        messages.success(request, "Files uploaded! Analysis and exercise generation started in background.")
+        return redirect('authoring_tools:review', session_id=session.id)
     
-    # Get session (async DB query)
-    @sync_to_async
-    def get_session():
-        return AuthoringSession.objects.select_related('course').get(
-            id=session_id,
-            created_by=request.user
-        )
+    # Get courses user can edit
+    courses = Course.objects.filter(
+        models.Q(memberships__user=request.user, memberships__role__in=['owner', 'editor']) |
+        models.Q(cohorts__memberships__user=request.user, cohorts__memberships__role__in=['teacher', 'owner'])
+    ).distinct().order_by('name')
     
-    try:
-        session = await get_session()
-    except AuthoringSession.DoesNotExist:
-        messages.error(request, "Session not found.")
-        return redirect('exercises:dashboard')
-    
-    # Check permissions (async)
-    @sync_to_async
-    def check_permissions():
-        try:
-            assert_can_edit_course(request.user, session.course)
-            return True
-        except PermissionDenied as e:
-            return str(e)
-    
-    perm_result = await check_permissions()
-    if perm_result is not True:
-        messages.error(request, perm_result)
-        return redirect('exercises:dashboard')
-    
-    # Validate session has segmentation data
-    if not session.segmentation_data or not session.segmentation_data.get('exercises'):
-        messages.error(request, "No exercises found. Please complete the analysis first.")
-        return redirect('authoring_tools:analysis', session_id=session_id)
-    
-    # Check session status - prevent duplicate triggering
-    if session.status in ['building', 'active']:
-        messages.warning(request, "Exercises are already being created or have been created.")
-        return redirect('authoring_tools:review', session_id=session_id)
-    
-    # Fire off background processing in a separate thread with its own event loop
-    exercise_count = len(session.segmentation_data['exercises'])
-    logger.info(f"[Phase II Async] Starting: session_id={session.id}, exercise_count={exercise_count}")
-    
-    def _run_in_thread(session_id):
-        """Run the async function in a new thread with its own event loop"""
-        try:
-            # Create a new event loop for this thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(build_all_exercises_async(session_id))
-                logger.info(f"[Phase II Async] Background task completed for session {session_id}")
-            finally:
-                loop.close()
-        except Exception as e:
-            logger.error(f"[Phase II Async] Background task failed for session {session_id}: {e}", exc_info=True)
-    
-    # Start in daemon thread so it doesn't block server shutdown
-    thread = threading.Thread(target=_run_in_thread, args=(session.id,), daemon=True)
-    thread.start()
-    logger.info(f"[Phase II Async] Background thread started for session {session.id}")
-    
-    messages.success(
-        request,
-        f"✓ Creating {exercise_count} exercise(s) in parallel. "
-        "This should take about 30 seconds..."
-    )
-    
-    # Immediately redirect user to review page
-    return redirect('authoring_tools:review', session_id=session_id)
+    return render(request, 'authoring_tools/upload.html', {
+        'courses': courses,
+        'accepted_formats': ACCEPTED_UPLOAD_FORMATS,
+    })
 
 
 @login_required
@@ -336,17 +204,96 @@ def review_exercises(request, session_id):
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         exercises = session.module.exercises.all().order_by('order') if session.module else []
         
-        data = [{
-            'id': ex.id,
-            'title': ex.title,
-            'exercise_type': ex.exercise_type,
-            'is_draft': ex.is_draft,
-            'draft_notes': ex.draft_notes,  # Include draft_notes to check for "Generating content..."
-            'order': ex.order
-        } for ex in exercises]
+        message_to_teacher = None
+        errors_to_teacher = ""
+        if session.segmentation_data:
+            message_to_teacher = session.segmentation_data.get('message_to_teacher', '')
+            errors_to_teacher = session.segmentation_data.get('errors_to_teacher', "")
         
-        return JsonResponse({'exercises': data})
+        # Build map of order -> has_solution from segmentation data
+        has_solution_map = {}
+        if session.segmentation_data and 'exercises' in session.segmentation_data:
+            for i, ex_data in enumerate(session.segmentation_data['exercises']):
+                # solution is a string in SegmentedExercise; check if non-empty
+                has_solution_map[i] = bool(ex_data.get('solution', '').strip())
+        
+        data = {
+            'status': session.status,
+            'course_pk': session.course.id,
+            'message_to_teacher': message_to_teacher,
+            'errors_to_teacher': errors_to_teacher,
+            'exercises': [{
+                'id': ex.id,
+                'title': ex.title,
+                'exercise_type': ex.exercise_type,
+                'is_draft': bool(ex.draft_notes), # If draft_notes is non-empty, it's a draft
+                'draft_notes': ex.draft_notes,  # Include draft_notes to check for "Generating content..."
+                'order': ex.order,
+                'has_solution': has_solution_map.get(ex.order, False)
+            } for ex in exercises]
+        }
+        
+        return JsonResponse(data)
     
     return render(request, 'authoring_tools/review.html', {
         'session': session
     })
+
+@login_required
+@require_POST
+def approve_import_notes(request, exercise_id):
+    """
+    Approve imported exercise by clearing the draft notes.
+    This effectively marks the exercise as "Ready" in the import wizard.
+    """
+    exercise = get_object_or_404(Exercise, id=exercise_id)
+    
+    try:
+        assert_can_edit_course(request.user, exercise.module.course)
+    except PermissionDenied:
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+        
+    # Clear notes to mark as validated
+    exercise.draft_notes = ""
+    exercise.save()
+    
+    return JsonResponse({'is_draft': False})
+
+@login_required
+@require_POST
+def abort_session(request, session_id):
+    """
+    Abort the import session and delete the generated module and exercises.
+    """
+    session = get_object_or_404(
+        AuthoringSession,
+        id=session_id,
+        created_by=request.user
+    )
+    
+    # Check permissions
+    try:
+        assert_can_edit_course(request.user, session.course)
+    except PermissionDenied as e:
+        messages.error(request, str(e))
+        return redirect('exercises:dashboard')
+        
+    course_pk = session.course.id
+    module = session.module
+    
+    # Delete session first (to detach from module if needed, though Cascade handles it differently)
+    # Actually, if we delete module, session deletes via Cascade? No, session.module has on_delete=CASCADE.
+    # Wait: module = ForeignKey(..., on_delete=CASCADE). This means if Module is deleted, Session is deleted.
+    # So we can just delete the module.
+    
+    module_name = "Unknown"
+    if module:
+        module_name = module.name
+        module.delete() # This should cascade delete the session too
+        messages.success(request, f"Import aborted. Module '{module_name}' and its exercises were deleted.")
+    else:
+        # If no module was created yet (e.g. still analyzing), just delete the session
+        session.delete()
+        messages.success(request, "Import aborted.")
+        
+    return redirect('teachers:course_detail', pk=course_pk)

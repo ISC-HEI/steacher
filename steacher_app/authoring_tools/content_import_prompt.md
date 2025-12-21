@@ -27,7 +27,15 @@ Provide high-level observations ONLY:
 - Extraction notes (e.g., "Used OCR for handwritten solutions", "All content extracted successfully")
 - Issues encountered (e.g., "Some equations may be incomplete due to image quality")
 
-DO NOT include in message_to_teacher:
+**Errors to teacher:**
+Critical red flags that suggest the user should RESTART the process (or upload missing files). Return a single string description, or an empty string if none.
+Examples of critical errors:
+- "The solutions are for a different kind of exercise than the one provided." (e.g., solutions for Q234 but content is Q127)
+- "Solutions appear to be missing entirely for the extracted exercises."
+- "The uploaded document appears to be lecture notes, not exercises."
+- "Unable to extract images required for these exercises."
+
+DO NOT include in message_to_teacher or errors_to_teacher:
 - Exercise counts (shown separately from JSON)
 - Which exercises have solutions (shown separately from JSON)
 - Individual exercise details (handled in Phase 2)

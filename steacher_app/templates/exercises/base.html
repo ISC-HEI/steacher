@@ -124,6 +124,16 @@
     <main class="base-layout-main">
         {% block main_content %}
         <div class="{% block container_class %}container{% endblock %} mt-5">
+            {% if messages %}
+            <div class="messages mb-4">
+                {% for message in messages %}
+                <div class="notification django-message py-2 px-4 {% if 'error' in message.tags %}is-danger{% else %}is-{{ message.tags }}{% endif %}">
+                    <button class="delete" style="top: 0.5rem; right: 0.5rem;"></button>
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
             {% block content %}
             {% endblock %}
         </div>
@@ -175,6 +185,39 @@
                 window.location.href = "{% url 'mobile:mobile_dashboard' %}";
             }
         })();
+
+        // Dismiss notifications
+        document.addEventListener('DOMContentLoaded', () => {
+            // Manual dismissal
+            (document.querySelectorAll('.notification .delete') || []).forEach(($delete) => {
+                const $notification = $delete.parentNode;
+                $delete.addEventListener('click', () => {
+                    $notification.remove();
+                });
+            });
+
+            // Auto-dismiss Django messages after 5 seconds
+            setTimeout(() => {
+                (document.querySelectorAll('.notification.django-message') || []).forEach(($notification) => {
+                    // Start slide-up animation
+                    $notification.style.transition = 'all 0.5s ease';
+                    $notification.style.maxHeight = $notification.scrollHeight + 'px'; // Set height explicitly for transition
+                    $notification.style.overflow = 'hidden';
+                    
+                    // Force reflow
+                    void $notification.offsetHeight;
+
+                    $notification.style.opacity = '0';
+                    $notification.style.maxHeight = '0';
+                    $notification.style.paddingTop = '0';
+                    $notification.style.paddingBottom = '0';
+                    $notification.style.marginTop = '0';
+                    $notification.style.marginBottom = '0';
+                    
+                    setTimeout(() => $notification.remove(), 500);
+                });
+            }, 5000);
+        });
     </script>
 
     {% block scripts %}
