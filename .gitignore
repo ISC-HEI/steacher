@@ -28,6 +28,10 @@ scala_interpreter/project/target
 scala_interpreter/target
 research
 .cursor/screenshots
+
 /steacher_app/exports
 /steacher_app/AlLin
 /steacher_app/others/course_AlLin_Serie.json
+
+# vertex key
+steacher_app/gen-lang-client*.json

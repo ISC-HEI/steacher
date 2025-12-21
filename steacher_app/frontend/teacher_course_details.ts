@@ -257,21 +257,90 @@ const TeacherCourseApp = defineComponent({
         };
 
         const deleteExercise = async (exerciseId: string) => {
-            // eslint-disable-next-line no-alert
-            if (!window.confirm('Are you sure you want to delete this exercise?')) {
-                return;
-            }
             try {
-                const modulesList = document.getElementById('modules-list') as HTMLElement | null;
-                const rawCourse = modulesList?.getAttribute('data-course-id');
-                const courseId = rawCourse ? parseInt(rawCourse, 10) : null;
-                const payload: any = {};
-                if (courseId != null) payload.course_pk = courseId;
-                await send(`/teachers/api/exercises/${exerciseId}/delete/`, payload);
+                // First, get attempt count from backend (GET request)
+                const infoResponse = await csrfFetch(`/teachers/api/exercises/${exerciseId}/archive/`, {
+                    method: 'GET',
+                });
+                
+                const infoData = await infoResponse.json();
+                
+                if (!infoResponse.ok || infoData.status === 'error') {
+                    throw new Error(infoData.message || 'Failed to get exercise info');
+                }
+                
+                // Build confirmation message
+                let message = 'Are you sure you want to delete this exercise? ';
+                
+                if (infoData.attempt_count > 0) {
+                    message += `${infoData.attempt_count} student(s) have submitted work for this exercise. `;
+                }
+                
+                message += 'Student work will be preserved but inaccessible. ' +
+                          'Contact the Steacher administrator if you need to restore it later.';
+                
+                // Show confirmation
+                // eslint-disable-next-line no-alert
+                const confirmed = window.confirm(message);
+                
+                if (!confirmed) {
+                    return; // User cancelled
+                }
+                
+                // User confirmed - now archive (POST request)
+                const archiveResponse = await csrfFetch(`/teachers/api/exercises/${exerciseId}/archive/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                const archiveData = await archiveResponse.json();
+                
+                if (!archiveResponse.ok || archiveData.status === 'error') {
+                    throw new Error(archiveData.message || 'Failed to delete exercise');
+                }
+                
+                // Success - reload page
                 window.location.reload();
             } catch (e) {
                 // eslint-disable-next-line no-alert
                 alert(`Failed to delete exercise: ${e}`);
+                // eslint-disable-next-line no-console
+                console.error(e);
+            }
+        };
+
+        const archiveModule = async (moduleId: string) => {
+            // eslint-disable-next-line no-alert
+            const confirmed = window.confirm(
+                'Are you sure you want to delete this module? ' +
+                'This will hide the module and all its exercises from students. ' +
+                'Student work will be preserved but inaccessible. ' +
+                'Contact the Steacher administrator if you need to restore it later.'
+            );
+            
+            if (!confirmed) return;
+            
+            try {
+                const response = await csrfFetch(`/teachers/api/modules/${moduleId}/archive/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok || data.status === 'error') {
+                    throw new Error(data.message || 'Failed to delete module');
+                }
+                
+                // Reload page to reflect changes
+                window.location.reload();
+            } catch (e) {
+                // eslint-disable-next-line no-alert
+                alert(`Failed to delete module: ${e}`);
                 // eslint-disable-next-line no-console
                 console.error(e);
             }
@@ -382,6 +451,7 @@ const TeacherCourseApp = defineComponent({
             toggleExerciseVisibility,
             duplicateExercise,
             deleteExercise,
+            archiveModule,
             editExercise,
             addModulePrompt,
             handleFileSelect,

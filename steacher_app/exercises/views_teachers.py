@@ -116,9 +116,19 @@ def course_detail(request, pk):
         pass
     # Compute which exercises are completed by the current user for per-exercise checkmarks
     completed_ids = set()
+    
+    # Filter out archived modules and exercises for teacher view
+    # Note: The template will iterate over course.modules.all(), so we need to modify the queryset
+    # We'll pass a filtered list instead
+    from django.db.models import Prefetch
+    modules = course.modules.filter(archived=False).prefetch_related(
+        Prefetch('exercises', queryset=Exercise.objects.filter(archived=False))
+    )
+    
     return render(request, 'exercises/teacher/teachers_course_details.html', {
         'course': course,
         'completed_exercise_ids': completed_ids,
+        'modules': modules,
     })
 
 
@@ -200,8 +210,11 @@ def course_analytics_dashboard(request, course_id):
     # Handle date filtering
     filter_days_str = request.GET.get('filter', 'all')
     
-    # Get all exercises for the course and calculate metrics
-    exercises = Exercise.objects.filter(module__course=course).select_related('module').order_by('module__order', 'order')
+    # Get all non-archived exercises for the course and calculate metrics
+    exercises = Exercise.objects.filter(
+        module__course=course,
+        archived=False
+    ).select_related('module').order_by('module__order', 'order')
     exercise_metrics = _get_exercise_analytics(exercises, filter_days_str)
 
     context = {
@@ -326,7 +339,7 @@ def quiz_control(request, cohort_id: int, module_id: int):
     assert_can_manage_cohort(request.user, cohort)
 
     # Provide ordered visible exercises for jump-dropdown and initial render
-    exercises = list(Exercise.objects.filter(module=module, visible=True).order_by('order', 'id'))
+    exercises = list(Exercise.objects.filter(module=module, visible=True, archived=False).order_by('order', 'id'))
     # Build a lightweight payload with localized fields for the frontend Vue app
     exercises_payload = [
         {
@@ -362,7 +375,7 @@ def cohort_detail(request, pk): # pylint: disable=unused-argument
     course: Course = selected_cohort.course
     ordered_exercises = list(
         Exercise.objects
-        .filter(module__course=course, visible=True)
+        .filter(module__course=course, visible=True, archived=False)
         .select_related('module')
         .order_by('module__order', 'order')
     )
@@ -539,7 +552,8 @@ def cohort_student_detail(request, cohort_id, student_id):  # pylint: disable=un
     course: Course = selected_cohort.course
     
     exercises = Exercise.objects.filter(
-        module__course=course
+        module__course=course,
+        archived=False
     ).select_related('module').order_by('module__order', 'order')
     
     attempts = Attempt.objects.filter(
@@ -918,6 +932,58 @@ def delete_exercise(request, exercise_id):
         assert_can_edit_course(request.user, exercise.module.course)
         exercise.delete()
         return JsonResponse({'status': 'success'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
+@require_POST
+@transaction.atomic
+def archive_module(request, module_id):
+    """Archive a module and all its exercises."""
+    try:
+        module = get_object_or_404(Module.objects.select_related('course'), pk=module_id)
+        assert_can_edit_course(request.user, module.course)
+        
+        # Archive module
+        module.archived = True
+        module.save()  # This also sets visible=False
+        
+        # Archive all exercises in this module
+        module.exercises.all().update(archived=True, visible=False)
+        
+        return JsonResponse({'status': 'success'})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+@transaction.atomic
+def archive_exercise(request, exercise_id):
+    """Archive a single exercise. GET returns attempt count, POST archives."""
+    try:
+        exercise = get_object_or_404(Exercise.objects.select_related('module__course'), pk=exercise_id)
+        assert_can_edit_course(request.user, exercise.module.course)
+        
+        # Check if exercise has student attempts
+        attempt_count = exercise.attempts.count()
+        
+        if request.method == 'GET':
+            # Just return attempt count for confirmation dialog
+            return JsonResponse({
+                'status': 'success',
+                'attempt_count': attempt_count
+            })
+        
+        # POST: Archive exercise
+        exercise.archived = True
+        exercise.save()  # This also sets visible=False
+        
+        return JsonResponse({
+            'status': 'success',
+            'attempt_count': attempt_count
+        })
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 

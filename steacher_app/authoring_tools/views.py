@@ -58,18 +58,6 @@ def upload_documents(request):
             messages.error(request, str(e))
             return redirect('authoring_tools:upload')
         
-        # Check for existing active session FIRST (before expensive file processing)
-        existing = AuthoringSession.objects.filter(
-            course=course,
-            created_by=request.user,
-            status__in=['analyzing', 'active']
-        ).first()
-        
-        if existing:
-            messages.info(request, "Archiving previous active session to start a new one.")
-            existing.status = 'completed'
-            existing.save()
-        
         # Supported MIME types (native Gemini support)
         SUPPORTED_MIME_TYPES = {
             'application/pdf',
@@ -163,6 +151,16 @@ def upload_documents(request):
         
         messages.success(request, "Files uploaded! Analysis and exercise generation started in background.")
         return redirect('authoring_tools:review', session_id=session.id)
+    
+    # Check for existing active session and redirect if found
+    existing = AuthoringSession.objects.filter(
+        created_by=request.user,
+        status__in=['analyzing', 'active']
+    ).first()
+    
+    if existing:
+        messages.info(request, "You have an ongoing import session. Please finish or abort it before starting a new one.")
+        return redirect('authoring_tools:review', session_id=existing.id)
     
     # Get courses user can edit
     courses = Course.objects.filter(

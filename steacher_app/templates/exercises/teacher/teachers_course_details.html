@@ -47,7 +47,7 @@
     <hr class="my-4">
 
     <div id="modules-list" class="sortable-list teacher-view" data-course-id="{{ course.pk }}">
-        {% for module in course.modules.all %}
+        {% for module in modules %}
         <div class="card mb-3 sortable-item" data-id="{{ module.pk }}" {% if module.is_quiz %}style="border-left: 4px solid #ff7b00;"{% endif %}>
             <header class="card-header">
                 <p class="card-header-title">
@@ -83,6 +83,9 @@
                     <button class="button is-small is-light">
                         <span class="icon"><i class="fas fa-download"></i></span>
                     </button>
+                </a>
+                <a class="card-header-icon" aria-label="delete module" @click.prevent="archiveModule('{{ module.pk }}')" title="Delete this module">
+                    <span class="icon has-text-danger"><i class="fas fa-trash"></i></span>
                 </a>
                 <button class="card-header-icon" aria-label="more options" data-action="toggle-module" @click="toggleModuleExpanded('{{ module.pk }}')">
                     <span class="icon">

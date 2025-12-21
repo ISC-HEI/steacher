@@ -29,7 +29,7 @@
             </div>
 
             <!-- Processing status message -->
-            <div id="building-notification" class="notification is-warning is-light" v-if="isProcessing">
+            <div id="building-notification" class="notification is-warning is-light" v-if="isProcessing && exercises.length === 0">
                 <div class="columns is-vcentered is-mobile">
                     <div class="column is-narrow">
                         <span class="icon is-large" style="height: auto; width: auto; margin-right: 1rem;">
@@ -37,7 +37,7 @@
                         </span>
                     </div>
                     <div class="column">
-                        <strong>Step 1. Extracting exercises from your documents. This might take 30s or more...</strong>
+                        <strong>Step 1. Extracting exercises from your documents. This might take <strong>30 seconds</strong> or more...</strong>
                     </div>
                 </div>
             </div>
@@ -211,23 +211,24 @@
                     <form method="post">
                         {% csrf_token %}
                         <div style="display: inline-flex; align-items: center; gap: 1rem;">
+                            <span v-if="!allExercisesReady" class="has-text-grey">
+                                Validate (Edit) all drafts to finish
+                                <span class="icon has-text-warning"><i class="fas fa-arrow-right"></i></span>
+                            </span>
                             <div class="tooltip-container" :style="!allExercisesReady ? 'cursor: not-allowed' : ''">
                                 <button type="submit" 
                                         class="button is-success is-medium" 
                                         :disabled="!allExercisesReady"
                                         :style="!allExercisesReady ? 'pointer-events: none;' : ''">
                                     <span class="icon">
-                                        <i class="fas fa-check-double"></i>
+                                        <i class="fas fa-check"></i>
                                     </span>
                                     <span>Complete Session</span>
                                 </button>
                                 <span v-if="!allExercisesReady" class="tooltip-text">You must validate all draft exercises before completing the session</span>
                             </div>
                             
-                            <span v-if="!allExercisesReady" class="has-text-grey">
-                                <span class="icon has-text-warning"><i class="fas fa-arrow-left"></i></span>
-                                Validate (Edit) all drafts to finish
-                            </span>
+                            
                         </div>
                     </form>
                 </div>

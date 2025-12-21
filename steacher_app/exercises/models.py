@@ -61,6 +61,7 @@ class Module(models.Model):
     description = models.TextField(blank=True, help_text="A short description of the module that will be displayed to the user.")
     order = models.PositiveIntegerField(default=0, help_text="The order of the module within the course.")
     visible = models.BooleanField(default=True, help_text="Whether the module is visible to students.")
+    archived = models.BooleanField(default=False, help_text="Soft-deleted module, hidden from all views")
     is_quiz = models.BooleanField(default=False, help_text="Whether this module is a quiz module.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -75,6 +76,10 @@ class Module(models.Model):
                 fields=['course', 'order'],
                 name='unique_module_order_per_course'
             ),
+            models.CheckConstraint(
+                check=~models.Q(archived=True, visible=True),
+                name='module_archived_must_be_invisible'
+            ),
         ]
         indexes = [
             models.Index(fields=['course', 'visible'], name='module_course_visible_idx'),
@@ -86,7 +91,12 @@ class Module(models.Model):
         assign order = max(order) + 1 within the same course.
 
         This keeps module ordering contiguous without requiring manual input.
+        
+        If archived, automatically set visible=False.
         """
+        if self.archived:
+            self.visible = False
+            
         if self.pk is None and (getattr(self, 'order', None) in (None, 0)) and getattr(self, 'course_id', None):
             # Compute next order inside a transaction to minimize race risk
             for _ in range(2):  # try at most twice in the rare case of a concurrent insert
@@ -356,6 +366,7 @@ class Exercise(models.Model):
     exercise_data = models.JSONField(help_text="Contains fields like data-source, etc.")  # sent to frontend
     answer_data = models.JSONField(default=dict, help_text="Contains fields like expected_result, hints, etc.")  # backend only
     visible = models.BooleanField(default=True, help_text="Whether the exercise is visible to students.")
+    archived = models.BooleanField(default=False, help_text="Soft-deleted exercise, hidden from all views")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -396,12 +407,22 @@ class Exercise(models.Model):
         """Returns the answer_data field as a validated Pydantic object."""
         return AnswerData.model_validate(self.answer_data or {})
 
+    def save(self, *args, **kwargs):
+        """If archived, automatically set visible=False."""
+        if self.archived:
+            self.visible = False
+        return super().save(*args, **kwargs)
+
     class Meta:
         ordering = ['module', 'order']
         constraints = [
             models.UniqueConstraint(
                 fields=['module', 'order'],
                 name='unique_exercise_order_per_module'
+            ),
+            models.CheckConstraint(
+                check=~models.Q(archived=True, visible=True),
+                name='exercise_archived_must_be_invisible'
             ),
         ]
         indexes = [
