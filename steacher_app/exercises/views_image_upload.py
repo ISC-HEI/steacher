@@ -16,8 +16,8 @@ from django.urls import reverse
 import qrcode
 from PIL import Image
 
-from .models import TraceImage
-from .authz import rate_limit
+from .models import TraceImage, Attempt, ChatThread
+from .authz import rate_limit, can_view_course
 from .logic import IMAGE_MAX_SIZE
 
 logger = logging.getLogger(__name__)
@@ -264,10 +264,17 @@ def serve_trace_image(request, token):
     # just for a short time, before the student sends the new message and creates a new trace.
     if img.trace:
         if img.trace.user != request.user:
-            # check if the user is a teacher
-            if not img.trace.course.memberships.filter(user=request.user, role__in=['teacher', 'owner']).exists():
-                return HttpResponse('Unauthorized', status=403)
+            # Get the course from the trace's content_object
+            content_obj = img.trace.content_object
+            if isinstance(content_obj, Attempt):
+                course = content_obj.exercise.module.course
+            elif isinstance(content_obj, ChatThread):
+                course = content_obj.course
             else:
+                return HttpResponse('Forbidden', status=403)
+            
+            # Check if user has course view permissions (teacher, owner, or cohort member)
+            if not can_view_course(request.user, course):
                 return HttpResponse('Forbidden', status=403)
     
     # Serve binary image data directly
@@ -323,10 +330,17 @@ def serve_highlighted_image(request, token):
     # Authorization: if linked to a trace, verify ownership or teacher status
     if img.trace:
         if img.trace.user != request.user:
-            # check if the user is a teacher
-            if not img.trace.course.memberships.filter(user=request.user, role__in=['teacher', 'owner']).exists():
-                return HttpResponse('Unauthorized', status=403)
+            # Get the course from the trace's content_object
+            content_obj = img.trace.content_object
+            if isinstance(content_obj, Attempt):
+                course = content_obj.exercise.module.course
+            elif isinstance(content_obj, ChatThread):
+                course = content_obj.course
             else:
+                return HttpResponse('Forbidden', status=403)
+            
+            # Check if user has course view permissions (teacher, owner, or cohort member)
+            if not can_view_course(request.user, course):
                 return HttpResponse('Forbidden', status=403)
     
     try:

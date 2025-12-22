@@ -179,8 +179,8 @@ The feature went through two approaches before the final implementation:
 
 ### Performance Considerations
 
-- **Highlight rendering**: Happens on-demand (first request may be slightly slower)
-- **Gemini API call**: Adds ~1-2 seconds to tutor response time
+- **Highlight rendering**: Happens on-demand, fast enough to be negligeable
+- **Gemini API call**: Adds 1.55 ± 0.42s seconds to tutor response time
 - **Image quality**: Highlights saved at 85% JPEG quality (imperceptible quality loss, ~30% size savings in failed approach)
 - **Authorization checks**: Minimal overhead, only on highlight endpoint
 

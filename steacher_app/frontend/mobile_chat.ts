@@ -26,8 +26,8 @@ interface Message {
 }
 
 
-// Helper function to normalize images (outside of component because needed before the methods are available)
-function normalizeImages(images: any[]): ImageAttachment[] {
+// Helper function to format the image url of get it directly if already formatted (outside of component because needed before the methods are available)
+function getImageUrl(images: any[]): ImageAttachment[] {
     if (!images || !Array.isArray(images)) {
         return [];
     }
@@ -119,7 +119,7 @@ const MobileChatComponent = defineComponent({
 
             // Ensure images have the 'type' field
             if (cleaned.images && Array.isArray(cleaned.images)) {
-                cleaned.images = normalizeImages(cleaned.images);
+                cleaned.images = getImageUrl(cleaned.images);
             }
             
             return cleaned;
@@ -806,7 +806,7 @@ const MobileChatComponent = defineComponent({
             const rawImages = data.user_submission?.images || [];
             
             if (rawImages && Array.isArray(rawImages) && rawImages.length > 0) {
-                const normalizedImages = normalizeImages(rawImages);
+                const normalizedImages = getImageUrl(rawImages);
                 
                 // Find the last user message and update its images with server URLs
                 for (let i = this.messages.length - 1; i >= 0; i--) {

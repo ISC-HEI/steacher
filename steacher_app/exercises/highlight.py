@@ -6,9 +6,13 @@ from google import genai
 from google.genai.types import GenerateContentConfig, ThinkingConfig, Part
 from django.conf import settings
 from .schemas import HighlightResponse
+from .models import TraceImage
+import io
 
 gemini_client = genai.Client(api_key=settings.GEMINI_API_KEY)
 logger = logging.getLogger(__name__)
+
+HIGHLIGHT_MODEL = "gemini-3-flash-preview"  # previously "gemini-2.5-flash"
 
 # TODO: Integrate Colorblind friendly palette for highlighting.
 # The default has been changed to "#FFB000", one of the colors from the "IBM" palette (see https://davidmathlogic.com/colorblind/#%23648FFF-%23785EF0-%23DC267F-%23FE6100-%23FFB000)
@@ -130,46 +134,25 @@ def find_text_in_image(text_to_find: str, img_bytes:bytes, mime_type: str) -> di
 You will receive an image of a student math exercise and a piece of LaTeX formatted text. Your task is to find the inputed text into the image and return a bounding box that goes around it.
 
 # Input
-Image: the image will be given on the side. If you don't receive an image, you must return an empty bounding box.
-Text: You will receive it at the end of these instructions with the title "# Text to find". It will be formatted as plaintext with LaTeX notations, either inline with "$" or full-line with "$$".
+Text to find: {text_to_find}
 
-# Output
-You output will be a valid JSON format containing the following fields:
-"bounding_box" : This is the 2d bounding box around the text. The list must contain the elements in this order: [y0, x0, y1, x1]
-"comment" : This is a place for you to give us debug information:
-- If you don't receive an image, return "ERROR: No Image" in this field.
-- If you don't find the text in the image, return "ERROR: The text is not in the image" in this field.
-- If there was no problem, simply return an empty "" in this field.
-
-# Output Examples:
-## The image contained the text
-{{
-	bounding_box : [1,10,40,100],
-	comment: ""
-}}
-
-## the image didn't contain text
-{{
-	bounding_box : [];
-	comment: "ERROR: The text is not in the image"
-}}
-
-# Text to find
-{text_to_find}
-
-# Your output
+# Instructions
+- Return the bounding box as [y0, x0, y1, x1].
+- If the text is not found, return an empty bounding box and explain why in the comment.
+- If no image is provided, return an empty bounding box and "ERROR: No Image" in the comment.
 '''
 
     try:
         # Create chat session using the existing gemini_client
         chat_config = GenerateContentConfig(
-            response_mime_type="text/plain",
+            response_mime_type="application/json",
+            response_json_schema=HighlightResponse.model_json_schema(),
             # Google documentation (see https://ai.google.dev/gemini-api/docs/image-understanding?lang=node&hl=fr#segmentation) recommends no thinking budget:
             # "set thinking_budget to 0 for better results in object detection"
             thinking_config=ThinkingConfig(thinking_budget=0)
         )
         chat_session = gemini_client.chats.create(
-            model="gemini-2.5-flash",
+            model=HIGHLIGHT_MODEL,
             config=chat_config,
         )
 
@@ -198,3 +181,48 @@ You output will be a valid JSON format containing the following fields:
             elapsed_time=0.0
         )
         return error_response.model_dump()
+
+
+def highlight(trace_image_object: TraceImage, text_to_highlight: str):
+    """
+    Main highlighting pipeline, called from logic.py. Tries to find the text_to_highlight in the image and saves
+    its bounding box in the current trace_image if successful.
+
+    Parameters
+    ----------
+    trace_image_object : TraceImage
+        The TraceImage object in which to save the bounding box if found
+    text_to_highlight : str
+        The text that should be found in the image
+    """
+
+    logger.info(f"Processing image highlight, text to be highlighted: {text_to_highlight}")
+    # Get the image bytes from the first uploaded image
+    img_bytes = trace_image_object.image_bytes
+    img_mim_type =  trace_image_object.image_type
+
+    # Find the text in the image using Gemini API
+    found_text = find_text_in_image(text_to_highlight, img_bytes, img_mim_type)
+    logger.info(f"Found text result: {found_text}")
+    returned_bbox = found_text["bounding_box"]
+
+    # Load image bytes into PIL Image and get its size for bbox normalization
+    im_pil = Image.open(io.BytesIO(img_bytes))
+    img_size = (im_pil.height, im_pil.width)
+
+    # Treat the bounding box coordinates
+    treated_bbox = treat_gemini_bbox(returned_bbox, img_size)
+    logger.info(f"Treated bbox: {treated_bbox}")
+
+    # Save bbox to TraceImage for frontend rendering
+    if returned_bbox and returned_bbox != []:  # Only save if bbox was found
+        trace_image_obj = trace_image_object
+        bbox_entry = {
+            'bbox': list(treated_bbox),
+            'color': '#FFB000'  # Default color matching add_highlighter default
+        }
+        if not trace_image_obj.highlight_bboxes:
+            trace_image_obj.highlight_bboxes = []
+        trace_image_obj.highlight_bboxes.append(bbox_entry)
+        trace_image_obj.save(update_fields=['highlight_bboxes'])
+        logger.info(f"Saved highlight bbox to TraceImage {trace_image_obj.id}: {bbox_entry}")

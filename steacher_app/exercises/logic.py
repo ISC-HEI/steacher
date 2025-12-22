@@ -8,8 +8,7 @@ from .schemas import get_tutor_response_schema, strip_markdown_fences
 from statistics import mean, pstdev
 from google import genai
 from google.genai.types import UserContent, ModelContent, Part, GenerateContentConfig, HttpOptions
-from exercises.highlight import treat_gemini_bbox, find_text_in_image
-from PIL import Image
+from exercises.highlight import highlight
 
 
 gemini_client = genai.Client(
@@ -492,6 +491,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     if trace_image_objects:
         try:
             for trace_image_obj in trace_image_objects:
+                print("type de la trace image obj", type(trace_image_obj))
                 if not trace_image_obj.trace_id:
                     trace_image_obj.trace = created_trace
                     trace_image_obj.save(update_fields=['trace'])
@@ -503,36 +503,9 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     # If there's text to highlight and we have images, process the first image
     if TOGGLE_HIGHLIGHT and loaded_response.get("text_to_highlight") and trace_image_objects:
         try:
-            logger.info(f"Processing image highlight, text to be highlighted: {loaded_response.get('text_to_highlight')}")
-            # Get the image bytes from the first uploaded image
-            img_bytes = trace_image_objects[0].image_bytes
-            img_mim_type =  trace_image_objects[0].image_type
-
-            # Find the text in the image using Gemini API
-            found_text = find_text_in_image(loaded_response["text_to_highlight"], img_bytes, img_mim_type)
-            logger.info(f"Found text result: {found_text}")
-            returned_bbox = found_text["bounding_box"]
-
-            # Load image bytes into PIL Image and get its size for bbox normalization
-            im_pil = Image.open(io.BytesIO(img_bytes))
-            img_size = (im_pil.height, im_pil.width)
-
-            # Treat the bounding box coordinates
-            treated_bbox = treat_gemini_bbox(returned_bbox, img_size)
-            logger.info(f"Treated bbox: {treated_bbox}")
-
-            # Save bbox to TraceImage for frontend rendering
-            if returned_bbox and returned_bbox != []:  # Only save if bbox was found
-                trace_image_obj = trace_image_objects[0]
-                bbox_entry = {
-                    'bbox': list(treated_bbox),
-                    'color': '#FFB000'  # Default color matching add_highlighter default
-                }
-                if not trace_image_obj.highlight_bboxes:
-                    trace_image_obj.highlight_bboxes = []
-                trace_image_obj.highlight_bboxes.append(bbox_entry)
-                trace_image_obj.save(update_fields=['highlight_bboxes'])
-                logger.info(f"Saved highlight bbox to TraceImage {trace_image_obj.id}: {bbox_entry}")
+            # go through the highlight pipeline with the text to highlight and the student's image
+            txt_to_hl = loaded_response.get('text_to_highlight')
+            highlight(trace_image_objects[0], txt_to_hl)
 
         except Exception as highlight_error:
             logger.error(f"Failed to highlight image: {highlight_error}", exc_info=True)

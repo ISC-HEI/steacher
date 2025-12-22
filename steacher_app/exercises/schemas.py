@@ -2,8 +2,9 @@ import json
 import logging
 import re
 
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Annotated
 from pydantic import BaseModel, Field
+from pydantic.json_schema import SkipJsonSchema
 
 logger = logging.getLogger(__name__)
 
@@ -95,10 +96,10 @@ def get_tutor_response_schema(has_images: bool = False):
                         logger.warning(f"Failed to load response as JSON: {e}. Falling back to Regex.")
                     
                     # Regex Fallbacks
-                    guidance_match = re.search(r'guidance[_ ]text:\s*(.*?)(?:transcript[_ ]:|error[_ ]description:|text[_ ]to[_ ]highlight:|$)', text_out, re.DOTALL | re.IGNORECASE)
-                    transcript_match = re.search(r'transcript[_ ]:\s*(.*?)(?:guidance[_ ]text:|error[_ ]description:|text[_ ]to[_ ]highlight:|$)', text_out, re.DOTALL | re.IGNORECASE)
-                    error_desc_match = re.search(r'error[_ ]desc(?:ription)?:\s*(.*?)(?:guidance[_ ]text:|transcript[_ ]:|text[_ ]to[_ ]highlight:|$)', text_out, re.DOTALL | re.IGNORECASE)
-                    highlighted_text_match = re.search(r'(?:text[_ ]to[_ ]highlight):\s*(.*?)(?:guidance[_ ]text:|transcript[_ ]:|error[_ ]desc:|$)', text_out, re.DOTALL | re.IGNORECASE)
+                    guidance_match         = re.search(r'"guidance[_ ]text" ?:\s*(.*?)(?:,"error[_ ]desc(?:ription)?" ?:|,"transcript" ?:|,"text[_ ]to[_ ]highlight" ?:|}$)', text_out, re.DOTALL | re.IGNORECASE)
+                    transcript_match       = re.search(r'"transcript" ?:\s*(.*?)(?:,"guidance[_ ]text" ?:|,"error[_ ]desc(?:ription)?" ?:|,"text[_ ]to[_ ]highlight" ?:|}$)', text_out, re.DOTALL | re.IGNORECASE)
+                    error_desc_match       = re.search(r'"error[_ ]desc(?:ription)?" ?:\s*(.*?)(?:,"guidance[_ ]text" ?:|,"transcript" ?:|,"text[_ ]to[_ ]highlight" ?:|}$)', text_out, re.DOTALL | re.IGNORECASE)
+                    highlighted_text_match = re.search(r'"text[_ ]to[_ ]highlight" ?:\s*(.*?)(?:,"error[_ ]desc(?:ription)?" ?:|,"transcript" ?:|,"guidance[_ ]text" ?:|}$)', text_out, re.DOTALL | re.IGNORECASE)
                     
                     if guidance_match:
                         loaded_response = {
@@ -193,7 +194,7 @@ class HighlightResponse(BaseModel):
         default="",
         description="Error message or empty if successful"
     )
-    elapsed_time: float = Field(
+    elapsed_time: Annotated[float, SkipJsonSchema()] = Field(
         default=0.0,
         description="Time taken for API call in seconds"
     )
@@ -210,6 +211,7 @@ class HighlightResponse(BaseModel):
         """
         # 1. Try the SDK's automatic parsing (if available and successful)
         if hasattr(response, 'parsed') and response.parsed:
+            # if the response has the "parsed" attribute, it means the response was sent directly in the right format (since it was given as an input to the model)
             try:
                 if isinstance(response.parsed, dict):
                     parsed_dict = response.parsed.copy()
