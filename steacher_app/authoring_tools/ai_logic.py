@@ -1,18 +1,15 @@
 import io
-import tempfile
-import json
 import logging
 import asyncio
-import zipfile
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 from pydantic import BaseModel, Field
 from django.db.models import Max
 from asgiref.sync import sync_to_async
 import google.genai.types as genai_types
 
-from exercises.logic import gemini_client, _extract_thoughts_from_response, _build_authoring_system_prompt
-from exercises.models import Module, Exercise, create_trace_for, Course
+from exercises.logic import gemini_client, _build_authoring_system_prompt
+from exercises.models import Module, Exercise, Course
 from .models import AuthoringSession
 
 logger = logging.getLogger(__name__)
@@ -96,160 +93,6 @@ class SegmentationResult(BaseModel):
     message_to_teacher: str = Field(description="High-level observations about document quality, extraction notes, or issues. Do NOT list exercise details or counts.")
     errors_to_teacher: str = Field(description="String describing critical errors encountered during extraction (e.g. mismatched solutions, missing images). Empty string if none.", default="")
     exercises: List[SegmentedExercise] = Field(description="List of segmented exercises in document order")
-
-
-def create_file_parts(session, max_files=20):
-    """
-    Create Gemini Part objects from session files for inline data.
-    Extracts ZIP files and processes their contents.
-    Returns list of Part objects that can be included in messages.
-    
-    Args:
-        session: AuthoringSession instance
-        max_files: Maximum number of files to process (default 20)
-    """
-    file_parts = []
-    
-    for file in session.files.all():
-        try:
-            file_ext = Path(file.filename).suffix.lower()
-            
-            # Convert memoryview to bytes if needed
-            file_data = file.file_data
-            if isinstance(file_data, memoryview):
-                file_data = bytes(file_data)
-            
-            # Handle ZIP files - extract and process contents
-            if file_ext == '.zip':
-                try:
-                    with zipfile.ZipFile(io.BytesIO(file_data)) as zf:
-                        for zip_info in zf.infolist():
-                            # Check file limit
-                            if len(file_parts) >= max_files:
-                                print(f"Reached maximum file limit ({max_files}), stopping extraction")
-                                break
-                            
-                            # Skip directories
-                            if zip_info.is_dir():
-                                continue
-                            
-                            # Skip hidden files (any path component starting with .)
-                            path_parts = Path(zip_info.filename).parts
-                            if any(part.startswith('.') for part in path_parts):
-                                continue
-                            
-                            # Extract file
-                            extracted_data = zf.read(zip_info.filename)
-                            extracted_ext = Path(zip_info.filename).suffix.lower()
-                            
-                            # Determine MIME type for extracted file
-                            if extracted_ext in TEXT_BASED_EXTENSIONS:
-                                extracted_mime = 'text/plain'
-                            elif extracted_ext == '.pdf':
-                                extracted_mime = 'application/pdf'
-                            elif extracted_ext in {'.png', '.jpg', '.jpeg'}:
-                                extracted_mime = f'image/{extracted_ext[1:]}'
-                            elif extracted_ext == '.webp':
-                                extracted_mime = 'image/webp'
-                            else:
-                                # Skip unsupported file types
-                                print(f"Skipping unsupported file in ZIP: {zip_info.filename}")
-                                continue
-                            
-                            # Create part for extracted file
-                            file_part = genai_types.Part.from_bytes(
-                                data=extracted_data,
-                                mime_type=extracted_mime
-                            )
-                            file_parts.append(file_part)
-                            print(f"Extracted from ZIP: {zip_info.filename} ({extracted_mime})")
-                            
-                except zipfile.BadZipFile:
-                    print(f"Error: {file.filename} is not a valid ZIP file")
-                    continue
-            else:
-                # Check file limit
-                if len(file_parts) >= max_files:
-                    print(f"Reached maximum file limit ({max_files}), skipping remaining files")
-                    break
-                
-                # Regular file (not ZIP)
-                # Determine MIME type
-                if file_ext in TEXT_BASED_EXTENSIONS:
-                    mime_type = 'text/plain'
-                else:
-                    mime_type = file.content_type or 'application/pdf'
-                
-                file_part = genai_types.Part.from_bytes(
-                    data=file_data,
-                    mime_type=mime_type
-                )
-                file_parts.append(file_part)
-            
-        except Exception as e:
-            # If creation fails, skip this file and continue
-            print(f"Error creating part for {file.filename}: {str(e)}")
-            continue
-    
-    return file_parts
-
-
-def call_gemini_for_import(session) -> Tuple[SegmentationResult, list[str]]:
-    """
-    Call Gemini 3 Pro to analyze documents and extract exercises with structured output.
-    Returns tuple of (SegmentationResult, thoughts).
-    """
-    teacher_lang = session.created_by.preferred_language or 'en'
-    
-    # Load prompt template
-    prompt_path = Path(__file__).parent / 'content_import_prompt.md'
-    with open(prompt_path, 'r') as f:
-        system_prompt = f.read().replace('{language}', teacher_lang)
-    
-    # Create file parts and send to Gemini
-    file_parts = create_file_parts(session)
-    
-    # Include course-specific context if available
-    course_context = ""
-    if session.course.course_prompt:
-        course_context = f"""
-
-# Course Context
-
-{session.course.course_prompt}
-"""
-    
-    initial_text = f"""{system_prompt}{course_context}
-
-Teacher instructions: {session.teacher_instructions or 'None'}
-
-Please analyze these documents, segment the exercises, and extract their content."""
-    
-    # Build parts: text + file parts
-    parts = [genai_types.Part(text=initial_text)] + file_parts
-    
-    contents = [{
-        'role': 'user',
-        'parts': parts
-    }]
-    
-    # Call Gemini 3 Pro with structured output
-    response = gemini_client.models.generate_content(
-        model=MODEL,
-        contents=contents,
-        config={
-            'response_mime_type': 'application/json',
-            'response_json_schema': SegmentationResult.model_json_schema(),
-            'thinking_config': genai_types.ThinkingConfig(include_thoughts=True)
-        }
-    )
-    
-    # Extract thoughts from response (if any)
-    thoughts = _extract_thoughts_from_response(response)
-    
-    # Parse structured result
-    result = SegmentationResult.model_validate_json(response.text)
-    return result, thoughts
 
 
 async def generate_authoring_update_async(exercise_payload: dict, user_message: str, course: Course, mode: str = 'edit') -> dict:
@@ -497,81 +340,144 @@ async def build_all_exercises_async(session_id: int):
     logger.info(f"[Phase II Async] Session {session_id} completed successfully")
 
 
-def run_full_import_pipeline(session_id: int):
+# ============================================================================
+# Question Generator: Gemini File API and Context Cache Helpers
+# ============================================================================
+
+def upload_file_to_gemini(file_data: bytes, filename: str, mime_type: str) -> str:
     """
-    Orchestrates the full import pipeline in a background thread:
-    1. Phase 1: Document analysis & segmentation (Sync)
-    2. Phase 2: Exercise generation (Async)
+    Upload a file to Gemini File API and return the file URI.
+    Files are stored for 48 hours.
     
-    This function is designed to be the target of a threading.Thread.
+    Args:
+        file_data: Binary file content
+        filename: Original filename
+        mime_type: MIME type (e.g., 'application/pdf', 'text/plain')
+    
+    Returns:
+        File URI (e.g., 'files/abc123')
     """
-    print(f"DEBUG: run_full_import_pipeline started for session {session_id}", flush=True)
-    logger.info(f"[Full Pipeline] Starting for session {session_id}")
-    
     try:
-        # 1. Get Session
-        try:
-            print(f"DEBUG: Fetching session {session_id}", flush=True)
-            session = AuthoringSession.objects.get(id=session_id)
-        except AuthoringSession.DoesNotExist:
-            print(f"DEBUG: Session {session_id} not found", flush=True)
-            logger.error(f"[Full Pipeline] Session {session_id} not found")
-            return
-
-        # 2. Phase 1: Analysis (Sync)
-        print(f"DEBUG: Starting Phase 1 (Analysis) for session {session_id}", flush=True)
-        logger.info(f"[Full Pipeline] Phase 1: Calling Gemini for segmentation...")
-        try:
-            segmentation_result, thoughts = call_gemini_for_import(session)
-            
-            # Store segmentation
-            session.segmentation_data = segmentation_result.model_dump()
-            
-            # Create trace for history (optional but good for debugging)
-            create_trace_for(
-                owner_obj=session,
-                user=session.created_by,
-                channel='content_import',
-                assistant_content={'message_to_teacher': segmentation_result.message_to_teacher},
-                assistant_metadata={'segmentation': session.segmentation_data}
-            )
-            
-            session.save()
-            print(f"DEBUG: Phase 1 complete. Found {len(segmentation_result.exercises)} exercises.", flush=True)
-            logger.info(f"[Full Pipeline] Phase 1 complete. Found {len(segmentation_result.exercises)} exercises.")
-            
-        except TimeoutError:
-            print(f"DEBUG: Phase 1 timed out after 60 seconds", flush=True)
-            logger.error(f"[Full Pipeline] Phase 1 timed out after 60 seconds")
-            session.status = 'timeout'
-            session.error_message = "Phase I (document analysis) timed out after 60 seconds"
-            session.save()
-            return
-        except Exception as e:
-            print(f"DEBUG: Phase 1 failed: {e}", flush=True)
-            logger.error(f"[Full Pipeline] Phase 1 failed: {e}", exc_info=True)
-            session.status = 'error'
-            session.error_message = f"Phase I failed: {str(e)}"
-            session.save()
-            return
-
-        # 3. Phase 2: Generation (Async)
-        print(f"DEBUG: Starting Phase 2 (Generation) for session {session_id}", flush=True)
-        logger.info(f"[Full Pipeline] Phase 2: Starting async exercise generation...")
+        # Convert memoryview to bytes if needed
+        if isinstance(file_data, memoryview):
+            file_data = bytes(file_data)
         
-        # Run the async build process
-        asyncio.run(build_all_exercises_async(session_id))
+        # Determine MIME type for Gemini
+        file_ext = Path(filename).suffix.lower()
+        if file_ext in TEXT_BASED_EXTENSIONS:
+            gemini_mime_type = 'text/plain'
+        else:
+            gemini_mime_type = mime_type
         
-        print(f"DEBUG: All phases completed for session {session_id}", flush=True)
-        logger.info(f"[Full Pipeline] All phases completed for session {session_id}")
+        # Upload to Gemini File API
+        uploaded_file = gemini_client.files.upload(
+            file=io.BytesIO(file_data),
+            config={'mime_type': gemini_mime_type, 'display_name': filename}
+        )
+        
+        logger.info(f"Uploaded file to Gemini: {filename} -> {uploaded_file.uri}")
+        return uploaded_file.uri
         
     except Exception as e:
-        print(f"DEBUG: Critical error in pipeline: {e}", flush=True)
-        logger.error(f"[Full Pipeline] Critical error: {e}", exc_info=True)
-        try:
-            session = AuthoringSession.objects.get(id=session_id)
-            session.status = 'error'
-            session.error_message = f"Critical error: {str(e)}"
-            session.save()
-        except Exception:
-            pass
+        logger.error(f"Failed to upload file to Gemini: {filename}, error: {e}")
+        raise
+
+
+def create_or_update_cache(session, system_prompt: str, course_context: str) -> str:
+    """
+    Create or update Gemini context cache for a session.
+    Cache includes: system prompt + course context + file URIs.
+    
+    Args:
+        session: AuthoringSession instance
+        system_prompt: System prompt text
+        course_context: Course context text
+    
+    Returns:
+        Cache name (e.g., 'cachedContents/abc123')
+    """
+    try:
+        # Build cache contents - start with combined text
+        combined_text = f"{system_prompt}\n\n{course_context}"
+        
+        cache_parts = [genai_types.Part(text=combined_text)]
+        
+        # Add file URIs from session
+        for uploaded_file in session.files.all():
+            if uploaded_file.gemini_file_uri:
+                # Determine MIME type
+                file_ext = Path(uploaded_file.filename).suffix.lower()
+                if file_ext in TEXT_BASED_EXTENSIONS:
+                    mime_type = 'text/plain'
+                else:
+                    mime_type = uploaded_file.content_type
+                
+                # Create file part from URI
+                file_part = genai_types.Part.from_uri(
+                    file_uri=uploaded_file.gemini_file_uri,
+                    mime_type=mime_type
+                )
+                cache_parts.append(file_part)
+        
+        # Delete old cache if exists
+        if session.cache_name:
+            try:
+                gemini_client.caches.delete(name=session.cache_name)
+                logger.info(f"Deleted old cache: {session.cache_name}")
+            except Exception as e:
+                logger.warning(f"Failed to delete old cache: {e}")
+        
+        # Create new cache
+        cache = gemini_client.caches.create(
+            model=MODEL,
+            config=genai_types.CreateCachedContentConfig(
+                display_name=f"Session {session.id} - {session.course.name}",
+                contents=[{'role': 'user', 'parts': cache_parts}],
+                ttl='3600s'  # 1 hour
+            )
+        )
+        
+        logger.info(f"Created cache: {cache.name} with {len(cache_parts)} parts")
+        return cache.name
+        
+    except Exception as e:
+        logger.error(f"Failed to create cache: {e}")
+        raise
+
+
+def build_course_context_for_generator(course: Course) -> str:
+    """
+    Build course context string for question generator chat prompt.
+    Includes: course description, course_prompt, existing exercises.
+    
+    Args:
+        course: Course instance
+    
+    Returns:
+        Formatted course context string
+    """
+    context_parts = []
+    
+    # Course description
+    if course.description:
+        context_parts.append(f"**Course Description:**\n{course.description}\n")
+    
+    # Course prompt (if available)
+    if course.course_prompt:
+        context_parts.append(f"**Course Context:**\n{course.course_prompt}\n")
+    else:
+        context_parts.append("**Note:** This course doesn't have a course context set up yet. Consider advising the teacher to add one for better exercise generation.\n")
+    
+    # Existing exercises (titles + first 200 chars of question)
+    exercises = Exercise.objects.filter(
+        module__course=course,
+        module__archived=False
+    ).select_related('module').order_by('module__order', 'order')[:50]  # Limit to 50 most recent
+    
+    if exercises:
+        context_parts.append("**Existing Exercises in Course:**")
+        for ex in exercises:
+            context_parts.append(f"- {ex.title} ({ex.exercise_type}): {ex.question[:200]}...")
+        context_parts.append("")
+    
+    return "\n".join(context_parts)

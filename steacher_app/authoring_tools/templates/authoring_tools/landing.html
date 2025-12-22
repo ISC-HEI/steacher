@@ -1,0 +1,79 @@
+{% extends "exercises/base.html" %}
+{% load static %}
+
+{% block title %}Exercise Generator{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="container">
+        <h1 class="title">Exercise Generator</h1>
+        <p class="subtitle">Create exercises through conversation with AI</p>
+        
+        <div class="box">
+            <h2 class="title is-4">Select a Course</h2>
+            <p class="mb-4">Choose the course where you want to create exercises:</p>
+            
+            {% if courses %}
+            <div class="list">
+                {% for course in courses %}
+                <a href="{% url 'authoring_tools:start' %}?course_id={{ course.id }}" class="list-item box">
+                    <div class="media">
+                        <div class="media-left">
+                            <span class="icon is-large has-text-primary">
+                                <i class="fas fa-book fa-2x"></i>
+                            </span>
+                        </div>
+                        <div class="media-content">
+                            <p class="title is-5">{{ course.name }}</p>
+                            <p class="subtitle is-6">{{ course.modules.count }} module{{ course.modules.count|pluralize }}</p>
+                        </div>
+                        <div class="media-right">
+                            <span class="icon">
+                                <i class="fas fa-arrow-right"></i>
+                            </span>
+                        </div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="notification is-warning">
+                <p>You don't have permission to create exercises in any course.</p>
+                <p class="mt-2">Contact a course owner to get editor access.</p>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="box">
+            <h2 class="title is-5">How it works</h2>
+            <div class="content">
+                <ol>
+                    <li><strong>Upload reference materials</strong> (optional) - PDFs, code files, or other documents</li>
+                    <li><strong>Describe what you want</strong> - Chat with the AI about the exercises you'd like to create</li>
+                    <li><strong>Build exercises</strong> - The AI will extract and structure exercises from your conversation</li>
+                    <li><strong>Review and refine</strong> - Edit the generated exercises before publishing</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+.list-item {
+    display: block;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+}
+
+.list-item:hover {
+    transform: translateX(5px);
+    box-shadow: 0 0.5em 1em -0.125em rgba(10, 10, 10, 0.1), 0 0px 0 1px rgba(10, 10, 10, 0.02);
+}
+
+.list-item .media {
+    align-items: center;
+}
+</style>
+{% endblock %}

@@ -1,177 +1,30 @@
 import io
 import logging
 import threading
+import zipfile
 from pathlib import Path
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_http_methods
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
 from django.db import transaction, models
 from django.http import JsonResponse
-from pypdf import PdfReader
 
 from .models import AuthoringSession, UploadedFile
-from .ai_logic import run_full_import_pipeline, TEXT_BASED_EXTENSIONS, ACCEPTED_UPLOAD_FORMATS
-from exercises.models import Exercise, Course
+from .ai_logic import (
+    TEXT_BASED_EXTENSIONS, ACCEPTED_UPLOAD_FORMATS,
+    upload_file_to_gemini, create_or_update_cache, build_course_context_for_generator,
+    SegmentationResult, MODEL
+)
+from exercises.models import Exercise, Course, create_trace_for
 from exercises.authz import assert_can_edit_course
+from exercises.logic import gemini_client
+import google.genai.types as genai_types
 
 logger = logging.getLogger(__name__)
 
-# Suppress noisy pypdf warnings
-logging.getLogger("pypdf").setLevel(logging.ERROR)
-
 MAX_TOTAL_SIZE_MB = 50
-MAX_TOTAL_PAGES = 50
-
-
-@login_required
-def upload_documents(request):
-    """Page 1: Upload documents for import"""
-    
-    if request.method == 'POST':
-        # Get form data
-        course_id = request.POST.get('course')
-        files = request.FILES.getlist('files')
-        instructions = request.POST.get('teacher_instructions', '')
-        
-        # Validate course
-        if not course_id:
-            messages.error(request, "Please select a course.")
-            return redirect('authoring_tools:upload')
-        
-        try:
-            course = Course.objects.get(id=course_id)
-        except Course.DoesNotExist:
-            messages.error(request, "Invalid course selected.")
-            return redirect('authoring_tools:upload')
-        
-        # Validate files
-        if not files:
-            messages.error(request, "Please select at least one file.")
-            return redirect('authoring_tools:upload')
-        
-        # Check permissions
-        try:
-            assert_can_edit_course(request.user, course)
-        except PermissionDenied as e:
-            messages.error(request, str(e))
-            return redirect('authoring_tools:upload')
-        
-        # Supported MIME types (native Gemini support)
-        SUPPORTED_MIME_TYPES = {
-            'application/pdf',
-            'text/plain',
-            'text/markdown',
-            'image/png',
-            'image/jpeg',
-            'image/webp',
-            'image/heic',
-            'image/heif',
-        }
-        
-        # Validate MIME types
-        for file in files:
-            file_ext = Path(file.name).suffix.lower()
-            
-            # Allow ZIP files (will be skipped in processing for now)
-            if file_ext == '.zip':
-                continue
-            
-            # Allow text-based formats (will be converted to text/plain)
-            if file_ext in TEXT_BASED_EXTENSIONS:
-                continue
-            
-            # Check native MIME type support
-            if file.content_type not in SUPPORTED_MIME_TYPES:
-                messages.error(
-                    request,
-                    f"Unsupported file type: {file.name} ({file.content_type}). "
-                    f"Supported: PDF, ZIP, TXT, MD, CSV, JSON, TEX, and images (PNG, JPEG, WEBP)."
-                )
-                return redirect('authoring_tools:upload')
-        
-        # Validate total size
-        total_size = sum(f.size for f in files)
-        if total_size > MAX_TOTAL_SIZE_MB * 1024 * 1024:
-            messages.error(request, f"Total file size exceeds {MAX_TOTAL_SIZE_MB}MB")
-            return redirect('authoring_tools:upload')
-        
-        # Extract page counts and validate (only for PDFs)
-        total_pages = 0
-        file_data = []
-        
-        for file in files:
-            page_count = None
-            
-            # Only check page count for PDFs
-            if file.content_type == 'application/pdf':
-                try:
-                    pdf = PdfReader(io.BytesIO(file.read()))
-                    page_count = len(pdf.pages)
-                    file.seek(0)  # Reset for later storage
-                except Exception as e:
-                    messages.error(request, f"Error reading {file.name}: {str(e)}")
-                    return redirect('authoring_tools:upload')
-                
-                total_pages += page_count
-            
-            file_data.append({
-                'file': file,
-                'page_count': page_count
-            })
-        
-        if total_pages > MAX_TOTAL_PAGES:
-            messages.error(request, f"Total pages ({total_pages}) exceeds {MAX_TOTAL_PAGES}")
-            return redirect('authoring_tools:upload')
-        
-        # Create session and files
-        with transaction.atomic():
-            session = AuthoringSession.objects.create(
-                course=course,
-                created_by=request.user,
-                teacher_instructions=instructions,
-                status='analyzing'
-            )
-            
-            for data in file_data:
-                file = data['file']
-                UploadedFile.objects.create(
-                    session=session,
-                    filename=file.name,
-                    content_type=file.content_type,
-                    file_data=file.read(),
-                    size_bytes=file.size,
-                    page_count=data['page_count']
-                )
-        
-        # Start background pipeline
-        thread = threading.Thread(target=run_full_import_pipeline, args=(session.id,), daemon=True)
-        thread.start()
-        
-        messages.success(request, "Files uploaded! Analysis and exercise generation started in background.")
-        return redirect('authoring_tools:review', session_id=session.id)
-    
-    # Check for existing active session and redirect if found
-    existing = AuthoringSession.objects.filter(
-        created_by=request.user,
-        status__in=['analyzing', 'active']
-    ).first()
-    
-    if existing:
-        messages.info(request, "You have an ongoing import session. Please finish or abort it before starting a new one.")
-        return redirect('authoring_tools:review', session_id=existing.id)
-    
-    # Get courses user can edit
-    courses = Course.objects.filter(
-        models.Q(memberships__user=request.user, memberships__role__in=['owner', 'editor']) |
-        models.Q(cohorts__memberships__user=request.user, cohorts__memberships__role__in=['teacher', 'owner'])
-    ).distinct().order_by('name')
-    
-    return render(request, 'authoring_tools/upload.html', {
-        'courses': courses,
-        'accepted_formats': ACCEPTED_UPLOAD_FORMATS,
-    })
 
 
 @login_required
@@ -293,6 +146,533 @@ def abort_session(request, session_id):
     else:
         # If no module was created yet (e.g. still analyzing), just delete the session
         session.delete()
-        messages.success(request, "Import aborted.")
+        messages.success(request, "Import aborted. You may try restarting the process.")
         
     return redirect('teachers:course_detail', pk=course_pk)
+
+
+# ============================================================================
+# Question Generator Views
+# ============================================================================
+
+@login_required
+def question_generator_landing(request):
+    """
+    Landing page for question generator - shows course selection.
+    """
+    # Check for existing active session
+    existing = AuthoringSession.objects.filter(
+        created_by=request.user,
+        status__in=['active', 'building']
+    ).first()
+    
+    if existing:
+        # Redirect to appropriate page based on session state
+        if existing.status == 'building' or existing.module:
+            messages.info(request, "You have an ongoing session. Please finish or abort it first.")
+            return redirect('authoring_tools:review', session_id=existing.id)
+        else:
+            # Active session - redirect to chat
+            return redirect('authoring_tools:chat', session_id=existing.id)
+    
+    # Get courses user can edit
+    courses = Course.objects.filter(
+        models.Q(memberships__user=request.user, memberships__role__in=['owner', 'editor']) |
+        models.Q(cohorts__memberships__user=request.user, cohorts__memberships__role__in=['teacher', 'owner'])
+    ).distinct().order_by('name')
+    
+    return render(request, 'authoring_tools/landing.html', {
+        'courses': courses,
+    })
+
+
+@login_required
+def start_question_generator(request):
+    """
+    Start a new question generator session or redirect to existing one.
+    Requires course_id parameter.
+    """
+    course_id = request.GET.get('course_id')
+    if not course_id:
+        messages.error(request, "Course ID is required.")
+        return redirect('exercises:dashboard')
+    
+    try:
+        course = Course.objects.get(id=course_id)
+        assert_can_edit_course(request.user, course)
+    except (Course.DoesNotExist, PermissionDenied):
+        messages.error(request, "Invalid course or insufficient permissions.")
+        return redirect('exercises:dashboard')
+    
+    # Check for existing active session
+    existing = AuthoringSession.objects.filter(
+        created_by=request.user,
+        course=course,
+        status__in=['active', 'building']
+    ).first()
+    
+    if existing:
+        # Redirect to appropriate page based on session state
+        if existing.status == 'building' or existing.module:
+            messages.info(request, "You have an ongoing session. Please finish or abort it first.")
+            return redirect('authoring_tools:review', session_id=existing.id)
+        else:
+            # Active session - redirect to chat
+            return redirect('authoring_tools:chat', session_id=existing.id)
+    
+    # Create new session
+    session = AuthoringSession.objects.create(
+        course=course,
+        created_by=request.user,
+        status='active'
+    )
+    
+    return redirect('authoring_tools:chat', session_id=session.id)
+
+
+@login_required
+def question_generator_chat(request, session_id):
+    """
+    Question generator chat interface for a specific session.
+    GET: Show chat page
+    """
+    session = get_object_or_404(
+        AuthoringSession,
+        id=session_id,
+        created_by=request.user
+    )
+    
+    # Check permissions
+    try:
+        assert_can_edit_course(request.user, session.course)
+    except PermissionDenied as e:
+        messages.error(request, str(e))
+        return redirect('exercises:dashboard')
+    
+    # If session is building or has module, redirect to review
+    if session.status == 'building' or session.module:
+        messages.info(request, "Session is being built. Redirecting to review.")
+        return redirect('authoring_tools:review', session_id=session.id)
+    
+    return render(request, 'authoring_tools/chat.html', {
+        'session': session,
+        'accepted_formats': ACCEPTED_UPLOAD_FORMATS,
+    })
+
+
+@login_required
+def get_session_traces(request, session_id):
+    """
+    Get conversation traces for a session.
+    GET: Return traces as JSON
+    """
+    try:
+        session = get_object_or_404(AuthoringSession, id=session_id, created_by=request.user)
+        
+        # Check permissions
+        assert_can_edit_course(request.user, session.course)
+        
+        # Load traces
+        traces = session.traces.filter(channel='question_generator').order_by('rank_order')
+        
+        messages = []
+        for trace in traces:
+            if trace.user_content:
+                # user_content is a TextField, not JSON
+                messages.append({
+                    'role': 'user',
+                    'content': trace.user_content
+                })
+            if trace.assistant_content:
+                messages.append({
+                    'role': 'assistant',
+                    'content': trace.assistant_content.get('message', '')
+                })
+        
+        # Load uploaded files
+        files = [{
+            'id': f.id,
+            'filename': f.filename
+        } for f in session.files.all()]
+        
+        return JsonResponse({
+            'messages': messages,
+            'files': files
+        })
+        
+    except PermissionDenied:
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+    except Exception as e:
+        logger.error(f"Get traces error: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_POST
+def chat_message(request, session_id):
+    """
+    Handle chat message in question generator.
+    POST: Send message and get AI response
+    """
+    try:
+        import json
+        data = json.loads(request.body)
+        message = data.get('message', '').strip()
+        
+        if not message:
+            return JsonResponse({'error': 'Missing message'}, status=400)
+        
+        session = get_object_or_404(AuthoringSession, id=session_id, created_by=request.user)
+        
+        # Check permissions
+        assert_can_edit_course(request.user, session.course)
+        
+        # Build system prompt
+        teacher_lang = request.user.preferred_language or 'en'
+        prompt_path = Path(__file__).parent / 'question_generator_chat_prompt.md'
+        with open(prompt_path, 'r') as f:
+            system_prompt = f.read().replace('{language}', teacher_lang)
+        
+        # Build course context
+        course_context = build_course_context_for_generator(session.course)
+        system_prompt = system_prompt.replace('{course_context}', course_context)
+        
+        print(f"--- SYSTEM PROMPT ({teacher_lang}) ---\n{system_prompt}\n-----------------------------")
+        
+        # Get or create cache (lazy creation on first message)
+        # This is when files are uploaded to Gemini
+        if not session.cache_name:
+            # Upload any pending files to Gemini that don't have URIs yet
+            for uploaded_file in session.files.filter(gemini_file_uri=''):
+                try:
+                    gemini_uri = upload_file_to_gemini(
+                        uploaded_file.file_data,
+                        uploaded_file.filename,
+                        uploaded_file.content_type
+                    )
+                    uploaded_file.gemini_file_uri = gemini_uri
+                    uploaded_file.save()
+                except Exception as e:
+                    logger.error(f"Failed to upload {uploaded_file.filename} to Gemini: {e}")
+            
+            cache_name = create_or_update_cache(session, system_prompt, course_context)
+            session.cache_name = cache_name
+            session.save()
+        
+        # Load conversation history from Traces
+        traces = session.traces.filter(channel='question_generator').order_by('rank_order')
+        conversation_history = []
+        for trace in traces:
+            # User message
+            if trace.user_content:
+                conversation_history.append({
+                    'role': 'user',
+                    'parts': [genai_types.Part(text=trace.user_content)]  # TextField, not JSON
+                })
+            # AI response
+            if trace.assistant_content:
+                conversation_history.append({
+                    'role': 'model',
+                    'parts': [genai_types.Part(text=trace.assistant_content.get('message', ''))]
+                })
+        
+        # Add new user message
+        conversation_history.append({
+            'role': 'user',
+            'parts': [genai_types.Part(text=message)]
+        })
+        
+        # Call Gemini with cached content
+        try:
+            response = gemini_client.models.generate_content(
+                model=MODEL,
+                contents=conversation_history,
+                config={
+                    'cached_content': session.cache_name,
+                    'temperature': 0.7
+                }
+            )
+            
+            assistant_message = response.text.strip()
+            
+        except Exception as e:
+            # Auto-retry once
+            logger.warning(f"First Gemini call failed, retrying: {e}")
+            try:
+                response = gemini_client.models.generate_content(
+                    model=MODEL,
+                    contents=conversation_history,
+                    config={
+                        'cached_content': session.cache_name,
+                        'temperature': 0.7
+                    }
+                )
+                assistant_message = response.text.strip()
+            except Exception as e2:
+                logger.error(f"Gemini call failed after retry: {e2}")
+                return JsonResponse({
+                    'error': f"AI service error: {str(e2)}"
+                }, status=500)
+        
+        # Create trace for this exchange
+        trace = create_trace_for(
+            owner_obj=session,
+            user=request.user,
+            channel='question_generator',
+            user_content=message,  # TextField, not JSON
+            assistant_content={'message': assistant_message}
+        )
+        
+        return JsonResponse({
+            'assistant_message': assistant_message,
+            'trace_id': trace.id
+        })
+        
+    except PermissionDenied:
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+    except Exception as e:
+        logger.error(f"Chat message error: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_POST
+def upload_file(request, session_id):
+    """
+    Upload file during question generator session.
+    POST: Upload file to Gemini and local DB
+    """
+    try:
+        file = request.FILES.get('file')
+        
+        if not file:
+            return JsonResponse({'error': 'Missing file'}, status=400)
+        
+        session = get_object_or_404(AuthoringSession, id=session_id, created_by=request.user)
+        
+        # Check permissions
+        assert_can_edit_course(request.user, session.course)
+        
+        # Validate file size (50MB total limit)
+        total_size = sum(f.size_bytes for f in session.files.all()) + file.size
+        if total_size > MAX_TOTAL_SIZE_MB * 1024 * 1024:
+            return JsonResponse({'error': f'Total file size exceeds {MAX_TOTAL_SIZE_MB}MB'}, status=400)
+        
+        # Read file data
+        file_data = file.read()
+        file_ext = Path(file.name).suffix.lower()
+        
+        # Handle ZIP files - extract and store individual files
+        uploaded_files = []
+        if file_ext == '.zip':
+            try:
+                with zipfile.ZipFile(io.BytesIO(file_data)) as zf:
+                    for zip_info in zf.infolist():
+                        # Skip directories
+                        if zip_info.is_dir():
+                            continue
+                        
+                        # Skip hidden files
+                        path_parts = Path(zip_info.filename).parts
+                        if any(part.startswith('.') for part in path_parts):
+                            continue
+                        
+                        # Extract file
+                        extracted_data = zf.read(zip_info.filename)
+                        extracted_ext = Path(zip_info.filename).suffix.lower()
+                        
+                        # Determine MIME type
+                        if extracted_ext in TEXT_BASED_EXTENSIONS:
+                            extracted_mime = 'text/plain'
+                        elif extracted_ext == '.pdf':
+                            extracted_mime = 'application/pdf'
+                        elif extracted_ext in {'.png', '.jpg', '.jpeg'}:
+                            extracted_mime = f'image/{extracted_ext[1:]}'
+                        elif extracted_ext == '.webp':
+                            extracted_mime = 'image/webp'
+                        else:
+                            # Skip unsupported file types
+                            logger.info(f"Skipping unsupported file in ZIP: {zip_info.filename}")
+                            continue
+                        
+                        # Store in DB (upload to Gemini happens on first chat message)
+                        uploaded_file = UploadedFile.objects.create(
+                            session=session,
+                            filename=zip_info.filename,
+                            content_type=extracted_mime,
+                            file_data=extracted_data,
+                            size_bytes=len(extracted_data),
+                            gemini_file_uri=''  # Will be set on first chat message
+                        )
+                        uploaded_files.append(uploaded_file)
+                        
+            except zipfile.BadZipFile:
+                return JsonResponse({'error': f'{file.name} is not a valid ZIP file'}, status=400)
+        else:
+            # Regular file (not ZIP)
+            # Store in DB (upload to Gemini happens on first chat message)
+            uploaded_file = UploadedFile.objects.create(
+                session=session,
+                filename=file.name,
+                content_type=file.content_type,
+                file_data=file_data,
+                size_bytes=file.size,
+                gemini_file_uri=''  # Will be set on first chat message
+            )
+            uploaded_files.append(uploaded_file)
+        
+        # Invalidate cache (will be recreated on next message)
+        if session.cache_name:
+            session.cache_name = ''
+            session.save()
+        
+        # Return file info (no AI acknowledgment yet - happens on first chat message)
+        return JsonResponse({
+            'file_id': uploaded_files[0].id if uploaded_files else None,
+            'filename': file.name,
+            'files_extracted': len(uploaded_files)
+        })
+        
+    except PermissionDenied:
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+    except Exception as e:
+        logger.error(f"File upload error: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_POST
+def delete_file(request, session_id, file_id):
+    """
+    Delete file from session.
+    POST: Remove file from DB (Gemini file expires in 48h)
+    """
+    try:
+        session = get_object_or_404(AuthoringSession, id=session_id, created_by=request.user)
+        uploaded_file = get_object_or_404(UploadedFile, id=file_id, session=session)
+        
+        # Check permissions
+        assert_can_edit_course(request.user, session.course)
+        
+        # Delete file
+        uploaded_file.delete()
+        
+        # Invalidate cache (will be recreated on next message)
+        if session.cache_name:
+            session.cache_name = ''
+            session.save()
+        
+        return JsonResponse({'success': True})
+        
+    except PermissionDenied:
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+    except Exception as e:
+        logger.error(f"File deletion error: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@require_POST
+def build_exercises(request, session_id):
+    """
+    Trigger exercise generation from conversation.
+    POST: Extract exercise specs and start building
+    """
+    try:
+        
+        session = get_object_or_404(AuthoringSession, id=session_id, created_by=request.user)
+        
+        # Check permissions
+        assert_can_edit_course(request.user, session.course)
+        
+        # Load last 20 messages from conversation
+        traces = session.traces.filter(channel='question_generator').order_by('-rank_order')[:20]
+        traces = list(reversed(traces))  # Reverse to chronological order
+        
+        if not traces:
+            return JsonResponse({'error': 'No conversation history found'}, status=400)
+        
+        # Build conversation history
+        conversation_history = []
+        for trace in traces:
+            if trace.user_content:
+                conversation_history.append({
+                    'role': 'user',
+                    'parts': [genai_types.Part(text=trace.user_content)]  # TextField, not JSON
+                })
+            if trace.assistant_content:
+                conversation_history.append({
+                    'role': 'model',
+                    'parts': [genai_types.Part(text=trace.assistant_content.get('message', ''))]
+                })
+        
+        # Build system prompt for exercise builder
+        teacher_lang = request.user.preferred_language or 'en'
+        prompt_path = Path(__file__).parent / 'question_generator_build_prompt.md'
+        with open(prompt_path, 'r') as f:
+            build_prompt = f.read().replace('{language}', teacher_lang)
+        
+        course_context = build_course_context_for_generator(session.course)
+        build_prompt = build_prompt.replace('{course_context}', course_context)
+        
+        # Add build instruction
+        conversation_history.append({
+            'role': 'user',
+            'parts': [genai_types.Part(text=build_prompt)]
+        })
+        
+        # Call Gemini to extract exercise specs
+        response = gemini_client.models.generate_content(
+            model=MODEL,
+            contents=conversation_history,
+            config={
+                'cached_content': session.cache_name if session.cache_name else None,
+                'response_mime_type': 'application/json',
+                'response_json_schema': SegmentationResult.model_json_schema()
+            }
+        )
+        
+        # Parse result
+        segmentation_result = SegmentationResult.model_validate_json(response.text)
+        
+        # Check for errors
+        if segmentation_result.errors_to_teacher:
+            # Return error to chat interface
+            create_trace_for(
+                owner_obj=session,
+                user=request.user,
+                channel='question_generator',
+                user_content='[Build Exercises clicked]',  # TextField, not JSON
+                assistant_content={'message': segmentation_result.errors_to_teacher}
+            )
+            
+            return JsonResponse({
+                'error': segmentation_result.errors_to_teacher,
+                'stay_on_chat': True
+            })
+        
+        # Success - store segmentation and start Phase 2
+        session.segmentation_data = segmentation_result.model_dump()
+        session.status = 'building'
+        session.save()
+        
+        # Start background thread for Phase 2 (reuse existing logic)
+        from .ai_logic import build_all_exercises_async
+        import asyncio
+        
+        def run_phase_2():
+            asyncio.run(build_all_exercises_async(session.id))
+        
+        thread = threading.Thread(target=run_phase_2, daemon=True)
+        thread.start()
+        
+        return JsonResponse({
+            'success': True,
+            'redirect_url': f'/teacher/authoring-assistant/session/{session.id}/review/'
+        })
+        
+    except PermissionDenied:
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+    except Exception as e:
+        logger.error(f"Build exercises error: {e}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)

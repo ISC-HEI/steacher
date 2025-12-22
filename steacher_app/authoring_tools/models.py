@@ -6,26 +6,20 @@ from django.db.models import Q
 
 class AuthoringSession(models.Model):
     """
-    Tracks a teacher's document import session for bulk exercise creation.
+    Tracks a teacher's exercise creation session (question generator or direct import).
     """
     STATUS_CHOICES = [
-        ('analyzing', 'Analyzing'),  # the LLM is analyzing the documents
         ('active', 'Active'),  
-        ('building', 'Building'),  # all exercises have been built but not validated yet
-        ('completed', 'Completed'),  # all exercises have been built AND validated
-        ('timeout', 'Timeout'),  # the call to the LLM timed out
-        ('error', 'Error'),  # the call to the LLM failed
+        ('building', 'Building'),
+        ('completed', 'Completed'),
+        ('error', 'Error'),
     ]
     
     course = models.ForeignKey('exercises.Course', on_delete=models.CASCADE, related_name='authoring_sessions')
     module = models.ForeignKey('exercises.Module', on_delete=models.CASCADE, null=True, blank=True, related_name='authoring_sessions', help_text="Created during Phase 2 after teacher confirms")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='authoring_sessions')
     created_at = models.DateTimeField(auto_now_add=True)
-    teacher_instructions = models.TextField(
-        blank=True,
-        help_text="Teacher's guidance about what to extract (e.g., 'Only exercises 7-12')"
-    )
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='analyzing')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
     error_message = models.TextField(
         blank=True,
         help_text="Error message if status is 'timeout' or 'error'"
@@ -35,6 +29,11 @@ class AuthoringSession(models.Model):
         blank=True,
         help_text="Latest segmentation JSON from Phase 1 (module name, exercises list)"
     )
+    cache_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Gemini cache name for context caching (question generator)"
+    )
     
     # Traces link here via GenericForeignKey for conversation history
     traces = GenericRelation('exercises.Trace', related_query_name='authoring_session_owner')
@@ -43,7 +42,7 @@ class AuthoringSession(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=['course', 'created_by'],
-                condition=Q(status__in=['analyzing', 'active']),
+                condition=Q(status__in=['active', 'building']),
                 name='one_active_session_per_teacher_per_course'
             )
         ]
@@ -67,6 +66,11 @@ class UploadedFile(models.Model):
     size_bytes = models.IntegerField()
     page_count = models.IntegerField(null=True, blank=True, help_text="Number of pages (for PDFs only)")
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    gemini_file_uri = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="Gemini File API URI for this file (e.g., 'files/abc123')"
+    )
     
     class Meta:
         ordering = ['uploaded_at']

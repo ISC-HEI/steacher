@@ -1,0 +1,240 @@
+{% extends "exercises/base.html" %}
+{% load static %}
+
+{% block title %}Exercise Generator{% endblock %}
+
+{% block content %}
+<input type="hidden" id="session-id" value="{{ session.id }}">
+{% csrf_token %}
+
+<section class="section">
+    <div class="container">
+        <h1 class="title">Exercise Generator</h1>
+        <p class="subtitle">Create exercises through conversation with AI</p>
+        
+        <div id="generator-app">
+            <!-- Course Info -->
+            <div class="box">
+                <div class="field">
+                    <label class="label">Course</label>
+                    <p class="is-size-5">{{ session.course.name }}</p>
+                    <p class="help">Exercises will be created in this course</p>
+                </div>
+            </div>
+
+            <!-- File Upload Section -->
+            <div class="box" v-if="sessionId">
+                <label class="label">Reference Files (Optional)</label>
+                <div class="file has-name is-fullwidth mb-3">
+                    <label class="file-label">
+                        <input type="file" class="file-input" @change="handleFileUpload" accept="{{ accepted_formats }}" ref="fileInput">
+                        <span class="file-cta">
+                            <span class="icon">
+                                <i class="fas fa-upload"></i>
+                            </span>
+                            <span class="file-label">
+                                Upload Files
+                            </span>
+                        </span>
+                    </label>
+                </div>
+                <p class="help mb-3">Maximum 50MB total. Supported: PDF, ZIP, text files, code files, images</p>
+                
+                <!-- Uploaded Files List -->
+                <div v-if="uploadedFiles.length > 0" class="mb-3">
+                    <div v-for="file in uploadedFiles" :key="file.id" class="tags has-addons mb-2">
+                        <span class="tag is-info">
+                            <span class="icon">
+                                <i class="fas fa-file"></i>
+                            </span>
+                            <span>[[ file.filename ]]</span>
+                        </span>
+                        <a class="tag is-delete" @click="confirmDeleteFile(file)" :disabled="isProcessing"></a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Interface -->
+            <div class="box" v-if="sessionId">
+                <div class="chat-container" ref="chatContainer">
+                    <!-- Messages -->
+                    <div v-for="(msg, idx) in messages" :key="idx" class="message-wrapper" :class="msg.role">
+                        <div class="message-bubble" :class="{'is-user': msg.role === 'user', 'is-ai': msg.role === 'assistant', 'is-system': msg.role === 'system'}">
+                            <div class="message-content" v-html="renderMarkdown(msg.content)"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Loading indicator -->
+                    <div v-if="isWaitingForAI" class="message-wrapper assistant">
+                        <div class="message-bubble is-ai">
+                            <span class="icon">
+                                <i class="fas fa-spinner fa-pulse"></i>
+                            </span>
+                            <span>Thinking...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input Area -->
+                <div class="field has-addons mt-4">
+                    <div class="control is-expanded">
+                        <textarea 
+                            class="textarea" 
+                            v-model="userMessage" 
+                            @keydown.enter.exact="sendMessage"
+                            @keydown.enter.shift.prevent="userMessage += '\n'"
+                            placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
+                            rows="3"
+                            :disabled="isProcessing"
+                        ></textarea>
+                    </div>
+                </div>
+                <div class="field is-grouped">
+                    <div class="control">
+                        <button class="button is-primary" @click="sendMessage" :disabled="(!userMessage.trim() && uploadedFiles.length === 0) || isProcessing">
+                            <span class="icon">
+                                <i class="fas fa-paper-plane"></i>
+                            </span>
+                            <span>Send</span>
+                        </button>
+                    </div>
+                    <div class="control">
+                        <button class="button is-success" @click="buildExercises" :disabled="!canBuildExercises || isProcessing">
+                            <span class="icon">
+                                <i class="fas fa-magic"></i>
+                            </span>
+                            <span>Build Exercises</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Processing Overlay -->
+            <div class="modal" :class="{'is-active': isBuilding}">
+                <div class="modal-background"></div>
+                <div class="modal-content">
+                    <div class="box has-text-centered">
+                        <span class="icon is-large has-text-info">
+                            <i class="fas fa-3x fa-spinner fa-pulse"></i>
+                        </span>
+                        <p class="title is-4 mt-4">Generating Exercise Plans</p>
+                        <p class="subtitle is-6">This can take 30 seconds to a minute...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Abort Button -->
+            <div class="level mt-4" v-if="sessionId">
+                <div class="level-left">
+                    <form method="post" :action="`/teacher/authoring-assistant/${sessionId}/abort/`" onsubmit="return confirm('Are you sure you want to abort? This will delete all progress.');">
+                        {% csrf_token %}
+                        <button type="submit" class="button is-danger is-light">
+                            <span class="icon">
+                                <i class="fas fa-trash"></i>
+                            </span>
+                            <span>Abort Process</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Help Section -->
+            <div class="content mt-5" v-if="!sessionId">
+                <h3>How it works</h3>
+                <ol>
+                    <li><strong>Select a course</strong> where you want to create exercises</li>
+                    <li><strong>Chat with AI</strong> to brainstorm exercise ideas</li>
+                    <li><strong>Upload files</strong> (optional) for context and reference</li>
+                    <li><strong>Build exercises</strong> when ready</li>
+                    <li><strong>Review and validate</strong> generated exercises</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+.chat-container {
+    max-height: 500px;
+    overflow-y: auto;
+    padding: 1rem;
+    background: #f5f5f5;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+}
+
+.message-wrapper {
+    display: flex;
+    margin-bottom: 1rem;
+}
+
+.message-wrapper.user {
+    justify-content: flex-end;
+}
+
+.message-wrapper.assistant,
+.message-wrapper.system {
+    justify-content: flex-start;
+}
+
+.message-bubble {
+    max-width: 70%;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    word-wrap: break-word;
+}
+
+.message-bubble.is-user {
+    background: #3273dc;
+    color: white;
+}
+
+.message-bubble.is-ai {
+    background: white;
+    border: 1px solid #dbdbdb;
+}
+
+.message-bubble.is-system {
+    background: #f5f5f5;
+    border: 1px solid #dbdbdb;
+    font-style: italic;
+    text-align: center;
+    max-width: 100%;
+}
+
+.message-content {
+    line-height: 1.5;
+}
+
+.message-content p:last-child {
+    margin-bottom: 0;
+}
+
+.message-content code {
+    background: rgba(0, 0, 0, 0.05);
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+}
+
+.message-bubble.is-user .message-content code {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.is-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "vue": "https://cdn.jsdelivr.net/npm/vue@3.4.27/dist/vue.esm-browser.js",
+    "marked": "https://cdn.jsdelivr.net/npm/marked@16.0.0/lib/marked.esm.js",
+    "dompurify": "https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.es.mjs",
+    "katex": "https://cdn.jsdelivr.net/npm/katex@0.16.25/dist/katex.mjs"
+  }
+}
+</script>
+<script type="module" src="{% static 'js/dist/question_generator.js' %}"></script>
+{% endblock %}

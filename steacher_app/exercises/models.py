@@ -15,7 +15,6 @@ class Course(models.Model):
     """
     name = models.CharField(max_length=200, help_text="The name/title of the course that will be displayed to the user.")
     description = models.TextField(blank=True, help_text="A short description of the course that will be displayed to the user.")
-    chat_prompt = models.TextField(blank=True, help_text="Chatbot-specific instructions for this course, when the user starts a chat thread.")
     course_prompt = models.TextField(blank=True, help_text="Course-level prompt for this specific course. Will be added at the end of the system prompt for all exercises in this course. It may contain information about the course contents, objectives, target audience, etc. You can also include a large amount of information about the course content itself (e.g. a summary of 5k words), so that in its answers, the AI will refer to parts of the course content itself. Also, you may include which notations to use, which concepts to avoid, etc.")
     override_system_prompt = models.TextField(blank=True, help_text="Override the default system prompt used by the AI tutor for exercises in this course. Leave empty to use the global default (recommended).")
     llm_prompts = models.JSONField(blank=True, default=dict, help_text="LLM prompts per exercise type, e.g. {'turtle': 'Your prompt for turtle exercises...'}")
@@ -398,6 +397,11 @@ class Exercise(models.Model):
         return (self.description_i18n or {}).get('en', '')
 
     @property
+    def question(self) -> str:
+        # Expose English question for legacy template/admin usage
+        return (self.question_i18n or {}).get('en', '')
+
+    @property
     def exercise_data_obj(self) -> ExerciseData:
         """Returns the exercise_data field as a validated Pydantic object."""
         return ExerciseData.model_validate(self.exercise_data or {})
@@ -517,6 +521,7 @@ class Trace(models.Model):
         ('learning_pathway', 'Learning Pathway'),
         ('authoring', 'Authoring'),
         ('study_chat', 'Study Chat'),
+        ('question_generator', 'Question Generator'),
     ]
     channel = models.CharField(
         max_length=32,

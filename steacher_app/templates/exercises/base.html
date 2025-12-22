@@ -73,11 +73,11 @@
             <div class="navbar-end">
                 {% if user.is_authenticated %}
                 {% if user|can_author_any_course %}
-                <a class="navbar-item" href="{% url 'authoring_tools:upload' %}">
+                <a class="navbar-item" href="{% url 'authoring_tools:landing' %}">
                     <span class="icon">
-                        <i class="fas fa-file-import"></i>
+                        <i class="fas fa-magic"></i>
                     </span>
-                    <span>Import Exercises</span>
+                    <span>Exercise Generator</span>
                 </a>
                 {% endif %}
                 <div class="navbar-item">

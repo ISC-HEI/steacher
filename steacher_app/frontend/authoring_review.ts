@@ -15,7 +15,7 @@ const ReviewApp = defineComponent({
     setup() {
         const exercises = ref<Exercise[]>([]);
         const loading = ref(true);
-        const sessionStatus = ref<string>('analyzing'); // analyzing, building, active, completed, timeout, error
+        const sessionStatus = ref<string>('active'); // active, building, completed, error
         const coursePk = ref<number>(0);
         const messageToTeacher = ref<string | null>(null);
         const errorsToTeacher = ref<string | null>(null);
@@ -30,16 +30,16 @@ const ReviewApp = defineComponent({
         });
 
         const hasError = computed(() => {
-            return sessionStatus.value === 'timeout' || sessionStatus.value === 'error';
+            return sessionStatus.value === 'error';
         });
 
         const isProcessing = computed(() => {
-            return sessionStatus.value === 'analyzing' || sessionStatus.value === 'building';
+            return sessionStatus.value === 'building';
         });
 
         const fetchExercises = async () => {
             try {
-                const response = await fetch(`/teacher/authoring-assistant/${sessionId}/review/`, {
+                const response = await fetch(`/teacher/authoring-assistant/session/${sessionId}/review/`, {
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
                 });
                 
