@@ -339,6 +339,10 @@ code[class*="language-"] {
     background: #444;
 }
 
+.mobile-chat-input-button.is-recording {
+    animation: pulse 1.5s infinite;
+}
+
 .mobile-chat-send-button {
     background: #2c2c2c;
 }

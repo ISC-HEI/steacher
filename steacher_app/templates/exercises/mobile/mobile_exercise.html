@@ -138,6 +138,7 @@
                     <i class="fas fa-camera"></i>
                 </button>
                 <button class="mobile-chat-input-button" 
+                        :class="{ 'is-recording': isRecording }"
                         @mousedown="handleMicrophoneDown"
                         @mouseup="handleMicrophoneUp"
                         @touchstart="handleMicrophoneDown"

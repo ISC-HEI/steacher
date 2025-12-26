@@ -149,6 +149,7 @@ const MobileChatComponent = defineComponent({
             pressStartTime: null as number | null,
             isHoldMode: false,
             showCompletionButtons: this.isComplete,
+            recordingTimeout: null as number | null,
         };
     },
     watch: {
@@ -442,6 +443,15 @@ const MobileChatComponent = defineComponent({
             console.log('[MobileChat] Microphone pressed down');
             this.pressStartTime = Date.now();
             
+            // If already recording in toggle mode, stop it
+            if (this.isRecording && this.isHoldMode === false) {
+                console.log('[MobileChat] Already recording in toggle mode, stopping');
+                this.stopRecording();
+                this.pressStartTime = null;
+                return;
+            }
+            
+            // Start recording if not already recording
             if (!this.isRecording) {
                 this.startRecording();
             }
@@ -462,10 +472,10 @@ const MobileChatComponent = defineComponent({
             console.log('[MobileChat] Press duration:', pressDuration, 'ms');
             
             if (pressDuration < HOLD_MODE_THRESHOLD) {
-                // Short tap: Toggle mode - stop recording immediately
+                // Short tap: Toggle mode - keep recording, user must tap again to stop
                 this.isHoldMode = false;
-                console.log('[MobileChat] Short tap - toggle mode, stopping recording');
-                this.stopRecording();
+                console.log('[MobileChat] Short tap - toggle mode activated, recording continues');
+                // Don't stop recording - let it continue until next tap or timeout
             } else {
                 // Long press: Hold-to-record mode - stop when released
                 this.isHoldMode = true;
@@ -568,6 +578,18 @@ const MobileChatComponent = defineComponent({
         async startRecording() {
             if (this.isRecording) return;
             
+            // Clear any existing timeout
+            if (this.recordingTimeout) {
+                clearTimeout(this.recordingTimeout);
+                this.recordingTimeout = null;
+            }
+            
+            // Set 120-second timeout for toggle mode
+            this.recordingTimeout = window.setTimeout(() => {
+                console.log('[MobileChat] Recording timeout reached (120s), stopping');
+                this.stopRecording();
+            }, 120000);
+            
             // Android: Use Web Speech API
             if (this.isAndroid) {
                 console.log('[MobileChat] Using Web Speech API for Android');
@@ -660,6 +682,12 @@ const MobileChatComponent = defineComponent({
         
         stopRecording() {
             if (!this.isRecording) return;
+            
+            // Clear timeout
+            if (this.recordingTimeout) {
+                clearTimeout(this.recordingTimeout);
+                this.recordingTimeout = null;
+            }
             
             // Android: Stop Web Speech API
             if (this.isAndroid && this.speechRecognition) {
