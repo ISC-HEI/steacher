@@ -43,12 +43,15 @@ def mobile_install(request):
     return render(request, 'exercises/mobile/mobile_install.html')
 
 
-@login_required
 @require_GET
 def mobile_dashboard(request):
     """
     Mobile dashboard with recent exercises and hierarchical course/module/exercise view.
+    Redirects to magic link request page if not authenticated.
     """
+    # Redirect unauthenticated users to magic link request page
+    if not request.user.is_authenticated:
+        return redirect('mobile:mobile_auth_request_link')
     
     # Get courses where student has active cohort membership
     course_ids = list(

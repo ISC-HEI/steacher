@@ -154,7 +154,7 @@ description: "High-level overview of this codebase called Steacher, including it
 ### Backend
 
 *   **Framework**: Django 5 with Django Rest Framework
-*   **Database**: PostgreSQL (default DB name `steacher`)
+*   **Database**: PostgreSQL (DB name is `steacher`). Use your MCP tool to query the database.
 *   **Authentication**: Django built-in with Argon2 password hashing
 *   **LLM Providers**: Google Gemini API (primary via `google-genai` SDK), OpenAI API (fallback/legacy)
 *   **Real-time**: Django Channels + Redis for WebSocket support (quiz presence)

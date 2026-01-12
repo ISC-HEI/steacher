@@ -6,14 +6,22 @@ from typing import List
 from pydantic import BaseModel, Field
 from django.db.models import Max
 from asgiref.sync import sync_to_async
+from django.conf import settings
+from google import genai
 import google.genai.types as genai_types
 
-from exercises.logic import gemini_client, _build_authoring_system_prompt
+from exercises.logic import _build_authoring_system_prompt
 from exercises.models import Module, Exercise, Course
 from .models import AuthoringSession
 
 logger = logging.getLogger(__name__)
 
+# Create a separate Gemini client for authoring tools with longer timeout
+# Authoring operations can take several minutes for complex materials
+gemini_authoring_client = genai.Client(
+    api_key=settings.GEMINI_API_KEY,
+    http_options=genai.types.HttpOptions(timeout=300_000)  # 5 minutes in milliseconds
+)
 
 MODEL = "gemini-3-pro-preview"
 
@@ -129,7 +137,7 @@ async def generate_authoring_update_async(exercise_payload: dict, user_message: 
             config['response_mime_type'] = 'application/json'
             config['response_json_schema'] = AuthoringAssistantResponse.model_json_schema()
         
-        response = await gemini_client.aio.models.generate_content(
+        response = await gemini_authoring_client.aio.models.generate_content(
             model=MODEL,
             contents=contents,
             config=config
@@ -203,6 +211,8 @@ async def build_single_exercise_async(session, module, idx, ex_data):
         # Build prompt
         solution_context = f"\n\nExpected solution:\n{ex_data['solution']}" if ex_data.get('solution') else ""
         authoring_prompt = f"""Create a proper exercise from this content. Detect the exercise type, generate appropriate tests/hints, and format it correctly.
+
+CRITICAL: Preserve the problem statement EXACTLY as written below. Do NOT modify, improve, or change any details (numbers, variable names, code snippets, etc.). Your job is to add the technical structure (exercise type, tests, hints) while keeping the content identical.
 
 Problem statement:
 {ex_data['content']}{solution_context}"""
@@ -370,7 +380,7 @@ def upload_file_to_gemini(file_data: bytes, filename: str, mime_type: str) -> st
             gemini_mime_type = mime_type
         
         # Upload to Gemini File API
-        uploaded_file = gemini_client.files.upload(
+        uploaded_file = gemini_authoring_client.files.upload(
             file=io.BytesIO(file_data),
             config={'mime_type': gemini_mime_type, 'display_name': filename}
         )
@@ -422,13 +432,13 @@ def create_or_update_cache(session, system_prompt: str, course_context: str) -> 
         # Delete old cache if exists
         if session.cache_name:
             try:
-                gemini_client.caches.delete(name=session.cache_name)
+                gemini_authoring_client.caches.delete(name=session.cache_name)
                 logger.info(f"Deleted old cache: {session.cache_name}")
             except Exception as e:
                 logger.warning(f"Failed to delete old cache: {e}")
         
         # Create new cache
-        cache = gemini_client.caches.create(
+        cache = gemini_authoring_client.caches.create(
             model=MODEL,
             config=genai_types.CreateCachedContentConfig(
                 display_name=f"Session {session.id} - {session.course.name}",

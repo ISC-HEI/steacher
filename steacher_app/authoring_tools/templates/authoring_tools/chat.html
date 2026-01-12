@@ -1,7 +1,7 @@
 {% extends "exercises/base.html" %}
 {% load static %}
 
-{% block title %}Exercise Generator{% endblock %}
+{% block title %}Exercise Generator - {{ session.course.name }}{% endblock %}
 
 {% block content %}
 <input type="hidden" id="session-id" value="{{ session.id }}">
@@ -9,40 +9,32 @@
 
 <section class="section">
     <div class="container">
-        <h1 class="title">Exercise Generator</h1>
+        <h1 class="title">Exercise Generator - {{ session.course.name }}</h1>
         <p class="subtitle">Create exercises through conversation with AI</p>
         
         <div id="generator-app">
-            <!-- Course Info -->
-            <div class="box">
-                <div class="field">
-                    <label class="label">Course</label>
-                    <p class="is-size-5">{{ session.course.name }}</p>
-                    <p class="help">Exercises will be created in this course</p>
-                </div>
-            </div>
+            
 
             <!-- File Upload Section -->
             <div class="box" v-if="sessionId">
-                <label class="label">Reference Files (Optional)</label>
                 <div class="file has-name is-fullwidth mb-3">
                     <label class="file-label">
-                        <input type="file" class="file-input" @change="handleFileUpload" accept="{{ accepted_formats }}" ref="fileInput">
+                        <input type="file" class="file-input" @change="handleFileUpload" accept="{{ accepted_formats }}" ref="fileInput" multiple>
                         <span class="file-cta">
                             <span class="icon">
                                 <i class="fas fa-upload"></i>
                             </span>
                             <span class="file-label">
-                                Upload Files
+                                Upload class materials (e.g. exercises, solutions, slides, etc.)
                             </span>
                         </span>
                     </label>
                 </div>
-                <p class="help mb-3">Maximum 50MB total. Supported: PDF, ZIP, text files, code files, images</p>
+                <p class="help mb-3">Optional. Maximum 50MB total. Supported: PDF, ZIP, text files, code files, images</p>
                 
                 <!-- Uploaded Files List -->
-                <div v-if="uploadedFiles.length > 0" class="mb-3">
-                    <div v-for="file in uploadedFiles" :key="file.id" class="tags has-addons mb-2">
+                <div v-if="uploadedFiles.length > 0" class="mb-3" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                    <div v-for="file in uploadedFiles" :key="file.id" class="tags has-addons" style="margin-bottom: 0;">
                         <span class="tag is-info">
                             <span class="icon">
                                 <i class="fas fa-file"></i>
@@ -56,21 +48,29 @@
 
             <!-- Chat Interface -->
             <div class="box" v-if="sessionId">
-                <div class="chat-container" ref="chatContainer">
+                <div class="chat-content" ref="chatContainer" style="max-height: 500px; overflow-y: auto; margin-bottom: 1rem;">
                     <!-- Messages -->
-                    <div v-for="(msg, idx) in messages" :key="idx" class="message-wrapper" :class="msg.role">
-                        <div class="message-bubble" :class="{'is-user': msg.role === 'user', 'is-ai': msg.role === 'assistant', 'is-system': msg.role === 'system'}">
-                            <div class="message-content" v-html="renderMarkdown(msg.content)"></div>
+                    <div v-for="(msg, idx) in messages" :key="idx">
+                        <div v-if="msg.role === 'user'" class="box content mb-3 user-message">
+                            <div v-html="renderMarkdown(msg.content)"></div>
+                        </div>
+                        
+                        <div v-if="msg.role === 'assistant'" class="box content mb-3 assistant-message">
+                            <div v-html="renderMarkdown(msg.content)"></div>
+                        </div>
+                        
+                        <div v-if="msg.role === 'system'" class="box content mb-3" style="background: #f5f5f5; border: 1px solid #dbdbdb; font-style: italic; text-align: center;">
+                            <div v-html="renderMarkdown(msg.content)"></div>
                         </div>
                     </div>
                     
                     <!-- Loading indicator -->
-                    <div v-if="isWaitingForAI" class="message-wrapper assistant">
-                        <div class="message-bubble is-ai">
-                            <span class="icon">
-                                <i class="fas fa-spinner fa-pulse"></i>
-                            </span>
-                            <span>Thinking...</span>
+                    <div v-if="isWaitingForAI" style="margin-bottom: 0.75rem;">
+                        <div class="typing-indicator" aria-label="Assistant is thinking">
+                            <span class="dot" style="--ti-delay: 0ms;"></span>
+                            <span class="dot" style="--ti-delay: 150ms;"></span>
+                            <span class="dot" style="--ti-delay: 300ms;"></span>
+                            <span class="helper-text">Analysing your materials. This may take 30 seconds or more...</span>
                         </div>
                     </div>
                 </div>
@@ -117,16 +117,16 @@
                         <span class="icon is-large has-text-info">
                             <i class="fas fa-3x fa-spinner fa-pulse"></i>
                         </span>
-                        <p class="title is-4 mt-4">Generating Exercise Plans</p>
-                        <p class="subtitle is-6">This can take 30 seconds to a minute...</p>
+                        <p class="title is-4 mt-4">Orchestrating Exercise Generation</p>
+                        <p class="subtitle is-6">This can take 1-3 minutes for complex materials. Please be patient...</p>
                     </div>
                 </div>
             </div>
 
             <!-- Abort Button -->
-            <div class="level mt-4" v-if="sessionId">
+            <div class="level mt-4">
                 <div class="level-left">
-                    <form method="post" :action="`/teacher/authoring-assistant/${sessionId}/abort/`" onsubmit="return confirm('Are you sure you want to abort? This will delete all progress.');">
+                    <form method="post" action="{% url 'authoring_tools:abort' session.id %}" onsubmit="return confirm('Are you sure you want to abort? This will delete all progress.');">
                         {% csrf_token %}
                         <button type="submit" class="button is-danger is-light">
                             <span class="icon">
@@ -153,78 +153,6 @@
     </div>
 </section>
 
-<style>
-.chat-container {
-    max-height: 500px;
-    overflow-y: auto;
-    padding: 1rem;
-    background: #f5f5f5;
-    border-radius: 6px;
-    margin-bottom: 1rem;
-}
-
-.message-wrapper {
-    display: flex;
-    margin-bottom: 1rem;
-}
-
-.message-wrapper.user {
-    justify-content: flex-end;
-}
-
-.message-wrapper.assistant,
-.message-wrapper.system {
-    justify-content: flex-start;
-}
-
-.message-bubble {
-    max-width: 70%;
-    padding: 0.75rem 1rem;
-    border-radius: 8px;
-    word-wrap: break-word;
-}
-
-.message-bubble.is-user {
-    background: #3273dc;
-    color: white;
-}
-
-.message-bubble.is-ai {
-    background: white;
-    border: 1px solid #dbdbdb;
-}
-
-.message-bubble.is-system {
-    background: #f5f5f5;
-    border: 1px solid #dbdbdb;
-    font-style: italic;
-    text-align: center;
-    max-width: 100%;
-}
-
-.message-content {
-    line-height: 1.5;
-}
-
-.message-content p:last-child {
-    margin-bottom: 0;
-}
-
-.message-content code {
-    background: rgba(0, 0, 0, 0.05);
-    padding: 0.2em 0.4em;
-    border-radius: 3px;
-}
-
-.message-bubble.is-user .message-content code {
-    background: rgba(255, 255, 255, 0.2);
-}
-
-.is-disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-</style>
 
 <script type="importmap">
 {

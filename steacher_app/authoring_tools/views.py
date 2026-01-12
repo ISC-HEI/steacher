@@ -19,7 +19,7 @@ from .ai_logic import (
 )
 from exercises.models import Exercise, Course, create_trace_for
 from exercises.authz import assert_can_edit_course
-from exercises.logic import gemini_client
+from .ai_logic import gemini_authoring_client
 import google.genai.types as genai_types
 
 logger = logging.getLogger(__name__)
@@ -180,6 +180,10 @@ def question_generator_landing(request):
         models.Q(memberships__user=request.user, memberships__role__in=['owner', 'editor']) |
         models.Q(cohorts__memberships__user=request.user, cohorts__memberships__role__in=['teacher', 'owner'])
     ).distinct().order_by('name')
+    
+    # If only one course, redirect directly to it
+    if courses.count() == 1:
+        return redirect(f'/teacher/authoring-assistant/start/?course_id={courses.first().id}')
     
     return render(request, 'authoring_tools/landing.html', {
         'courses': courses,
@@ -384,7 +388,7 @@ def chat_message(request, session_id):
         
         # Call Gemini with cached content
         try:
-            response = gemini_client.models.generate_content(
+            response = gemini_authoring_client.models.generate_content(
                 model=MODEL,
                 contents=conversation_history,
                 config={
@@ -396,23 +400,44 @@ def chat_message(request, session_id):
             assistant_message = response.text.strip()
             
         except Exception as e:
-            # Auto-retry once
-            logger.warning(f"First Gemini call failed, retrying: {e}")
-            try:
-                response = gemini_client.models.generate_content(
-                    model=MODEL,
-                    contents=conversation_history,
-                    config={
-                        'cached_content': session.cache_name,
-                        'temperature': 0.7
-                    }
-                )
-                assistant_message = response.text.strip()
-            except Exception as e2:
-                logger.error(f"Gemini call failed after retry: {e2}")
-                return JsonResponse({
-                    'error': f"AI service error: {str(e2)}"
-                }, status=500)
+            # If cache error (e.g., cache not found or permission denied), retry without cache
+            error_str = str(e)
+            if 'CachedContent' in error_str or 'PERMISSION_DENIED' in error_str or '403' in error_str:
+                logger.warning(f"Cache error, retrying without cache: {e}")
+                session.cache_name = ''  # Clear invalid cache
+                session.save()
+                try:
+                    response = gemini_authoring_client.models.generate_content(
+                        model=MODEL,
+                        contents=conversation_history,
+                        config={
+                            'temperature': 0.7
+                        }
+                    )
+                    assistant_message = response.text.strip()
+                except Exception as e2:
+                    logger.error(f"Gemini call failed after cache retry: {e2}")
+                    return JsonResponse({
+                        'error': f"AI service error: {str(e2)}"
+                    }, status=500)
+            else:
+                # Other error - retry once with cache
+                logger.warning(f"First Gemini call failed, retrying: {e}")
+                try:
+                    response = gemini_authoring_client.models.generate_content(
+                        model=MODEL,
+                        contents=conversation_history,
+                        config={
+                            'cached_content': session.cache_name,
+                            'temperature': 0.7
+                        }
+                    )
+                    assistant_message = response.text.strip()
+                except Exception as e2:
+                    logger.error(f"Gemini call failed after retry: {e2}")
+                    return JsonResponse({
+                        'error': f"AI service error: {str(e2)}"
+                    }, status=500)
         
         # Create trace for this exchange
         trace = create_trace_for(
@@ -622,11 +647,12 @@ def build_exercises(request, session_id):
         })
         
         # Call Gemini to extract exercise specs
-        response = gemini_client.models.generate_content(
+        # Note: We don't use cached_content here because the cache was created with a different client
+        # and the full conversation history is already in conversation_history
+        response = gemini_authoring_client.models.generate_content(
             model=MODEL,
             contents=conversation_history,
             config={
-                'cached_content': session.cache_name if session.cache_name else None,
                 'response_mime_type': 'application/json',
                 'response_json_schema': SegmentationResult.model_json_schema()
             }

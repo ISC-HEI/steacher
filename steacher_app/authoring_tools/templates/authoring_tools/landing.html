@@ -14,25 +14,17 @@
             <p class="mb-4">Choose the course where you want to create exercises:</p>
             
             {% if courses %}
-            <div class="list">
+            <div class="compact-course-list">
                 {% for course in courses %}
-                <a href="{% url 'authoring_tools:start' %}?course_id={{ course.id }}" class="list-item box">
-                    <div class="media">
-                        <div class="media-left">
-                            <span class="icon is-large has-text-primary">
-                                <i class="fas fa-book fa-2x"></i>
-                            </span>
-                        </div>
-                        <div class="media-content">
-                            <p class="title is-5">{{ course.name }}</p>
-                            <p class="subtitle is-6">{{ course.modules.count }} module{{ course.modules.count|pluralize }}</p>
-                        </div>
-                        <div class="media-right">
-                            <span class="icon">
-                                <i class="fas fa-arrow-right"></i>
-                            </span>
-                        </div>
-                    </div>
+                <a href="{% url 'authoring_tools:start' %}?course_id={{ course.id }}" class="course-item">
+                    <span class="icon is-small has-text-primary">
+                        <i class="fas fa-book"></i>
+                    </span>
+                    <span class="course-name">{{ course.name }}</span>
+                    <span class="course-meta">({{ course.modules.count }} module{{ course.modules.count|pluralize }})</span>
+                    <span class="icon is-small">
+                        <i class="fas fa-arrow-right"></i>
+                    </span>
                 </a>
                 {% endfor %}
             </div>
@@ -59,21 +51,36 @@
 </section>
 
 <style>
-.list-item {
-    display: block;
-    padding: 1rem;
-    margin-bottom: 0.5rem;
-    transition: transform 0.2s, box-shadow 0.2s;
-    cursor: pointer;
+.compact-course-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
 }
 
-.list-item:hover {
-    transform: translateX(5px);
-    box-shadow: 0 0.5em 1em -0.125em rgba(10, 10, 10, 0.1), 0 0px 0 1px rgba(10, 10, 10, 0.02);
-}
-
-.list-item .media {
+.course-item {
+    display: flex;
     align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    text-decoration: none;
+    color: inherit;
+}
+
+.course-item:hover {
+    background-color: #f5f5f5;
+}
+
+.course-name {
+    font-weight: 500;
+    flex-grow: 1;
+}
+
+.course-meta {
+    color: #7a7a7a;
+    font-size: 0.875rem;
 }
 </style>
 {% endblock %}
+

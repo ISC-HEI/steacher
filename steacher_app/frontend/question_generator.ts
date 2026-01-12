@@ -126,13 +126,20 @@ const GeneratorApp = defineComponent({
         // Send message
         async function sendMessage() {
             const message = userMessage.value.trim();
-            if (!message || !sessionId.value || isProcessing.value) return;
+            
+            // Allow sending if either there's a message OR files have been uploaded
+            if ((!message && uploadedFiles.value.length === 0) || !sessionId.value || isProcessing.value) return;
 
-            // Add user message to UI
-            messages.value.push({
-                role: 'user',
-                content: message
-            });
+            // If no message but files uploaded, use default message
+            const messageToSend = message || 'I have uploaded some files. Please analyze them and help me create exercises.';
+            
+            // Add user message to UI only if there's actual text from user
+            if (message) {
+                messages.value.push({
+                    role: 'user',
+                    content: message
+                });
+            }
             userMessage.value = '';
             isWaitingForAI.value = true;
             isProcessing.value = true;
@@ -146,7 +153,7 @@ const GeneratorApp = defineComponent({
                         'X-CSRFToken': getCsrfToken()
                     },
                     body: JSON.stringify({
-                        message: message
+                        message: messageToSend
                     })
                 });
 
@@ -184,45 +191,40 @@ const GeneratorApp = defineComponent({
         // Handle file upload
         async function handleFileUpload(event: Event) {
             const input = event.target as HTMLInputElement;
-            const file = input.files?.[0];
-            if (!file || !sessionId.value || isProcessing.value) return;
+            const files = input.files;
+            if (!files || files.length === 0 || !sessionId.value || isProcessing.value) return;
 
             isProcessing.value = true;
 
             try {
-                const formData = new FormData();
-                formData.append('file', file);
+                // Upload each file sequentially
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const formData = new FormData();
+                    formData.append('file', file);
 
-                const response = await fetch(`/teacher/authoring-assistant/session/${sessionId.value}/upload/`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': getCsrfToken()
-                    },
-                    body: formData
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    // Add file to list
-                    uploadedFiles.value.push({
-                        id: data.file_id,
-                        filename: data.filename
+                    const response = await fetch(`/teacher/authoring-assistant/session/${sessionId.value}/upload/`, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': getCsrfToken()
+                        },
+                        body: formData
                     });
 
-                    // Just add system message (no AI response yet)
-                    messages.value.push({
-                        role: 'system',
-                        content: `File uploaded: ${data.filename}${data.files_extracted > 1 ? ` (${data.files_extracted} files extracted from ZIP)` : ''}`
-                    });
+                    const data = await response.json();
 
-                    scrollToBottom();
-                } else {
-                    alert(`Failed to upload file: ${data.error || 'Unknown error'}`);
+                    if (!response.ok) {
+                        alert(`Failed to upload ${file.name}: ${data.error || 'Unknown error'}`);
+                        continue; // Continue with next file
+                    }
                 }
+                
+                // After all uploads, reload the file list to show everything
+                await loadConversation();
+                
             } catch (error) {
-                console.error('Failed to upload file:', error);
-                alert('Failed to upload file');
+                console.error('Failed to upload files:', error);
+                alert('Failed to upload files');
             } finally {
                 isProcessing.value = false;
                 // Reset file input
@@ -276,15 +278,21 @@ const GeneratorApp = defineComponent({
             isProcessing.value = true;
 
             try {
+                // Create abort controller with 5 minute timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000);
+
                 const response = await fetch(`/teacher/authoring-assistant/session/${sessionId.value}/build/`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': getCsrfToken()
                     },
-                    body: JSON.stringify({})
+                    body: JSON.stringify({}),
+                    signal: controller.signal
                 });
 
+                clearTimeout(timeoutId);
                 const data = await response.json();
 
                 if (response.ok) {
@@ -311,7 +319,12 @@ const GeneratorApp = defineComponent({
                 console.error('Failed to build exercises:', error);
                 isBuilding.value = false;
                 isProcessing.value = false;
-                alert('Failed to build exercises');
+                
+                if (error instanceof Error && error.name === 'AbortError') {
+                    alert('Request timed out after 5 minutes. The AI may be processing a large amount of content. Please try again or simplify your request.');
+                } else {
+                    alert('Failed to build exercises');
+                }
             }
         }
 
