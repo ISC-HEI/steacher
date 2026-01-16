@@ -79,9 +79,20 @@
                         </div>
                         <div class="field-body">
                             <div class="field">
-                                <div class="control">
+                                <div class="tabs is-small is-toggle mb-0">
+                                    <ul>
+                                        <li :class="{ 'is-active': !previews.question }">
+                                            <a @click="previews.question = false">Write</a>
+                                        </li>
+                                        <li :class="{ 'is-active': previews.question }">
+                                            <a @click="previews.question = true">Preview</a>
+                                        </li>
+                                    </ul>
+                                </div>
+                                <div class="control" v-show="!previews.question">
                                     <textarea id="question" class="textarea" v-model="exercise.question_i18n[uiLang]" rows="10" :required="uiLang === 'en'"></textarea>
                                 </div>
+                                <div class="content box" v-if="previews.question" v-html="renderMarkdown(exercise.question_i18n[uiLang])" style="min-height: 15rem; overflow-y: auto;"></div>
                             </div>
                         </div>
                     </div>
@@ -241,9 +252,20 @@
                             </div>
                             <div class="field-body">
                                 <div class="field">
-                                    <div class="control">
+                                    <div class="tabs is-small is-toggle mb-0">
+                                        <ul>
+                                            <li :class="{ 'is-active': !previews.answers[index].answer }">
+                                                <a @click="previews.answers[index].answer = false">Write</a>
+                                            </li>
+                                            <li :class="{ 'is-active': previews.answers[index].answer }">
+                                                <a @click="previews.answers[index].answer = true">Preview</a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    <div class="control" v-show="!previews.answers[index].answer">
                                         <textarea :id="'answer-' + index" class="textarea" v-model="answer.answer" rows="10"></textarea>
                                     </div>
+                                    <div class="content box" v-if="previews.answers[index].answer" v-html="renderMarkdown(answer.answer)" style="min-height: 15rem; overflow-y: auto;"></div>
                                 </div>
                             </div>
                         </div>
@@ -258,9 +280,20 @@
                             </div>
                             <div class="field-body">
                                 <div class="field">
-                                    <div class="control">
+                                    <div class="tabs is-small is-toggle mb-0">
+                                        <ul>
+                                            <li :class="{ 'is-active': !previews.answers[index].explanation }">
+                                                <a @click="previews.answers[index].explanation = false">Write</a>
+                                            </li>
+                                            <li :class="{ 'is-active': previews.answers[index].explanation }">
+                                                <a @click="previews.answers[index].explanation = true">Preview</a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    <div class="control" v-show="!previews.answers[index].explanation">
                                         <textarea :id="'explanation-' + index" class="textarea" v-model="answer.explanation" rows="2"></textarea>
                                     </div>
+                                    <div class="content box" v-if="previews.answers[index].explanation" v-html="renderMarkdown(answer.explanation)" style="min-height: 5rem; overflow-y: auto;"></div>
                                 </div>
                             </div>
                         </div>

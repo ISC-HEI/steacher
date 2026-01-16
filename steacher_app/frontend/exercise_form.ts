@@ -94,7 +94,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 uiLang: 'en' as 'en' | 'fr' | 'de',
                 course_name: courseName,
                 course_description: courseDescription,
+                previews: {  // for rendering latex & markdown in the preview mode
+                    question: false,
+                    answers: [] as { answer: boolean; explanation: boolean; }[]
+                }
             };
+        },
+        created() {
+            // Initialize previews for existing answers
+            if (this.exercise.answer_data && this.exercise.answer_data.correct_answers) {
+                this.previews.answers = this.exercise.answer_data.correct_answers.map(() => ({ answer: false, explanation: false }));
+            }
         },
         watch: {
             'exercise.exercise_type'(newType, oldType) {
@@ -336,13 +346,15 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             addCorrectAnswer() {
                 this.exercise.answer_data.correct_answers.push({ answer: '', explanation: '' });
+                this.previews.answers.push({ answer: false, explanation: false });
             },
             removeCorrectAnswer(index: number) {
                 this.exercise.answer_data.correct_answers.splice(index, 1);
+                this.previews.answers.splice(index, 1);
             },
             renderMarkdown(content: string): string {
                 try {
-                    return renderMarkdown(content, false);
+                    return renderMarkdown(content, true);
                 } catch (err) {
                     console.error('Markdown rendering failed:', err);
                     return content;
