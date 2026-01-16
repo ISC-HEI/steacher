@@ -17,60 +17,72 @@ export function renderMarkdown(content: string, enableMath: boolean = true): str
     // Strip "Guidance Text:" prefix if present
     let cleanContent = content.replace(/^Guidance Text:\s*/i, '').trim();
     
-    // Parse Markdown
-    let html = marked.parse(cleanContent) as string;
-    
-    // Sanitize HTML to prevent XSS attacks
-    html = DOMPurify.sanitize(html);
-    
     // Process KaTeX math expressions if enabled
     if (enableMath) {
-        html = renderMathInHtml(html);
-    }
-    
-    return html;
-}
-
-/**
- * Processes KaTeX math expressions in HTML content.
- * Handles both display math ($$...$$) and inline math ($...$).
- * 
- * @param html - HTML content containing math expressions
- * @returns HTML with rendered math expressions
- */
-export function renderMathInHtml(html: string): string {
-    try {
-        // Display math $$...$$
-        html = html.replace(/\$\$([^$]+)\$\$/g, (match, math) => {
+        // Protect math blocks to prevent Markdown parser from messing up LaTeX (e.g. backslashes)
+        const mathBlocks: { type: 'display' | 'inline', content: string }[] = [];
+        
+        // Replace display math $$...$$
+        // We use a specific placeholder that Markdown is likely to treat as a paragraph or text, 
+        // which we'll unwrap later if needed.
+        cleanContent = cleanContent.replace(/\$\$([\s\S]+?)\$\$/g, (match, math) => {
+            const id = mathBlocks.length;
+            mathBlocks.push({ type: 'display', content: math });
+            return `%%%MATH_BLOCK_${id}%%%`;
+        });
+        
+        // Replace inline math $...$
+        // Negative lookbehind/lookahead to avoid matching $$
+        cleanContent = cleanContent.replace(/(?<!\$)\$([^$\n]+?)\$(?!\$)/g, (match, math) => {
+            const id = mathBlocks.length;
+            mathBlocks.push({ type: 'inline', content: math });
+            return `%%%MATH_INLINE_${id}%%%`;
+        });
+        
+        // Parse Markdown
+        let html = marked.parse(cleanContent) as string;
+        
+        // Sanitize HTML to prevent XSS attacks
+        html = DOMPurify.sanitize(html);
+        
+        // Restore and render math
+        // Handle block math - potentially unwrapping from <p>
+        html = html.replace(/(?:<p>\s*)?%%%MATH_BLOCK_(\d+)%%%(?:\s*<\/p>)?/g, (match, id) => {
+            const block = mathBlocks[parseInt(id)];
+            if (!block) return match;
             try {
-                return katex.renderToString(math, { 
+                return katex.renderToString(block.content, { 
                     displayMode: true,
                     strict: false,
                     trust: false
                 });
             } catch (e) {
                 console.error('KaTeX display math error:', e);
-                return match;
+                return `$$${block.content}$$`;
             }
         });
-
-        // Inline math $...$ (negative lookbehind/lookahead to avoid matching $$)
-        html = html.replace(/(?<!\$)\$([^$\n]+)\$(?!\$)/g, (match, math) => {
+        
+        // Handle inline math
+        html = html.replace(/%%%MATH_INLINE_(\d+)%%%/g, (match, id) => {
+            const block = mathBlocks[parseInt(id)];
+            if (!block) return match;
             try {
-                return katex.renderToString(math, { 
+                return katex.renderToString(block.content, { 
                     displayMode: false,
                     strict: false,
                     trust: false
                 });
             } catch (e) {
                 console.error('KaTeX inline math error:', e);
-                return match;
+                return `$${block.content}$`;
             }
         });
-    } catch (e) {
-        console.error('Error processing math:', e);
-    }
 
-    return html;
+        return html;
+    }
+    
+    // Default path without math
+    let html = marked.parse(cleanContent) as string;
+    return DOMPurify.sanitize(html);
 }
 

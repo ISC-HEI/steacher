@@ -12,95 +12,95 @@ description: "High-level overview of this codebase called Steacher, including it
 ### Backend (Django)
 
 *   **Core Settings & Configuration**
-    *   `exam_project/settings.py`: Project [settings](mdc:exam_project/settings.py) (Django 5, CORS, DRF, Argon2 password hashing, email, logging, security, ASGI/WebSockets via Channels, Redis for quiz state)
-    *   `exam_project/urls.py`: Root [URL configuration](mdc:exam_project/urls.py)
-    *   `exam_project/asgi.py`: ASGI configuration for WebSocket support
+    *   `steacher_app/exam_project/settings.py`: Project [settings](mdc:steacher_app/exam_project/settings.py) (Django 5, CORS, DRF, Argon2 password hashing, email, logging, security, ASGI/WebSockets via Channels, Redis for quiz state)
+    *   `steacher_app/exam_project/urls.py`: Root [URL configuration](mdc:steacher_app/exam_project/urls.py)
+    *   `steacher_app/exam_project/asgi.py`: ASGI configuration for WebSocket support
 
 *   **Domain Models & Business Logic**
-    *   `exercises/models.py`: [Domain models](mdc:exercises/models.py) (Course, Module, Exercise, Attempt, Trace, TraceImage, TraceEval, AttemptEval, Cohort, CohortMembership, CourseMembership, ExerciseAsset, UserInvite, ChatThread, QuizLog)
-    *   `exercises/logic.py`: [Core LLM logic](mdc:exercises/logic.py) and orchestration (Gemini client, uncertainty metrics from logprobs, authoring assistant, i18n translation)
-    *   `exercises/schemas.py`: [Pydantic schemas](mdc:exercises/schemas.py) for `exercise_data` and `answer_data` validation
-    *   `exercises/prompting.py`: System prompt building logic
-    *   `exercises/unit_testing.py`: [Unit-test helpers](mdc:exercises/unit_testing.py) for exercises (Python and Scala)
-    *   `exercises/authz.py`: Authorization helpers and rate limiting
+    *   `steacher_app/exercises/models.py`: [Domain models](mdc:steacher_app/exercises/models.py) (Course, Module, Exercise, Attempt, Trace, TraceImage, TraceEval, AttemptEval, Cohort, CohortMembership, CourseMembership, ExerciseAsset, UserInvite, ChatThread, QuizLog, MobileAuthToken)
+    *   `steacher_app/exercises/logic.py`: [Core LLM logic](mdc:steacher_app/exercises/logic.py) and orchestration (Gemini client, uncertainty metrics from logprobs, authoring assistant, i18n translation)
+    *   `steacher_app/exercises/schemas.py`: [Pydantic schemas](mdc:steacher_app/exercises/schemas.py) for `exercise_data` and `answer_data` validation
+    *   `steacher_app/exercises/prompting.py`: System prompt building logic
+    *   `steacher_app/exercises/unit_testing.py`: [Unit-test helpers](mdc:steacher_app/exercises/unit_testing.py) for exercises (Python and Scala)
+    *   `steacher_app/exercises/authz.py`: Authorization helpers and rate limiting
 
 *   **Views & API Endpoints**
-    *   `exercises/views_students.py`: [Student flows](mdc:exercises/views_students.py) (dashboard, exercise execution, guidance, study chat, QR-based image upload)
-    *   `exercises/views_teachers.py`: [Teacher flows](mdc:exercises/views_teachers.py) (course authoring, analytics, cohort management, assets, quiz control)
-    *   `exercises/views_annotations.py`: [Annotation views](mdc:exercises/views_annotations.py) for manual attempt evaluation by teachers
-    *   `exercises/views_image_upload.py`: [Image upload](mdc:exercises/views_image_upload.py) system (QR token generation, mobile upload, token chaining, serving images)
-    *   `exercises/urls.py`: [App routing](mdc:exercises/urls.py)
-    *   `exercises/serializers.py`: [DRF serializers](mdc:exercises/serializers.py)
+    *   `steacher_app/exercises/views_students.py`: [Student flows](mdc:steacher_app/exercises/views_students.py) (dashboard, exercise execution, guidance, study chat, QR-based image upload)
+    *   `steacher_app/exercises/views_teachers.py`: [Teacher flows](mdc:steacher_app/exercises/views_teachers.py) (course authoring, analytics, cohort management, assets, quiz control)
+    *   `steacher_app/exercises/views_annotations.py`: [Annotation views](mdc:steacher_app/exercises/views_annotations.py) for manual attempt evaluation by teachers
+    *   `steacher_app/exercises/views_image_upload.py`: [Image upload](mdc:steacher_app/exercises/views_image_upload.py) system (QR token generation, mobile upload, token chaining, serving images)
+    *   `steacher_app/exercises/urls.py`: [App routing](mdc:steacher_app/exercises/urls.py)
+    *   `steacher_app/exercises/serializers.py`: [DRF serializers](mdc:steacher_app/exercises/serializers.py)
 
 *   **Real-time Features**
-    *   `exercises/consumers.py`: WebSocket consumers for real-time quiz presence tracking
-    *   `exercises/routing.py`: WebSocket routing configuration
+    *   `steacher_app/exercises/consumers.py`: WebSocket consumers for real-time quiz presence tracking
+    *   `steacher_app/exercises/routing.py`: WebSocket routing configuration
 
 *   **Other Apps**
-    *   `accounts/models.py`: Custom User model with `preferred_language` field and security constraints (single superuser)
-    *   `evaluation/models.py`: Model evaluation system (`ModelEvalExperiment`, `ModelComparisonEval`) for blind side-by-side comparisons of LLM outputs
-    *   `evaluation/views.py`: Evaluation experiment management and comparison interfaces
+    *   `steacher_app/accounts/models.py`: Custom User model with `preferred_language` field and security constraints (single superuser)
+    *   `steacher_app/evaluation/models.py`: Model evaluation system (`ModelEvalExperiment`, `ModelComparisonEval`) for blind side-by-side comparisons of LLM outputs
+    *   `steacher_app/evaluation/views.py`: Evaluation experiment management and comparison interfaces
 
 *   **Templates**
-    *   `templates/`: [Django templates](mdc:templates/) organized by app
-    *   `templates/exercises/base.html`: Base template with shared navbar, messages, and assets
-    *   `templates/exercises/students/`: Student-facing pages
-    *   `templates/exercises/teacher/`: Teacher-facing pages
+    *   `steacher_app/templates/`: [Django templates](mdc:steacher_app/templates/) organized by app
+    *   `steacher_app/templates/exercises/base.html`: Base template with shared navbar, messages, and assets
+    *   `steacher_app/templates/exercises/students/`: Student-facing pages
+    *   `steacher_app/templates/exercises/teacher/`: Teacher-facing pages
 
 ### Frontend (TypeScript/Vue 3)
 
 *   **Source Code**
-    *   `frontend/`: [Source TypeScript](mdc:frontend/) components and page scripts
-    *   `frontend/ChatbotPanel.ts`: AI tutor UI [panel](mdc:frontend/ChatbotPanel.ts) (student chat, message rendering with Markdown/KaTeX, image support, thoughts extraction, confetti celebrations)
-    *   `frontend/CodeMirrorEditor.ts`: Reusable [CodeMirror v6 editor](mdc:frontend/CodeMirrorEditor.ts) Vue component with syntax highlighting
-    *   `frontend/python.ts`: Python exercise runtime (Pyodide WASM, Web Worker, REPL console)
-    *   `frontend/sql.ts`: SQL exercise runtime (PGlite WASM, database loading)
-    *   `frontend/turtle.ts`: Turtle graphics exercise runtime (Pyodide, canvas rendering, animation, pathfinding comparison)
-    *   `frontend/scala.ts`: Scala exercise runtime (external interpreter service)
-    *   `frontend/open_question.ts`: Open question exercise with image upload support
-    *   `frontend/ai_chat.ts`: Standalone study chat interface
-    *   `frontend/exercise_form.ts`: Teacher authoring interface with AI assistance
-    *   `frontend/teacher_course_details.ts`: Course analytics and management
-    *   `frontend/quiz_control.ts`: Real-time quiz control panel for teachers
-    *   `frontend/utils.ts`: Shared utilities (CSRF token, fetch helpers)
-    *   `frontend/python_worker.ts`: Web Worker for Python execution
+    *   `steacher_app/frontend/`: [Source TypeScript](mdc:steacher_app/frontend/) components and page scripts
+    *   `steacher_app/frontend/ChatbotPanel.ts`: AI tutor UI [panel](mdc:steacher_app/frontend/ChatbotPanel.ts) (student chat, message rendering with Markdown/KaTeX, image support, thoughts extraction, confetti celebrations)
+    *   `steacher_app/frontend/CodeMirrorEditor.ts`: Reusable [CodeMirror v6 editor](mdc:steacher_app/frontend/CodeMirrorEditor.ts) Vue component with syntax highlighting
+    *   `steacher_app/frontend/python.ts`: Python exercise runtime (Pyodide WASM, Web Worker, REPL console)
+    *   `steacher_app/frontend/sql.ts`: SQL exercise runtime (PGlite WASM, database loading)
+    *   `steacher_app/frontend/turtle.ts`: Turtle graphics exercise runtime (Pyodide, canvas rendering, animation, pathfinding comparison)
+    *   `steacher_app/frontend/scala.ts`: Scala exercise runtime (external interpreter service)
+    *   `steacher_app/frontend/open_question.ts`: Open question exercise with image upload support
+    *   `steacher_app/frontend/ai_chat.ts`: Standalone study chat interface
+    *   `steacher_app/frontend/exercise_form.ts`: Teacher authoring interface with AI assistance
+    *   `steacher_app/frontend/teacher_course_details.ts`: Course analytics and management
+    *   `steacher_app/frontend/quiz_control.ts`: Real-time quiz control panel for teachers
+    *   `steacher_app/frontend/utils.ts`: Shared utilities (CSRF token, fetch helpers)
+    *   `steacher_app/frontend/python_worker.ts`: Web Worker for Python execution
 
 *   **Built Assets**
-    *   `static/js/dist/`: Compiled TypeScript output and CodeMirror bundle
-    *   `static/css/`: Stylesheets
-    *   `static/images/`: Images and icons
+    *   `steacher_app/static/js/dist/`: Compiled TypeScript output and CodeMirror bundle
+    *   `steacher_app/static/css/`: Stylesheets
+    *   `steacher_app/static/images/`: Images and icons
 
 ### Project Configuration
 
 *   **Documentation**
-    *   `README.md`: [Setup and docs](mdc:README.md) (database setup, CodeMirror bundling, E2E tests)
+    *   `steacher_app/README.md`: [Setup and docs](mdc:steacher_app/README.md) (database setup, CodeMirror bundling, E2E tests)
     *   `DEPLOY.md`: Deployment instructions (docker-compose, nginx, SSL, monitoring)
     *   `docs/Teachers.md`: Teacher documentation
     *   `specs/done/`: Completed feature specifications (image upload, turtle exercises, evaluation system, cost analysis, etc.)
 
 *   **Dependencies**
-    *   `requirements.txt`: [Python dependencies](mdc:requirements.txt) (Django 5, DRF, CORS, google-genai, OpenAI, Playwright, Channels, Redis, qrcode, newrelic, etc.)
-    *   `package.json`: [Frontend deps](mdc:package.json) (Vue 3, Pyodide, CodeMirror v6, PGlite, Bulma, Marked + DOMPurify, PrismJS, KaTeX, canvas-confetti) and watch scripts
+    *   `steacher_app/requirements.txt`: [Python dependencies](mdc:steacher_app/requirements.txt) (Django 5, DRF, CORS, google-genai, OpenAI, Playwright, Channels, Redis, qrcode, newrelic, etc.)
+    *   `steacher_app/package.json`: [Frontend deps](mdc:steacher_app/package.json) (Vue 3, Pyodide, CodeMirror v6, PGlite, Bulma, Marked + DOMPurify, PrismJS, KaTeX, canvas-confetti) and watch scripts
 
 *   **Build Configuration**
-    *   `rollup.codemirror.config.mjs`: Rollup config for bundling CodeMirror dependencies into single file
-    *   `tsconfig.json`: TypeScript compiler configuration
-    *   `pytest.ini`: E2E test configuration (Playwright)
+    *   `steacher_app/rollup.codemirror.config.mjs`: Rollup config for bundling CodeMirror dependencies into single file
+    *   `steacher_app/tsconfig.json`: TypeScript compiler configuration
+    *   `steacher_app/pytest.ini`: E2E test configuration (Playwright)
 
 ## Django Models
 
 ### Core Educational Entities
 
-*   **Course**: Top-level container; holds `llm_prompts` (JSON) per exercise type, optional `chat_prompt` for study chat, and `system_prompt` override. Has `visible` flag and i18n support via related models.
-*   **Module**: Ordered grouping of exercises within a course. Has `is_quiz` flag for quiz modules. Auto-assigns `order` on creation.
-*   **Exercise**: Fully i18n with `title_i18n`, `description_i18n`, `question_i18n` (JSON dicts keyed by language code). Has `exercise_type` (python, sql, scala, turtle, open_question), ordered within module. JSON `exercise_data` and `answer_data` validated via Pydantic schemas. Has `allow_image_upload` flag. Exposes `.title` and `.description` properties for legacy English access.
+*   **Course**: Top-level container. `llm_prompts` (JSON) per exercise type. `course_prompt` (appended to system prompt). `override_system_prompt`. `visible`. Members via `CourseMembership` (owner, editor, viewer).
+*   **Module**: Ordered grouping of exercises. `is_quiz` flag. `visible`, `archived`. Auto-assigns `order`.
+*   **Exercise**: i18n fields (`title_i18n`, `description_i18n`, `question_i18n`). `exercise_type` (python, sql, scala, turtle, open_question). `exercise_data` (frontend), `answer_data` (backend). `visible`, `archived`, `allow_image_upload`, `draft_notes` (AI feedback).
 *   **ExerciseAsset**: Binary asset files attached to a course (e.g., SQL datasets, images). Unique per (course, name).
 
 ### User Progress & Interaction
 
-*   **Attempt**: A user's attempt at an exercise, with `version` tracking, `complete` flag, and `asked_for_solution`. Links to `cohort` for context. Related `Trace` rows store interaction history via polymorphic GenericForeignKey.
-*   **Trace**: Polymorphic log of interactions across channels (`exercise_guidance`, `study_chat`, `authoring`, `learning_pathway`). Stores `system_prompt` (first trace only), `user_content`/`user_metadata`, `assistant_content`/`assistant_metadata` (including uncertainty metrics from logprobs). Has stable `rank_order` for sequential conversation. Links to owner via ContentType (Attempt, ChatThread, Course, Exercise).
-*   **TraceImage**: Binary image storage for traces. Used for mobile upload via QR code. Has `upload_token` (unique, expires), `next_token` for chaining (up to 3 images), `chain_position` (0-2), and `image_bytes` property handling memoryview conversion.
+*   **Attempt**: User attempt at exercise. `version`, `complete`, `asked_for_solution`, `cohort`. Linked `Trace` rows.
+*   **Trace**: Polymorphic interaction log. Channels: `exercise_guidance`, `study_chat`, `authoring`, `learning_pathway`, `question_generator`. content (user/assistant), metadata. `system_prompt` (first trace). `rank_order`. Links to owner (Attempt, ChatThread, Course, Exercise).
+*   **TraceImage**: Binary image storage for traces. `upload_token`, `next_token` (chaining), `chain_position`, `highlight_bboxes`. `image_bytes`.
 
 ### Evaluation & Feedback
 
@@ -113,6 +113,7 @@ description: "High-level overview of this codebase called Steacher, including it
 *   **CohortMembership**: User membership in cohort with role (`student`, `teacher`, `assistant`, `owner` - single owner per cohort enforced by constraint) and `status` (active/inactive). Has `added_by` for audit trail.
 *   **CourseMembership**: Course-level authoring roles (`owner` single, `editor`, `viewer`). Used for permissions at course scope.
 *   **UserInvite**: Email invitation system with optional cohort auto-assignment on registration. Has `used` flag and `registered_at` timestamp.
+*   **MobileAuthToken**: Token for mobile authentication via magic link email.
 
 ### Communication & Quizzes
 
@@ -184,17 +185,17 @@ description: "High-level overview of this codebase called Steacher, including it
 
 ## Template Structure
 
-`templates/exercises/base.html` provides the shared layout (navbar, messages, common assets, import maps) that per-page templates extend. Student pages in `templates/exercises/students/*.html` and teacher pages in `templates/exercises/teacher/*.html` typically use `{% extends "exercises/base.html" %}` and fill blocks (e.g., content, scripts). Page-specific JavaScript from `static/js/dist/*.js` (built from `frontend/*.ts`) is included by each page template to initialize the correct UI behavior.
+`steacher_app/templates/exercises/base.html` provides the shared layout (navbar, messages, common assets, import maps) that per-page templates extend. Student pages in `steacher_app/templates/exercises/students/*.html` and teacher pages in `steacher_app/templates/exercises/teacher/*.html` typically use `{% extends "exercises/base.html" %}` and fill blocks (e.g., content, scripts). Page-specific JavaScript from `steacher_app/static/js/dist/*.js` (built from `steacher_app/frontend/*.ts`) is included by each page template to initialize the correct UI behavior.
 
 ## Prompt Sources and Composition
 
 The base tutor instructions come from:
-*   `exercises/prompts/general_prompt.md` - for exercise guidance
-*   `exercises/prompts/chat_mode_prompt.md` - for study chat
-*   `exercises/prompts/authoring_system_prompt.md` - for AI authoring assistant
-*   `exercises/prompts/i18n_translation_prompt.md` - for i18n translation helper
+*   `steacher_app/exercises/prompts/general_prompt.md` - for exercise guidance
+*   `steacher_app/exercises/prompts/chat_mode_prompt.md` - for study chat
+*   `steacher_app/exercises/prompts/authoring_system_prompt.md` - for AI authoring assistant
+*   `steacher_app/exercises/prompts/i18n_translation_prompt.md` - for i18n translation helper
 
-All remaining context (exercise text, course-specific details, prior attempts, and guidance history) is loaded from the database and composed at runtime by `exercises/logic.py` and `exercises/prompting.py`. Course-level customization is available via `Course.chat_prompt`, `Course.system_prompt`, and `Course.llm_prompts` (JSON dict per exercise type). Conversations persist as `Trace` rows under distinct channels; exercise guidance attaches to `Attempt`, study chat attaches to `ChatThread`, authoring attaches to `Exercise` or `Course`.
+All remaining context (exercise text, course-specific details, prior attempts, and guidance history) is loaded from the database and composed at runtime by `steacher_app/exercises/logic.py` and `steacher_app/exercises/prompting.py`. Course-level customization is available via `Course.chat_prompt`, `Course.system_prompt`, and `Course.llm_prompts` (JSON dict per exercise type). Conversations persist as `Trace` rows under distinct channels; exercise guidance attaches to `Attempt`, study chat attaches to `ChatThread`, authoring attaches to `Exercise` or `Course`.
 
 
 ## Project Development Context for AI Assistant
@@ -205,7 +206,7 @@ Deployment is handled in the parent project using docker-compose. You don't need
 
 ### TypeScript Compilation
 
-The TypeScript code in the `frontend/` directory is automatically recompiled whenever a `.ts` file is saved. This is handled by a background process running the `npm run watch` command.
+The TypeScript code in the `steacher_app/frontend/` directory is automatically recompiled whenever a `.ts` file is saved. This is handled by a background process running the `npm run watch` command.
 
 **You do not need to ask to recompile the TypeScript files.** Just assume they are up-to-date after any edit. 
 
@@ -226,4 +227,3 @@ Indent with 4 spaces (no tabs).
 
 *   Concise and KISS (Keep It Simple, Stupid) approaches are preferred. Maintaining many lines of code is a burden, so try to keep it minimal.
 *   The user often dictates text via voice-to-text, so transcription errors may occur. If anything is unclear, ask for clarification.
-
