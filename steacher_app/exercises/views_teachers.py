@@ -1358,7 +1358,13 @@ def export_module(request, module_id):
     Export a module with all its exercises as JSON.
     Teacher must have edit permissions on the course.
     """
-    module = get_object_or_404(Module.objects.select_related('course').prefetch_related('exercises'), pk=module_id)
+    from django.db.models import Prefetch
+    module = get_object_or_404(
+        Module.objects.select_related('course').prefetch_related(
+            Prefetch('exercises', queryset=Exercise.objects.filter(archived=False))
+        ),
+        pk=module_id
+    )
     assert_can_edit_course(request.user, module.course)
     
     from .serializers import ModuleExportSerializer

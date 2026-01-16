@@ -102,9 +102,7 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         created() {
             // Initialize previews for existing answers
-            if (this.exercise.answer_data && this.exercise.answer_data.correct_answers) {
-                this.previews.answers = this.exercise.answer_data.correct_answers.map(() => ({ answer: false, explanation: false }));
-            }
+            this.syncPreviews();
         },
         watch: {
             'exercise.exercise_type'(newType, oldType) {
@@ -145,6 +143,13 @@ document.addEventListener('DOMContentLoaded', function() {
         methods: {
             deepClone<T>(obj: T): T {
                 return JSON.parse(JSON.stringify(obj));
+            },
+            syncPreviews() {
+                if (this.exercise.answer_data && this.exercise.answer_data.correct_answers) {
+                    this.previews.answers = this.exercise.answer_data.correct_answers.map(() => ({ answer: false, explanation: false }));
+                } else {
+                    this.previews.answers = [];
+                }
             },
             langEmpty(lang: 'en'|'fr'|'de'): boolean {
                 const t = (this.exercise.title_i18n?.[lang] || '').trim();
@@ -418,6 +423,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         this.lastAppliedSnapshot = this.deepClone(this.exercise);
                         this.exercise = this.deepClone(updated_exercise);
+                        this.syncPreviews();
                         this.lastActionMode = 'edit';
                     } else {
                         // Feedback mode: Display message only, don't modify form
@@ -436,6 +442,7 @@ document.addEventListener('DOMContentLoaded', function() {
             undoLastAIEdit() {
                 if (!this.lastAppliedSnapshot || this.lastActionMode !== 'edit') return;
                 this.exercise = this.deepClone(this.lastAppliedSnapshot);
+                this.syncPreviews();
                 this.lastAppliedSnapshot = null;
                 this.lastActionMode = null;
             },
