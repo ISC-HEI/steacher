@@ -544,47 +544,6 @@ Sizing notes (4 vCPU / 8 GB RAM VM):
 Long running LLM calls have longer Nginx timeouts (set in `nginx/nginx.conf`):
 
 
-# Redeploy
-
-# 1) SSH and go to project
-ssh
-git pull
-
-1.2) Start/refresh the proxy
-
-    docker compose up -d proxy
-    docker compose ps
-
-    # Validate nginx config and check logs
-    docker compose exec proxy nginx -t | cat
-    docker compose logs -n 200 proxy | cat
-
-# 2) Rebuild and restart only app containers (rebuilds if code/deps changed)
-
-    docker compose  up -d --build web 
-    # add scala_interpreter at end if needed
-
-# 3) Run migrations (use exec or override entrypoint)
-    docker compose exec web python manage.py migrate
-# or if web isn't up yet:
-docker compose run --rm --entrypoint "" web python manage.py migrate
-
-check migration stat:
-    docker compose exec web python manage.py showmigrations exercises
-
-# 4) Collect static (served by nginx from the volume)
-docker compose exec web python manage.py collectstatic --noinput
-
-# 5) Verify
-docker compose logs -n 200 web | tail -n +1 | cat
-
-
-Only app code changed (keep db/proxy untouched):
-
-    docker compose up -d --build --no-deps web
-    docker compose exec web python manage.py migrate
-    docker compose exec web python manage.py collectstatic --noinput
-
 
 # Copy data over
 

@@ -10,7 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import login
 from django.contrib.auth import get_user_model
 from django.views.decorators.csrf import csrf_protect
-from django.http import JsonResponse, Http404
+from django.http import JsonResponse, Http404, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.decorators.http import require_POST, require_GET
 from django.db import models
@@ -620,7 +620,7 @@ def serve_asset(request, exercise_id, filename):
     assert_can_view_exercise(request.user, exercise)
 
     asset = get_object_or_404(ExerciseAsset, course=exercise.module.course, name=filename)
-    content = bytes(asset.content).decode('utf-8')
+    content = bytes(asset.content)
     response = HttpResponse(content, content_type='text/plain')
     response['Content-Disposition'] = f'inline; filename="{filename}"'
     return response
