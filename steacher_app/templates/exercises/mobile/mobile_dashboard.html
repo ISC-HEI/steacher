@@ -41,9 +41,46 @@
     </div>
     {% endif %}
     
-    <h2 class="mobile-section-title">Courses</h2>
-    
-    {% if course_data %}
+    {% if course_data|length == 1 %}
+        {# Single course view: show course name and list modules directly #}
+        {% with item=course_data.0 %}
+        <h2 class="mobile-section-title">{{ item.course.name }}</h2>
+        <div class="mobile-course-modules">
+            {% for module_item in item.modules %}
+            <div class="mobile-accordion-item">
+                <button class="mobile-accordion-header" data-target="module-{{ module_item.module.id }}">
+                    <div class="mobile-accordion-title">
+                        <span>{{ module_item.module.name }}</span>
+                        <span class="mobile-accordion-progress">({{ module_item.completed }}/{{ module_item.total }})</span>
+                    </div>
+                    <i class="fas fa-chevron-down mobile-accordion-icon"></i>
+                </button>
+                <div class="mobile-accordion-content" id="module-{{ module_item.module.id }}">
+                    {% for exercise in module_item.exercises %}
+                    <a href="{% url 'mobile:mobile_exercise' exercise.id %}" class="mobile-list-item">
+                        <div class="mobile-list-item-icon {% if exercise.is_complete %}completed{% endif %}">
+                            {% if exercise.is_complete %}
+                                <i class="fas fa-check"></i>
+                            {% endif %}
+                        </div>
+                        <div class="mobile-list-item-content">
+                            <div class="mobile-list-item-title">{{ exercise.localized_title|truncatechars:80 }}</div>
+                        </div>
+                        <div class="mobile-list-item-action">
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endwith %}
+
+    {% elif course_data %}
+        {# Multiple courses view #}
+        <h2 class="mobile-section-title">Courses</h2>
+        
         {% for item in course_data %}
         <div class="mobile-accordion-item">
             <button class="mobile-accordion-header" data-target="course-{{ item.course.id }}">
@@ -86,6 +123,7 @@
         </div>
         {% endfor %}
     {% else %}
+        <h2 class="mobile-section-title">Courses</h2>
         <div class="mobile-empty-state">
             <div class="mobile-empty-state-icon">
                 <i class="fas fa-tasks"></i>
