@@ -11,6 +11,7 @@ html, body {
     overflow-x: hidden;
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
+    color: black;
 }
 
 /* Code Elements - Light Background */
@@ -28,6 +29,9 @@ code[class*="language-"] {
     color: #333 !important;
     padding: 0.15rem 0.35rem;
     border-radius: 0.25rem;
+}
+strong {
+    color: black;
 }
 
 /* Layout */
@@ -195,55 +199,6 @@ code[class*="language-"] {
     pointer-events: all;
 }
 
-/* List Items */
-.mobile-list-item {
-    display: flex;
-    align-items: center;
-    padding: 10px 8px;
-    background: white;
-    border-radius: 8px;
-    margin-bottom: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    text-decoration: none;
-    color: #333;
-    transition: box-shadow 0.2s;
-}
-
-.mobile-list-item:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
-
-.mobile-list-item-icon {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: transparent;
-    border: 1px solid #e0e0e0;
-    color: transparent;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 8px;
-    font-size: 0;
-    flex-shrink: 0;
-}
-
-.mobile-list-item-icon.completed {
-    background: #c8e6c9;
-    border-color: #c8e6c9;
-    color: #4caf50;
-    font-size: 14px;
-}
-
-.mobile-list-item-content { flex: 1; }
-
-.mobile-list-item-title {
-    font-weight: 600;
-    font-size: 16px;
-    margin: 0 0 4px 0;
-}
-
-.mobile-list-item-meta { font-size: 14px; color: #666; }
-.mobile-list-item-action { color: #999; font-size: 18px; }
-
 /* Chat Interface */
 .mobile-chat-messages {
     height: 100%;
@@ -399,63 +354,6 @@ code[class*="language-"] {
     align-items: center;
     justify-content: center;
     font-size: 12px;
-}
-
-/* Accordion */
-.mobile-section-title {
-    font-size: 22px;
-    font-weight: 600;
-    color: #333;
-    margin: 36px 0 22px;
-}
-
-.mobile-accordion-item { margin-bottom: 8px; }
-
-.mobile-accordion-header {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 8px;
-    background: white;
-    border: none;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    text-align: left;
-    transition: box-shadow 0.2s;
-}
-
-.mobile-accordion-header:active { box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
-
-.mobile-accordion-title {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 600;
-    font-size: 15px;
-    color: #333;
-}
-
-.mobile-accordion-progress { font-weight: normal; font-size: 13px; color: #999; }
-
-.mobile-accordion-icon {
-    color: #999;
-    font-size: 14px;
-    transition: transform 0.3s;
-    flex-shrink: 0;
-}
-
-.mobile-accordion-content { display: none; padding: 4px 0 0; }
-
-.mobile-accordion-nested .mobile-accordion-header {
-    background: #f9f9f9;
-    padding: 10px 8px;
-}
-
-.mobile-accordion-nested .mobile-accordion-title {
-    font-size: 14px;
-    font-weight: 500;
 }
 
 /* Empty State */
@@ -619,4 +517,210 @@ code[class*="language-"] {
 .mobile-completion-button.is-secondary {
     background: #f5f5f5;
     color: #333;
+}
+
+/* Dashboard - Course Switcher Modal */
+.course-switcher-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: white;
+    z-index: 1000;
+    overflow-y: auto;
+}
+
+.course-switcher-modal.active {
+    display: block;
+}
+
+.course-switcher-header {
+    position: sticky;
+    top: 0;
+    background: #3a3a3a;
+    color: white;
+    padding: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 1001;
+}
+
+.course-switcher-header h2 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.course-switcher-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+}
+
+.course-switcher-list {
+    padding: 16px;
+}
+
+.course-item {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.course-item:active {
+    background: #f5f5f5;
+}
+
+.course-item-info {
+    flex: 1;
+}
+
+.course-item-name {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.course-item-progress {
+    font-size: 14px;
+    color: #666;
+}
+
+/* Dashboard - Module Accordion */
+.module-card {
+    background: white;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.module-header {
+    background: #f8f8f8b2;
+    border-top: 1px solid #e0e0e087;
+    border-bottom: 1px solid #e0e0e087;
+    padding: 6px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+.module-header.current-module {
+    border-left: 4px solid #3273dc;
+    padding-left: 12px;
+}
+
+.module-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+.module-title {
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.module-chevron {
+    transition: transform 0.2s;
+    color: #666;
+}
+
+.module-chevron.expanded {
+    transform: rotate(90deg);
+}
+
+/* Dashboard - Progress Ring */
+.progress-ring {
+    width: 30px;
+    height: 30px;
+}
+
+.progress-ring-circle {
+    transition: stroke-dashoffset 0.3s;
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+}
+
+/* Dashboard - Exercise List */
+.module-content {
+    display: none;
+    padding: 0px;
+}
+
+.module-content.expanded {
+    display: block;
+}
+
+.exercise-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    text-decoration: none;
+    color: inherit;
+}
+
+.exercise-item:last-child {
+    border-bottom: none;
+}
+
+.exercise-item:active {
+    background: #f5f5f5;
+}
+
+.exercise-item.current-exercise {
+    border-left: 4px solid #3273dc;
+    padding-left: 12px;
+    font-weight: 600;
+}
+
+.exercise-icon {
+    width: 24px;
+    height: 24px;
+    margin-right: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+}
+
+.exercise-icon.complete {
+    color: #48c774;
+}
+
+.exercise-icon.current {
+    color: gray;
+}
+
+.exercise-title {
+    flex: 1;
+}
+
+/* Dashboard - Empty State */
+.empty-state {
+    text-align: center;
+    padding: 48px 24px;
+    color: #999;
+}
+
+.empty-state i {
+    font-size: 48px;
+    margin-bottom: 16px;
+    color: #ddd;
 }

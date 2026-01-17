@@ -2,157 +2,251 @@
 {% load static %}
 
 {% block title %}Dashboard - Steacher{% endblock %}
-{% block header_logo %}<img src="{% static 'images/steacher_logo.png' %}" alt="Steacher" style="height: 40px; margin-right: 10px;">{% endblock %}
-{% block header_title %}Steacher{% endblock %}
+
+{% block header_title %}
+    {% if current_course %}
+        <span id="course-title" style="cursor: pointer;">
+            {{ current_course.course.name }}
+            <i class="fas fa-chevron-down" style="font-size: 0.8em; margin-left: 4px;"></i>
+        </span>
+    {% else %}
+        Steacher
+    {% endif %}
+{% endblock %}
 
 {% block content %}
 <div class="dashboard-content">
-    {% if last_exercise %}
-    <div class="box" style="background: #3a3a3a; color: white; margin-bottom: 16px;">
-        <h3 style="margin-top: 0; font-size: 14px; opacity: 0.9;">Continue where you left off</h3>
-        <p style="font-size: 18px; font-weight: 600; margin: 8px 0;">{{ last_exercise.localized_title|default:last_exercise.title }}</p>
-        <a href="{% url 'mobile:mobile_exercise' last_exercise.id %}" class="button" style="margin-top: 12px; background: #48c774; color: white; border: none;">
-            <span class="icon"><i class="fas fa-play"></i></span>
-            <span>Resume exercise</span>
-        </a>
-    </div>
-    {% endif %}
-    
-    {% if recent_exercises %}
-    <h2 class="mobile-section-title">Recent exercises</h2>
-    {% for exercise in recent_exercises %}
-    <a href="{% url 'mobile:mobile_exercise' exercise.id %}" class="mobile-list-item">
-        <div class="mobile-list-item-icon {% if exercise.is_complete %}completed{% endif %}">
-            {% if exercise.is_complete %}
-                <i class="fas fa-check"></i>
-            {% endif %}
+    {% if not course_data %}
+        <div class="empty-state">
+            <i class="fas fa-book-open"></i>
+            <p>No course registered yet.</p>
         </div>
-        <div class="mobile-list-item-content">
-            <div class="mobile-list-item-title">{{ exercise.localized_title|truncatechars:80 }}</div>
-        </div>
-        <div class="mobile-list-item-action">
-            <i class="fas fa-chevron-right"></i>
-        </div>
-    </a>
-    {% endfor %}
     {% else %}
-    <div style="text-align: center; padding: 24px; color: #999; font-size: 14px;">
-        Start an exercise below
-    </div>
-    {% endif %}
-    
-    {% if course_data|length == 1 %}
-        {# Single course view: show course name and list modules directly #}
-        {% with item=course_data.0 %}
-        <h2 class="mobile-section-title">{{ item.course.name }}</h2>
-        <div class="mobile-course-modules">
-            {% for module_item in item.modules %}
-            <div class="mobile-accordion-item">
-                <button class="mobile-accordion-header" data-target="module-{{ module_item.module.id }}">
-                    <div class="mobile-accordion-title">
-                        <span>{{ module_item.module.name }}</span>
-                        <span class="mobile-accordion-progress">({{ module_item.completed }}/{{ module_item.total }})</span>
-                    </div>
-                    <i class="fas fa-chevron-down mobile-accordion-icon"></i>
+        <!-- Course Switcher Modal -->
+        {% if course_data|length > 1 %}
+        <div class="course-switcher-modal" id="course-switcher-modal">
+            <div class="course-switcher-header">
+                <h2>Select Course</h2>
+                <button class="course-switcher-close" id="close-course-switcher">
+                    <i class="fas fa-times"></i>
                 </button>
-                <div class="mobile-accordion-content" id="module-{{ module_item.module.id }}">
-                    {% for exercise in module_item.exercises %}
-                    <a href="{% url 'mobile:mobile_exercise' exercise.id %}" class="mobile-list-item">
-                        <div class="mobile-list-item-icon {% if exercise.is_complete %}completed{% endif %}">
-                            {% if exercise.is_complete %}
-                                <i class="fas fa-check"></i>
-                            {% endif %}
-                        </div>
-                        <div class="mobile-list-item-content">
-                            <div class="mobile-list-item-title">{{ exercise.localized_title|truncatechars:80 }}</div>
-                        </div>
-                        <div class="mobile-list-item-action">
-                            <i class="fas fa-chevron-right"></i>
-                        </div>
-                    </a>
-                    {% endfor %}
-                </div>
             </div>
-            {% endfor %}
-        </div>
-        {% endwith %}
-
-    {% elif course_data %}
-        {# Multiple courses view #}
-        <h2 class="mobile-section-title">Courses</h2>
-        
-        {% for item in course_data %}
-        <div class="mobile-accordion-item">
-            <button class="mobile-accordion-header" data-target="course-{{ item.course.id }}">
-                <div class="mobile-accordion-title">
-                    <span>{{ item.course.name }}</span>
-                    <span class="mobile-accordion-progress">({{ item.completed }}/{{ item.total }})</span>
-                </div>
-                <i class="fas fa-chevron-down mobile-accordion-icon"></i>
-            </button>
-            <div class="mobile-accordion-content" id="course-{{ item.course.id }}">
-                {% for module_item in item.modules %}
-                <div class="mobile-accordion-item mobile-accordion-nested">
-                    <button class="mobile-accordion-header" data-target="module-{{ module_item.module.id }}">
-                        <div class="mobile-accordion-title">
-                            <span>{{ module_item.module.name }}</span>
-                            <span class="mobile-accordion-progress">({{ module_item.completed }}/{{ module_item.total }})</span>
-                        </div>
-                        <i class="fas fa-chevron-down mobile-accordion-icon"></i>
-                    </button>
-                    <div class="mobile-accordion-content" id="module-{{ module_item.module.id }}">
-                        {% for exercise in module_item.exercises %}
-                        <a href="{% url 'mobile:mobile_exercise' exercise.id %}" class="mobile-list-item">
-                            <div class="mobile-list-item-icon {% if exercise.is_complete %}completed{% endif %}">
-                                {% if exercise.is_complete %}
-                                    <i class="fas fa-check"></i>
-                                {% endif %}
-                            </div>
-                            <div class="mobile-list-item-content">
-                                <div class="mobile-list-item-title">{{ exercise.localized_title|truncatechars:80 }}</div>
-                            </div>
-                            <div class="mobile-list-item-action">
-                                <i class="fas fa-chevron-right"></i>
-                            </div>
-                        </a>
-                        {% endfor %}
+            <div class="course-switcher-list">
+                {% for course_item in course_data %}
+                <div class="course-item" data-course-id="{{ course_item.course.id }}">
+                    <div class="course-item-info">
+                        <div class="course-item-name">{{ course_item.course.name }}</div>
+                        <div class="course-item-progress">{{ course_item.completed }} / {{ course_item.total }}</div>
                     </div>
+                    <svg class="progress-ring" width="30" height="30" viewBox="0 0 40 40">
+                        <circle class="progress-ring-bg"
+                                stroke="#e8e8e8"
+                                stroke-width="5"
+                                fill="transparent"
+                                r="16"
+                                cx="20"
+                                cy="20" />
+                        <circle class="progress-ring-circle"
+                                stroke="{% if course_item.total > 0 %}#48c774{% else %}#e0e0e0{% endif %}"
+                                stroke-width="5"
+                                fill="transparent"
+                                r="16"
+                                cx="20"
+                                cy="20"
+                                data-completed="{{ course_item.completed }}"
+                                data-total="{{ course_item.total }}" />
+                    </svg>
                 </div>
                 {% endfor %}
             </div>
         </div>
-        {% endfor %}
-    {% else %}
-        <h2 class="mobile-section-title">Courses</h2>
-        <div class="mobile-empty-state">
-            <div class="mobile-empty-state-icon">
-                <i class="fas fa-tasks"></i>
+        {% endif %}
+
+        <!-- Modules List -->
+        {% if current_course %}
+            {% for module_item in current_course.modules %}
+            <div class="module-card" data-module-id="{{ module_item.module.id }}">
+                <div class="module-header {% if module_item.module.id == current_module_id %}current-module{% endif %}">
+                    <div class="module-header-left">
+                        <i class="fas fa-chevron-right module-chevron"></i>
+                        <span class="module-title">{{ module_item.module.name }}</span>
+                    </div>
+                    <svg class="progress-ring" width="40" height="40" viewBox="0 0 40 40">
+                        <circle class="progress-ring-bg"
+                                stroke="#e8e8e8"
+                                stroke-width="5"
+                                fill="transparent"
+                                r="16"
+                                cx="20"
+                                cy="20" />
+                        <circle class="progress-ring-circle"
+                                stroke="{% if module_item.total > 0 %}#48c774{% else %}#e0e0e0{% endif %}"
+                                stroke-width="5"
+                                fill="transparent"
+                                r="16"
+                                cx="20"
+                                cy="20"
+                                data-completed="{{ module_item.completed }}"
+                                data-total="{{ module_item.total }}" />
+                    </svg>
+                </div>
+                <div class="module-content">
+                    {% for exercise in module_item.exercises %}
+                    <a href="{% url 'mobile:mobile_exercise' exercise.id %}" 
+                       class="exercise-item {% if exercise.id == current_exercise_id %}current-exercise{% endif %}"
+                       data-exercise-id="{{ exercise.id }}">
+                        <div class="exercise-icon {% if exercise.is_complete %}complete{% elif exercise.id == current_exercise_id %}current{% endif %}">
+                            {% if exercise.is_complete %}
+                                <i class="fas fa-check"></i>
+                            {% elif exercise.id == current_exercise_id %}
+                                <i class="fas fa-adjust"></i>
+                            {% endif %}
+                        </div>
+                        <div class="exercise-title">{{ exercise.localized_title }}</div>
+                    </a>
+                    {% empty %}
+                    <div style="padding: 16px; text-align: center; color: #999; font-size: 14px;">
+                        No exercises yet
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
-            <div class="mobile-empty-state-text">
-                No courses yet. Contact your teacher to get started.
-            </div>
-        </div>
+            {% endfor %}
+        {% endif %}
     {% endif %}
 </div>
 
 <script>
-// Simple accordion toggle
-document.querySelectorAll('.mobile-accordion-header').forEach(button => {
-    button.addEventListener('click', function(e) {
-        e.preventDefault();
-        const targetId = this.getAttribute('data-target');
-        const content = document.getElementById(targetId);
-        const icon = this.querySelector('.mobile-accordion-icon');
+document.addEventListener('DOMContentLoaded', function() {
+    const currentCourseId = {{ current_course.course.id|default:"null" }};
+    const currentModuleId = {{ current_module_id|default:"null" }};
+    const currentExerciseId = {{ current_exercise_id|default:"null" }};
+    
+    // Initialize progress rings
+    function initProgressRings() {
+        const circles = document.querySelectorAll('.progress-ring-circle');
+        const radius = 16;
+        const circumference = 2 * Math.PI * radius;
         
-        if (content.style.display === 'block') {
-            content.style.display = 'none';
-            icon.style.transform = 'rotate(0deg)';
-        } else {
-            content.style.display = 'block';
-            icon.style.transform = 'rotate(180deg)';
+        circles.forEach(circle => {
+            const completed = parseInt(circle.dataset.completed || 0);
+            const total = parseInt(circle.dataset.total || 1);
+            const percent = total > 0 ? (completed / total) : 0;
+            const offset = circumference - (percent * circumference);
+            
+            circle.style.strokeDasharray = `${circumference} ${circumference}`;
+            circle.style.strokeDashoffset = offset;
+        });
+    }
+    
+    initProgressRings();
+    
+    // Course switcher
+    const courseTitle = document.getElementById('course-title');
+    const courseSwitcherModal = document.getElementById('course-switcher-modal');
+    const closeSwitcher = document.getElementById('close-course-switcher');
+    
+    if (courseTitle && courseSwitcherModal && closeSwitcher) {
+        function closeModal() {
+            courseSwitcherModal.classList.remove('active');
+            document.body.style.overflow = '';
         }
+        
+        courseTitle.addEventListener('click', function() {
+            courseSwitcherModal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        });
+        
+        closeSwitcher.addEventListener('click', closeModal);
+        
+        // Click outside to close
+        courseSwitcherModal.addEventListener('click', function(e) {
+            if (e.target === courseSwitcherModal) {
+                closeModal();
+            }
+        });
+        
+        // Course selection
+        document.querySelectorAll('.course-item').forEach(item => {
+            item.addEventListener('click', function() {
+                window.location.href = `?course=${this.dataset.courseId}`;
+            });
+        });
+    }
+    
+    // Module accordion with localStorage persistence
+    function getCollapseState(moduleId) {
+        const key = `mobile_course_${currentCourseId}_module_${moduleId}`;
+        const value = localStorage.getItem(key);
+        if (value === null) return null;
+        return value === 'collapsed';
+    }
+    
+    function setCollapseState(moduleId, collapsed) {
+        const key = `mobile_course_${currentCourseId}_module_${moduleId}`;
+        localStorage.setItem(key, collapsed ? 'collapsed' : 'expanded');
+    }
+    
+    function toggleModule(moduleCard) {
+        const moduleId = moduleCard.dataset.moduleId;
+        const content = moduleCard.querySelector('.module-content');
+        const chevron = moduleCard.querySelector('.module-chevron');
+        const isCollapsed = !content.classList.contains('expanded');
+        
+        if (isCollapsed) {
+            content.classList.add('expanded');
+            chevron.classList.add('expanded');
+            setCollapseState(moduleId, false);
+        } else {
+            content.classList.remove('expanded');
+            chevron.classList.remove('expanded');
+            setCollapseState(moduleId, true);
+        }
+    }
+    
+    // Initialize modules
+    document.querySelectorAll('.module-card').forEach(moduleCard => {
+        const moduleId = moduleCard.dataset.moduleId;
+        const header = moduleCard.querySelector('.module-header');
+        const content = moduleCard.querySelector('.module-content');
+        const chevron = moduleCard.querySelector('.module-chevron');
+        
+        // Restore state or expand current module
+        const isCurrentModule = parseInt(moduleId) === currentModuleId;
+        const savedCollapsed = getCollapseState(moduleId);
+        
+        if (savedCollapsed === null) {
+            // No saved state: expand only current module, collapse others
+            if (isCurrentModule) {
+                content.classList.add('expanded');
+                chevron.classList.add('expanded');
+                setCollapseState(moduleId, false);
+            }
+        } else if (!savedCollapsed) {
+            // Saved as expanded
+            content.classList.add('expanded');
+            chevron.classList.add('expanded');
+        }
+        
+        // Click handler
+        header.addEventListener('click', () => toggleModule(moduleCard));
     });
+    
+    // Auto-scroll to current exercise
+    if (currentExerciseId) {
+        setTimeout(function() {
+            const currentExercise = document.querySelector(`.exercise-item[data-exercise-id="${currentExerciseId}"]`);
+            if (currentExercise) {
+                const header = document.querySelector('.mobile-header');
+                const headerHeight = header ? header.offsetHeight : 0;
+                const elementTop = currentExercise.getBoundingClientRect().top + window.scrollY;
+                window.scrollTo({
+                    top: elementTop - headerHeight - 16,
+                    behavior: 'smooth'
+                });
+            }
+        }, 100);
+    }
 });
 </script>
 {% endblock %}
-

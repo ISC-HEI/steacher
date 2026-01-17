@@ -13,9 +13,6 @@
 {% endblock %}
 
 {% block nav_exercise_context %}
-    <a href="{% url 'mobile:mobile_dashboard' %}" class="mobile-nav-item">
-        <i class="fas fa-home"></i> Dashboard
-    </a>
     {% if module %}
     <a href="{% url 'mobile:mobile_dashboard' %}#module-{{ module.id }}" class="mobile-nav-item">
         <i class="fas fa-folder"></i> {{ module.name }}
@@ -81,7 +78,7 @@
         <!-- Completion Buttons -->
         <div v-if="showCompletionButtons" class="mobile-completion-buttons">
             {% if next_exercise %}
-            <a :href="'/mobile/exercises/' + nextExerciseId + '/'" class="mobile-completion-button is-primary">
+            <a href="{% url 'mobile:mobile_exercise' next_exercise.id %}" class="mobile-completion-button is-primary">
                 <span>Next Exercise</span>
                 <span class="icon"><i class="fas fa-arrow-right"></i></span>
             </a>

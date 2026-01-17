@@ -46,7 +46,7 @@ def mobile_install(request):
 @require_GET
 def mobile_dashboard(request):
     """
-    Mobile dashboard with recent exercises and hierarchical course/module/exercise view.
+    Mobile dashboard with hierarchical course/module/exercise view.
     Redirects to magic link request page if not authenticated.
     """
     # Redirect unauthenticated users to magic link request page
@@ -60,26 +60,6 @@ def mobile_dashboard(request):
             status='active'
         ).values_list('cohort__course', flat=True)
     )
-    
-    # Recent 5 exercises (open_question only)
-    recent_attempts = (
-        Attempt.objects.filter(
-            user=request.user,
-            exercise__module__course__id__in=course_ids,
-            exercise__exercise_type='open_question'
-        )
-        .select_related('exercise__module__course')
-        .order_by('-updated_at')[:5]
-    )
-    recent_exercises = []
-    for att in recent_attempts:
-        ex = att.exercise
-        ex.localized_title = localized_name(ex, 'title_i18n', request.user)
-        ex.is_complete = att.complete
-        recent_exercises.append(ex)
-
-    # Get last active exercise for "Continue where you left off" box
-    last_exercise = recent_exercises[0] if len(recent_exercises) > 0 else None
     
     # Get all completed exercise IDs for this user
     completed_ids = set(
@@ -116,25 +96,23 @@ def mobile_dashboard(request):
     
     # Build course data with progress
     course_data = []
+    
     for course in courses:
-        # Count total and completed exercises in this course
-        all_exercise_ids = []
         modules_data = []
+        course_completed = 0
+        course_total = 0
         
-        for module in course.modules.filter(visible=True).order_by('order'):
+        for module in course.modules.all():
             exercises_data = []
-            module_exercise_ids = []
             
-            for ex in module.exercises.filter(visible=True, exercise_type='open_question').order_by('order'):
+            for ex in module.exercises.all():
                 ex.localized_title = localized_name(ex, 'title_i18n', request.user)
                 ex.is_complete = ex.id in completed_ids
                 exercises_data.append(ex)
-                module_exercise_ids.append(ex.id)
-                all_exercise_ids.append(ex.id)
             
             # Module progress
-            module_completed = sum(1 for eid in module_exercise_ids if eid in completed_ids)
-            module_total = len(module_exercise_ids)
+            module_completed = sum(1 for ex in exercises_data if ex.is_complete)
+            module_total = len(exercises_data)
             
             modules_data.append({
                 'module': module,
@@ -142,10 +120,9 @@ def mobile_dashboard(request):
                 'completed': module_completed,
                 'total': module_total,
             })
-        
-        # Course progress
-        course_completed = sum(1 for eid in all_exercise_ids if eid in completed_ids)
-        course_total = len(all_exercise_ids)
+            
+            course_completed += module_completed
+            course_total += module_total
         
         course_data.append({
             'course': course,
@@ -158,10 +135,83 @@ def mobile_dashboard(request):
     # Sort by recent activity
     course_data.sort(key=lambda x: (x['last_activity'] is not None, x['last_activity']), reverse=True)
     
+    # Determine which course to display from URL parameter
+    selected_course_id = request.GET.get('course')
+    current_course = None
+    
+    if selected_course_id:
+        # User selected a specific course via URL parameter
+        try:
+            selected_course_id = int(selected_course_id)
+            current_course = next((c for c in course_data if c['course'].id == selected_course_id), None)
+        except (ValueError, TypeError):
+            pass
+    
+    # Fallback to most recently active course
+    if not current_course and course_data:
+        current_course = course_data[0]
+    
+    # Find current exercise (only for the selected course):
+    # 1. If last attempt incomplete -> resume it
+    # 2. If last attempt complete -> find next exercise
+    # 3. Otherwise -> first exercise
+    current_exercise_id = None
+    current_module_id = None
+    
+    if current_course:
+        # Get last attempt for this specific course
+        course_last_attempt = (
+            Attempt.objects.filter(
+                user=request.user,
+                exercise__module__course_id=current_course['course'].id,
+                exercise__exercise_type='open_question'
+            )
+            .select_related('exercise__module')
+            .order_by('-updated_at')
+            .first()
+        )
+        
+        if course_last_attempt:
+            if not course_last_attempt.complete:
+                # Resume incomplete exercise
+                current_exercise_id = course_last_attempt.exercise_id
+                current_module_id = course_last_attempt.exercise.module_id
+            else:
+                # Find next exercise after this completed one
+                all_exercises = [
+                    (ex, module_item['module'])
+                    for module_item in current_course['modules']
+                    for ex in module_item['exercises']
+                ]
+                
+                last_ex_index = next(
+                    (i for i, (ex, _) in enumerate(all_exercises) if ex.id == course_last_attempt.exercise_id),
+                    None
+                )
+                
+                if last_ex_index is not None and last_ex_index + 1 < len(all_exercises):
+                    # Next exercise exists
+                    next_ex, next_module = all_exercises[last_ex_index + 1]
+                    current_exercise_id = next_ex.id
+                    current_module_id = next_module.id
+                else:
+                    # No next exercise, stay on last one
+                    current_exercise_id = course_last_attempt.exercise_id
+                    current_module_id = course_last_attempt.exercise.module_id
+        
+        # Fallback: if no current exercise found, pick first exercise of first module
+        if not current_exercise_id:
+            for module_item in current_course['modules']:
+                if module_item['exercises']:
+                    current_exercise_id = module_item['exercises'][0].id
+                    current_module_id = module_item['module'].id
+                    break
+    
     return render(request, 'exercises/mobile/mobile_dashboard.html', {
-        'last_exercise': last_exercise,
-        'recent_exercises': recent_exercises,
         'course_data': course_data,
+        'current_course': current_course,
+        'current_exercise_id': current_exercise_id,
+        'current_module_id': current_module_id,
     })
 
 

@@ -105,6 +105,9 @@
             </button>
         </div>
         <div class="mobile-nav-content">
+            <a href="{% url 'mobile:mobile_dashboard' %}" class="mobile-nav-item" id="dashboard-link">
+                <i class="fas fa-home"></i> Dashboard
+            </a>
             {% block nav_exercise_context %}{% endblock %}
             <a href="{% url 'mobile:mobile_install' %}" class="mobile-nav-item" id="install-menu-item">
                 <i class="fas fa-download"></i> Install App
@@ -186,6 +189,18 @@
             if (isStandalone) {
                 installMenuItem.style.display = 'none';
                 console.log('App is installed - hiding install menu item');
+            }
+        })();
+        
+        // Update dashboard link with last selected course from localStorage
+        (function() {
+            const dashboardLink = document.getElementById('dashboard-link');
+            if (dashboardLink) {
+                const lastCourseId = localStorage.getItem('mobile_last_course_id');
+                if (lastCourseId) {
+                    const baseUrl = dashboardLink.getAttribute('href');
+                    dashboardLink.setAttribute('href', `${baseUrl}?course=${lastCourseId}`);
+                }
             }
         })();
         
