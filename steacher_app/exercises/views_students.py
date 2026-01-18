@@ -375,6 +375,7 @@ def course_detail(request, pk):
         'can_teacher_view': can_teacher_view,
         'has_active_quiz': has_active_quiz,
         'cohort_id': active_cohort_id,
+        'show_mobile_banner': course.mobile_first,
     })
 
 
@@ -609,6 +610,7 @@ def exercise_detail(request, pk):
         'quiz_mode': bool(quiz_mode),
         'cohort': quiz_cohort,
         'quiz_module_id': quiz_module_id,
+        'show_mobile_banner': exercise.module.course.mobile_first,
     })
 
 

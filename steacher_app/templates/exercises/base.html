@@ -55,6 +55,29 @@
     </script>
 </head>
 <body class="base-layout-body">
+    {% if show_mobile_banner %}
+    <div id="mobile-first-banner" class="notification is-info is-light" style="margin: 0; border-radius: 0; display: none;">
+        <div class="container">
+            <div class="is-flex is-align-items-center">
+                <span class="icon is-large mr-3">
+                    <i class="fas fa-mobile-alt fa-2x"></i>
+                </span>
+                <div>
+                    <strong>This course is optimized for mobile devices.</strong>
+                    Please use your phone or tablet for the best experience. This way you may easily take pictures of your work and record voice messages.
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function() {
+        const isDesktop = !/Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(navigator.userAgent);
+        if (isDesktop) {
+            document.getElementById('mobile-first-banner').style.display = 'block';
+        }
+    })();
+    </script>
+    {% endif %}
     <nav class="navbar is-light base-layout-navbar" role="navigation" aria-label="main navigation">
         <div class="navbar-brand">
             <a class="navbar-item" href="{% teacher_home_url user %}" style="padding: 0;">

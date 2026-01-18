@@ -133,7 +133,6 @@ class CourseAdminForm(forms.ModelForm):
         fields = '__all__'
         widgets = {
             'llm_prompts': JSONFormWidget(schema=LLM_PROMPTS_SCHEMA),
-            'chat_prompt': forms.Textarea(attrs={'rows': 12}),
             'course_prompt': forms.Textarea(attrs={'rows': 12}),
             'override_system_prompt': forms.Textarea(attrs={'rows': 20}),
         }
@@ -148,10 +147,10 @@ class CourseAdmin(admin.ModelAdmin):
 
     fieldsets = (
         (None, {
-            'fields': ('name', 'description', 'visible')
+            'fields': ('name', 'description', 'visible', 'mobile_first')
         }),
         ('AI Prompts', {
-            'fields': ('course_prompt', 'chat_prompt', 'override_system_prompt', 'llm_prompts')
+            'fields': ('course_prompt', 'override_system_prompt', 'llm_prompts')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),

@@ -169,6 +169,10 @@ html {
     align-items: center;
 }
 
+#mobile-first-banner {
+    background-color: #3273dc !important;
+}
+
 /* Exercise page layout */
 .exercise-page-wrapper {
     display: flex;

@@ -19,6 +19,7 @@ class Course(models.Model):
     override_system_prompt = models.TextField(blank=True, help_text="Override the default system prompt used by the AI tutor for exercises in this course. Leave empty to use the global default (recommended).")
     llm_prompts = models.JSONField(blank=True, default=dict, help_text="LLM prompts per exercise type, e.g. {'turtle': 'Your prompt for turtle exercises...'}")
     visible = models.BooleanField(default=True, help_text="Whether the course is visible to students.")
+    mobile_first = models.BooleanField(default=False, help_text="If true, desktop users will see a banner recommending mobile usage for this course.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     # Reverse link to all Trace rows that reference this Course as owner
