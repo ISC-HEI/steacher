@@ -590,6 +590,38 @@ Troubleshooting:
 - Check `NEW_RELIC_CONFIG_FILE` path (defaults to `/app/steacher_app/newrelic.ini`)
 - Make sure `newrelic` is in `requirements.txt`
 
+# Sentry Error Tracking
+
+Sentry monitors frontend JavaScript errors and backend performance in production. It's configured to run only when `DEBUG=False`.
+
+Setup:
+
+1) Add to `.env.production`:
+
+```bash
+SENTRY_DSN=https://your-sentry-dsn@sentry.io/project-id
+```
+
+2) Deploy/restart `web`:
+
+```bash
+docker compose up -d --build web
+```
+
+Configuration:
+- **Frontend**: Tracks JavaScript errors from both desktop and mobile PWA
+- **Backend**: Monitors Django exceptions, slow queries, and API performance
+- **Sample Rate**: 20% of transactions tracked (stays within free tier: 5K errors, 5M spans/month)
+- **Database Queries**: Only queries taking ≥100ms are tracked (saves quota)
+- **User Context**: Automatically attaches user ID to all errors
+- **Filtering**: Ignores browser extensions and common network timeouts
+
+Verify in Sentry dashboard:
+- Check for incoming events under Issues
+- Monitor performance under Performance tab
+- Set up alerts for high error rates
+
+To disable Sentry, remove or empty the `SENTRY_DSN` variable in `.env.production`.
 
 ----
 

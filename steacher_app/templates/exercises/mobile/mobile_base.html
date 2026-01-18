@@ -13,6 +13,55 @@
     
     <title>{% block title %}Steacher Mobile{% endblock %}</title>
     
+    <!-- Sentry Error Tracking -->
+    {% if SENTRY_DSN and not DEBUG %}
+    <script
+        src="https://browser.sentry-cdn.com/8.47.0/bundle.min.js"
+        integrity="sha384-F1SqswdlOeNYRWB3oa9RUmKftSyuOow0eg62rQ02yu79aQrHRFj4n6JMD8B1oHlO"
+        crossorigin="anonymous"
+    ></script>
+    <script>
+        if (window.Sentry) {
+            Sentry.init({
+                dsn: "{{ SENTRY_DSN }}",
+                environment: "production",
+                beforeSend(event, hint) {
+                    // Filter out browser extension errors
+                    if (event.exception && event.exception.values) {
+                        const errorMessage = event.exception.values[0].value || '';
+                        if (errorMessage.includes('chrome-extension://') || 
+                            errorMessage.includes('moz-extension://') ||
+                            errorMessage.includes('safari-extension://')) {
+                            return null;
+                        }
+                    }
+                    // Filter out common network timeouts
+                    if (event.message && (
+                        event.message.includes('NetworkError') ||
+                        event.message.includes('Failed to fetch') ||
+                        event.message.includes('Load failed')
+                    )) {
+                        return null;
+                    }
+                    
+                    // Attach exercise/course context from page if available
+                    if (window.exerciseContext) {
+                        event.contexts = event.contexts || {};
+                        event.contexts.exercise = window.exerciseContext;
+                    }
+                    
+                    return event;
+                },
+            });
+            
+            // Attach user context if authenticated
+            {% if user.is_authenticated %}
+            Sentry.setUser({ id: "{{ user.id }}" });
+            {% endif %}
+        }
+    </script>
+    {% endif %}
+    
     <!-- Favicons -->
     <link rel="icon" type="image/x-icon" href="{% static 'images/favicon/favicon.ico' %}">
     <link rel="icon" type="image/png" sizes="16x16" href="{% static 'images/favicon/favicon-16x16.png' %}">

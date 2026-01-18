@@ -19,6 +19,43 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Sentry configuration (production only)
+SENTRY_DSN = os.getenv('SENTRY_DSN', '')
+if SENTRY_DSN and os.getenv('DJANGO_DEBUG', 'True') != 'True':
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    
+    def before_send_transaction(event, hint):
+        """Filter out fast database queries (< 100ms) to save quota."""
+        if event.get('type') == 'transaction':
+            spans = event.get('spans', [])
+            filtered_spans = []
+            for span in spans:
+                if span.get('op', '').startswith('db'):
+                    # Calculate duration in milliseconds
+                    duration_ms = (span.get('timestamp', 0) - span.get('start_timestamp', 0)) * 1000
+                    # Keep only slow queries (>= 100ms)
+                    if duration_ms >= 100:
+                        filtered_spans.append(span)
+                else:
+                    # Keep all non-DB spans
+                    filtered_spans.append(span)
+            event['spans'] = filtered_spans
+        return event
+    
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        traces_sample_rate=0.2,
+        send_default_pii=False,
+        environment='production',
+        before_send=lambda event, hint: event if event.get('level') != 'info' else None,
+        before_send_transaction=before_send_transaction,
+        _experiments={
+            "profiles_sample_rate": 0.0,  # Disable profiling to save quota
+        },
+    )
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
@@ -67,6 +104,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'exam_project.sentry_middleware.SentryContextMiddleware',  # Attach user context to Sentry
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -84,6 +122,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'exam_project.context_processors.sentry_context',
             ],
         },
     },

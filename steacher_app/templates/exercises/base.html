@@ -20,6 +20,49 @@
     <meta name="theme-color" content="#ffffff">
     <meta name="theme-color" content="#0b0b0b" media="(prefers-color-scheme: dark)">
     <meta name="csrf-token" content="{{ csrf_token }}">
+    
+    <!-- Sentry Error Tracking -->
+    {% if SENTRY_DSN and not DEBUG %}
+    <script
+        src="https://browser.sentry-cdn.com/8.47.0/bundle.min.js"
+        integrity="sha384-F1SqswdlOeNYRWB3oa9RUmKftSyuOow0eg62rQ02yu79aQrHRFj4n6JMD8B1oHlO"
+        crossorigin="anonymous"
+    ></script>
+    <script>
+        if (window.Sentry) {
+            Sentry.init({
+                dsn: "{{ SENTRY_DSN }}",
+                environment: "production",
+                beforeSend(event, hint) {
+                    // Filter out browser extension errors
+                    if (event.exception && event.exception.values) {
+                        const errorMessage = event.exception.values[0].value || '';
+                        if (errorMessage.includes('chrome-extension://') || 
+                            errorMessage.includes('moz-extension://') ||
+                            errorMessage.includes('safari-extension://')) {
+                            return null;
+                        }
+                    }
+                    // Filter out common network timeouts
+                    if (event.message && (
+                        event.message.includes('NetworkError') ||
+                        event.message.includes('Failed to fetch') ||
+                        event.message.includes('Load failed')
+                    )) {
+                        return null;
+                    }
+                    return event;
+                },
+            });
+            
+            // Attach user context if authenticated
+            {% if user.is_authenticated %}
+            Sentry.setUser({ id: "{{ user.id }}" });
+            {% endif %}
+        }
+    </script>
+    {% endif %}
+    
     {% block head %}{% endblock %}
     
     <!-- Bulma CSS via CDN (pinned) -->

@@ -15,7 +15,6 @@ uvicorn[standard]
 python-dotenv
 requests
 pydantic
-newrelic
 markdown2
 channels==4.1.0
 channels-redis==4.2.0
@@ -25,3 +24,4 @@ qrcode[pil]>=7.4.2
 groq>=0.4.0
 mailtrap
 pypdf>=4.0.0
+sentry-sdk[django]>=2.0.0

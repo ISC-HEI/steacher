@@ -18,7 +18,6 @@ from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 from django.views.decorators.http import require_POST, require_http_methods
-import newrelic.agent as nr
 
 from .authz import course_roles_required, assert_can_edit_course, assert_can_view_course, cohort_roles_required, get_user_cohort_role, assert_can_manage_cohort
 from .models import Exercise, Course, Module, ExerciseAsset, Cohort, CohortMembership, Attempt, create_trace_for, CourseMembership, Trace, localized_name, QuizLog
@@ -1155,9 +1154,6 @@ def exercise_authoring_assistant(request):
     Teacher-facing authoring assistant.
     Handles a teacher's request for authoring assistance by calling the main authoring logic.
     """
-
-    nr.set_background_task(True)     # removes it from web Apdex
-    nr.suppress_apdex_metric()       # belt-and-suspenders
     
     try:
         body = json.loads(request.body)

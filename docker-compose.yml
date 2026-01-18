@@ -7,11 +7,6 @@ services:
       - .env.production
     environment:
       - SCALA_INTERPRETER_URL=http://scala_interpreter:8642
-      - NEW_RELIC_CONFIG_FILE=/app/newrelic.ini
-      - NEW_RELIC_APP_NAME=Steacher
-      - NEW_RELIC_LOG=stdout
-      - NEW_RELIC_LOG_LEVEL=info
-      - NEW_RELIC_PROCESS_HOST_DISPLAY_NAME=steacher1
     volumes:
       - static_data:/app/staticfiles
       - media_data:/app/media
@@ -150,44 +145,6 @@ services:
     security_opt:
       - no-new-privileges:true
 
-
-  newrelic_infra:
-    image: newrelic/infrastructure-bundle:latest
-    # privileged: true # Avoid if possible, use cap_add instead
-    pid: host # Allows agent to see all host processes
-    restart: unless-stopped
-    env_file:
-      - .env.production
-    environment:
-      - NRIA_LOG_FILE=/var/log/newrelic-infra/newrelic-infra.log
-      - NRIA_OVERRIDE_HOST_ROOT=/host
-      - NRIA_LOG_LEVEL=info
-      - NRIA_DISPLAY_NAME=steacher1
-      - NRIA_OVERRIDE_HOSTNAME=steacher1
-      - NRIA_CUSTOM_ATTRIBUTES={"env":"prod","service":"steacher"}
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    cap_add:
-      - DAC_READ_SEARCH
-      - SYS_PTRACE
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /var/log/newrelic-infra
-    volumes:
-      - /:/host:ro
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - newrelic_infra_db:/var/db/newrelic-infra
-      - ./newrelic-infra/integrations.d:/etc/newrelic-infra/integrations.d:ro
-    networks:
-      - backend  # access to postgresql for monitoring
-      - monitoring  # outbound internet access to New Relic cloud
-
-
   certbot:
     image: certbot/certbot
     volumes:
@@ -209,7 +166,6 @@ volumes:
   redis_data:
   static_data:
   media_data:
-  newrelic_infra_db:
   metabase_data:
 
 networks:
@@ -221,8 +177,5 @@ networks:
   compute:
     driver: bridge
     internal: true  # no outbound egress
-  monitoring:
-    driver: bridge
-    # external internet access for monitoring/observability tools
   maintenance:
     driver: bridge

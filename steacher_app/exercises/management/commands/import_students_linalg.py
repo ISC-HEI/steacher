@@ -65,7 +65,8 @@ class Command(BaseCommand):
                                 'username': email.split('@')[0],
                                 'first_name': first_name,
                                 'last_name': last_name,
-                                'password': make_password(get_random_string(12))
+                                'password': make_password(get_random_string(12)),
+                                'preferred_language': 'fr'
                             }
                         )
 
