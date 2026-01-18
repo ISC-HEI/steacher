@@ -317,7 +317,7 @@ def fetch_ai_guidance(data: dict, exercise: Exercise, attempt: Attempt) -> dict:
     # 3. Render system prompt via template
     from .prompting import build_system_prompt
     prompt = build_system_prompt(action=action, exercise=exercise, attempt=attempt)
-    logger.debug(f"System prompt:\n{prompt}")
+    #logger.debug(f"System prompt:\n{prompt}")
 
     # 4. Use structured chat with history via Google genai Chats API
     llm_start_time = time.time()
@@ -964,7 +964,6 @@ Your response MUST be in the student's preferred language: {preferred_language_c
             })
             uncompleted_count += 1
     previous_exercises.reverse() # reverse to make them in the correct order
-    logger.info(f"previous_exercises: {previous_exercises}")
 
     # 2. Find and add the next 7 uncompleted exercises
     next_exercises = []

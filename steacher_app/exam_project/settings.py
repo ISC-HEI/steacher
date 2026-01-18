@@ -23,7 +23,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SENTRY_DSN = os.getenv('SENTRY_DSN', '')
 if SENTRY_DSN and os.getenv('DJANGO_DEBUG', 'True') != 'True':
     import sentry_sdk
+    import logging
     from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
     
     def before_send_transaction(event, hint):
         """Filter out fast database queries (< 100ms) to save quota."""
@@ -45,10 +47,16 @@ if SENTRY_DSN and os.getenv('DJANGO_DEBUG', 'True') != 'True':
     
     sentry_sdk.init(
         dsn=SENTRY_DSN,
-        integrations=[DjangoIntegration()],
+        integrations=[
+            DjangoIntegration(),
+            LoggingIntegration(
+                sentry_logs_level=logging.WARNING,  # Send WARNING and above to Sentry Logs
+            ),
+        ],
         traces_sample_rate=0.2,
         send_default_pii=False,
         environment='production',
+        enable_logs=True,  # Enable Sentry Logs feature
         before_send=lambda event, hint: event if event.get('level') != 'info' else None,
         before_send_transaction=before_send_transaction,
         _experiments={
