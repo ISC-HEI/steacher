@@ -1,0 +1,722 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage{fullpage,enumitem,stmaryrd,amsmath,amssymb,amsfonts,latexsym,graphics,graphicx,multicol,multirow,amsthm}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+% Page layout
+\usepackage[left=25mm, right=25mm, top=25mm, bottom=25mm, includefoot]{geometry}
+\usepackage{relsize}
+\usepackage{fontspec}
+\usepackage{unicode-math}
+\usepackage{lexend}
+\usepackage{xcolor}
+\usepackage{transparent}
+%\usepackage{kpfonts-otf}
+
+
+% Modifier la taille des formules mathématiques dans tout le document
+%\DeclareMathSizes{12}{14}{10}{8}  % 12 est la taille du texte ; 14, 10, et 8 sont les tailles des formules
+%\setsansfont[Mapping=tex-text]{Lexend Deca}
+\setmainfont{Lexend Deca}
+% Définir la police pour les formules mathématiques
+
+%\setmainfont{OpenDyslexic}
+%\setmathfont{KpMath-Sans.otf}[version=sans]
+%\setmathrm{KpMath-Sans.otf}
+
+\setmathfont{Latin Modern Math}  
+\setmathrm{Latin Modern Math}
+
+%\setmathfont{Libertinus Math}
+%\setmathrm{Libertinus Math}
+
+\DeclareMathSizes{12}{14}{10}{8}
+
+\AtBeginDocument{
+	\renewcommand{\vdots}{\rotatebox[origin=c]{90}{\(\cdots\)}}
+	\renewcommand{\ddots}{\rotatebox[origin=c]{135}{\(\cdots\)}}
+}
+
+\DeclareMathAlphabet{\mathcal}{OMS}{cmbrs}{m}{n}
+
+\newcommand{\vect}{\overrightarrow}
+\renewcommand\arraystretch{1.2}
+
+%One half spacing
+\usepackage{setspace}
+\onehalfspacing
+
+%color
+\usepackage{xcolor}
+\usepackage{transparent}
+\definecolor{dblue}{HTML}{004488}
+\definecolor{lblue}{HTML}{6699cc}
+\definecolor{dyell}{HTML}{997700}
+\definecolor{lyell}{HTML}{eecc66}
+\definecolor{dred}{HTML}{994455}
+\definecolor{lred}{HTML}{ee99aa}
+\definecolor{dgreen}{HTML}{006600}
+\definecolor{lgreen}{HTML}{99cc99}
+
+\definecolor{part}{HTML}{440154}
+\definecolor{chap}{HTML}{440154}
+
+\definecolor{req}{HTML}{E4AED6} 
+\definecolor{obj}{HTML}{C1DAA2}
+
+\definecolor{alert}{HTML}{cc79a7} 
+\definecolor{th}{HTML}{d55e00} 
+\definecolor{def}{HTML}{009e73}
+\definecolor{rem}{HTML}{f0e442}
+\definecolor{exo}{HTML}{56b4e9}
+\definecolor{expl}{HTML}{0072b2}
+
+\usepackage[newcommands]{ragged2e}
+%Hyphenation rules
+\usepackage[none]{hyphenat}
+%\hyphenation{mate-mática recu-perar}
+
+\begin{document}
+\sloppy
+\raggedright
+\selectlanguage{french}
+\begin{center}
+{\Huge Algèbre Linéaire 1}
+\end{center}
+\tableofcontents
+\pagebreak
+\section{Droites et cercles}
+\subsection{Droites}
+\begin{itemize}[label=$\bullet$]
+\item La droite $d$ par les points $P_1=(x_1,y_1)$ et $P_2=(x_2,y_2)$ a la \colorbox{def!40}{pente}
+
+$$a=\displaystyle{\frac{y_2-y_1}{x_2-x_1}}, \hspace{1cm} x_2\neq~x_1.$$
+
+Le nombre $b$ tel que $d$ coupe l'axe $Oy$ en $(0,b)$ est appelé son \colorbox{def!40}{ordonnée à l'origine}, et $d$ a comme équation
+
+\[ d:\hspace{0.25cm} y=ax+b. \]
+
+Si $x_2=x_1$, alors $d$ est verticale et son équation est 
+
+$$d:\hspace{0.25cm} x=x_1.$$
+
+\item La \colorbox{def!40}{droite} $d$ de pente $a$ par le point $P=(x_0,y_0)$ a comme équation
+\[d:\hspace{0.25cm} y=a(x-x_0)+y_0.\]
+
+\item \textcolor{th!60!black}{Théorème:} Deux droites $d_1$ et $d_2$ de pentes respectives $a_1$ et $a_2$ sont perpendiculaires si et seulement si 
+
+$$a_1\cdot a_2=-1.$$
+
+\end{itemize}
+
+\newpage
+\subsection{Cercles}
+\begin{itemize}[label=$\bullet$]
+\item \textcolor{th!60!black}{Théorème}: La distance entre les points $P_1=(x_1,y_1)$ et $P_2=(x_2,y_2)$ est donnée par
+
+\[\mathrm{dist}(P_1,P_2)=\sqrt{(x_2-x_1)^2+(y_2-y_1)^2}.\]
+
+\item Le \colorbox{def!40}{cercle} $\Gamma$ de centre $C=(x_0,y_0)$ et de rayon $r\geq 0$ a comme équation
+\[\Gamma:\hspace{0.25cm} (x-x_0)^2+(y-y_0)^2=r^2.\]
+\end{itemize}
+\vspace{0.5cm}
+\begin{center}
+\includegraphics[width=0.6\textwidth]{circle.png}
+\end{center}
+\newpage
+
+\section{Trigonométrie}
+\subsection{Angles}
+\begin{itemize}[label=$\bullet$]
+\item 
+Si deux droites se coupent en un point $P$, et $\Gamma$ est le cercle de centre $P$ et de rayon $r>0$, l'\colorbox{def!40}{angle} $\alpha$ formé par les deux droites est donné par le rapport 
+
+$$\displaystyle\alpha=\frac{l}{r},$$
+
+où $l$ est la longueur de l'arc du cercle $\Gamma$ entre les deux droites. C'est une grandeur adimensionnelle, qu'on quantifie par l'"unité"\colorbox{def!40}{radian}.
+
+\begin{center}
+\includegraphics[width=0.5\textwidth]{angle.png}
+\end{center}
+\end{itemize}
+
+ \begin{itemize}
+    \item L'angle plein mesure $2\pi$ ($\leftrightarrow 360^\circ$)
+    \item l'angle plat mesure $\pi$ ($\leftrightarrow 180^\circ$)
+    \item l'angle droit mesure $\frac{\pi}{2}$ ($\leftrightarrow 90^\circ$)
+\end{itemize}
+
+\newpage
+
+\subsection{Le cercle trigonométrique}
+\begin{itemize}[label=$\bullet$]
+\item Le \colorbox{def!40}{cercle trigonométrique} est le cercle-unité, d'équation 
+
+$$x^2+y^2=1.$$
+
+\item Sur le cercle trigonométrique, les angles sont mesurés à partir du demi-axe des $x$ positifs. Le sens anti-horaire (\colorbox{def!40}{sens trigonométrique}) correspond à des angles positifs.
+\item A un angle $\alpha\in\mathbb{R}$ correspond un unique point $P=P(\alpha)$ du cercle trigonométrique tel que $\alpha=\angle((1,0),O,P)$.\\
+La coordonnée horizontale de $P$ est appelée le \colorbox{def!40}{cosinus} de $\alpha$, et la coordonnée verticale de $P$ est appelée le \colorbox{def!40}{sinus} de $\alpha$: 
+
+$$P=(\cos\alpha,\sin\alpha).$$
+
+Si $\alpha\neq \frac{\pi}{2}+k\pi$, $k\in\mathbb{Z}$, alors la droite $(OP)$ coupe la droite $x=1$ (tangente au cercle trigonométrique en $(1,0)$) en un point $(0,t)$. La coordonnée $t$ est appelée la \colorbox{def!40}{tangente} de $\alpha$: $t=\tan\alpha$.
+
+Si $\alpha\neq k\pi$, $k\in\mathbb{Z}$, la \colorbox{def!40}{cotangente} de $\alpha$ est la coordonnée $c$ du point $(c,1)$ d'intersection entre la droite $(OP)$ et la droite $y=1$ (tangente au cercle trigonométrique en $(0,1)$): $c=\cot\alpha$.\\
+\begin{center}
+\includegraphics[width=0.7\textwidth]{cercle_trigo.png}
+\end{center}
+
+\newpage
+
+\item \textcolor{th!60!black}{Propriétés:} pour tout $\alpha$ tel que les fonctions sont définies, on a:
+
+$$\tan\alpha=\displaystyle\frac{\sin\alpha}{\cos\alpha}, \hspace{1cm} \cot\alpha=\displaystyle\frac{1}{\tan\alpha}.$$
+
+$$\cos^2\alpha+\sin^2\alpha=1,\hspace{1cm} 1+\tan^2\alpha=\displaystyle\frac{1}{\cos^2\alpha}.$$
+
+$$\cos\alpha,\sin\alpha\in[-1,1], \hspace{1cm} \tan\alpha,\cot\alpha\in\mathbb{R}.$$
+
+ $$\cos(\alpha+k\cdot 2\pi)=\cos\alpha, \hspace{1cm}\sin(\alpha+k\cdot 2\pi)=\sin\alpha,$$ pour tout $k\in\mathbb{Z}.$
+ 
+\item \textcolor{th!60!black}{Symétries particulières:}
+
+ d'axe $Ox$: $$\cos(-\alpha)=\cos\alpha, \hspace{0.4cm} \sin(-\alpha)=-\sin\alpha, \hspace{0.4cm}  \tan(-\alpha)=-\tan\alpha$$
+
+ d'axe $Oy$: $$\cos(\pi-\alpha)=-\cos\alpha,\hspace{0.4cm} \sin(\pi-\alpha)=\sin\alpha,\hspace{0.4cm}\tan(\pi-\alpha)=-\tan\alpha$$
+ de centre $O$: $$\cos(\pi+\alpha)=-\cos\alpha,\hspace{0.4cm}\sin(\pi+\alpha)=-\sin\alpha,\hspace{0.4cm}\tan(\pi+\alpha)=\tan\alpha$$
+
+ d'axe $y=x$: $$\cos\left(\frac{\pi}{2}-\alpha\right)=\sin\alpha,\hspace{0.4cm}\sin\left(\frac{\pi}{2}-\alpha\right)=\cos\alpha,\hspace{0.4cm}\tan\left(\frac{\pi}{2}-\alpha\right)=\cot\alpha$$
+\item \textcolor{th!60!black}{Quelques valeurs dans le premier quadrant:}
+\begin{center}
+\begin{tabular}{| c || c | c | c | c | c |}
+    \hline
+   $\alpha$ & $0$ & $\pi/6$ & $\pi/4$ & $\pi/3$ & $\pi/2$ \\ \hline
+    & $0^\circ$ & $30^\circ$ & $45^\circ$ & $60^\circ$ & $90^\circ$ \\ \hline\hline
+   $\sin\alpha$ & $0$ & $1/2$ & $\sqrt{2}/2$ & $\sqrt{3}/2$ & $1$ \\ \hline
+   $\cos\alpha$ & $1$ & $\sqrt{3}/2$ & $\sqrt{2}/2$ & $1/2$ & $0$ \\ \hline
+   $\tan\alpha$ & $0$ & $\sqrt{3}/3$ & $1$ & $\sqrt{3}$ & ---\\ \hline
+  \end{tabular}
+  \end{center}
+\end{itemize}
+
+\subsection{Les fonctions trigonométriques et leurs inverses}
+\begin{itemize}[label=$\bullet$]
+\item Graphes des fonctions sinus, cosinus et tangente:
+\begin{center}
+\includegraphics[width=0.95\textwidth]{trigo_func.png}
+\end{center}
+\item Pour une longueur $x\in[-1,1]$, l'unique angle $\alpha\in\left[0,\pi\right]$ tel que $\cos\alpha=x$ est appelé l'\colorbox{def!40}{arc cosinus} de $x$, noté $\alpha=\arccos x$.
+\item Pour une longueur $y\in[-1,1]$, l'unique angle $\alpha\in\left[-\frac{\pi}{2},\frac{\pi}{2}\right]$ tel que $\sin\alpha=y$ est appelé l'\colorbox{def!40}{arc sinus} de $y$, noté $\alpha=\arcsin y$.
+\item Pour une longueur $t\in\mathbb{R}$, l'unique angle $\alpha\in\left]-\frac{\pi}{2},\frac{\pi}{2}\right[$ tel que $\tan\alpha=t$ est appelé l'\colorbox{def!40}{arc tangente} de $t$, noté $\alpha=\arctan t$.
+ \item Graphes des fonctions arc sinus, arc cosinus et arc tangente:
+ \begin{center}
+\includegraphics[width=0.65\textwidth]{trigo_func_inv.png}
+\end{center}
+
+ \item Résolution d'équations trigonométriques:
+ \\
+ \textcolor{expl!60!black}{Cosinus}
+   \begin{align*}
+      \cos\alpha=\cos\beta\Longleftrightarrow \alpha &=\beta+k\cdot 2\pi\hspace{1.5cm}{\text{\colorbox{def!40}{ou}}} \\
+       \alpha &=-\beta+k\cdot 2\pi,
+  \end{align*}
+   pour tout $k\in\mathbb{Z}$.
+\\
+   \textcolor{expl!60!black}{Sinus}
+  \begin{align*}
+      \sin\alpha=\sin\beta \Longleftrightarrow \alpha &=\beta+k\cdot 2\pi\hspace{1.5cm}{\text{\colorbox{def!40}{ou}}} \\
+      \alpha &=\pi-\beta+k\cdot 2\pi,
+  \end{align*}
+  pour tout $k\in\mathbb{Z}$.
+\\
+  \textcolor{expl!60!black}{Sinus = Cosinus}
+
+  \begin{align*}
+      \sin\alpha=\cos\beta &\Longleftrightarrow \cos\left(\frac{\pi}{2}-\alpha\right)=\cos\beta \\
+      &\Longleftrightarrow \sin\alpha=\sin\left(\frac{\pi}{2}-\beta\right)
+  \end{align*}
+  
+ 
+\noindent (et on retrouve une des deux lignes précédentes).
+\\
+
+\textcolor{expl!60!black}{Tangente}
+  $$\tan\alpha=\tan\beta\Longleftrightarrow \alpha=\beta+k\cdot\pi,$$
+  pour tout $k\in\mathbb{Z}$.
+ 
+\end{itemize}
+
+\newpage
+\subsection{Triangles rectangles}
+
+\begin{itemize}[label=$\bullet$]
+\item Notations standard pour des triangles (rectangles ou non):
+\begin{itemize}[label=$\circ$]
+\item \colorbox{def!40}{Sommets:} $A$, $B$, $C$.
+\item \colorbox{def!40}{Angles:} $\alpha=\angle(BAC)$, $\beta=\angle(ABC)$, $\gamma=\angle(ACB)$.
+\item \colorbox{def!40}{Longueurs des côtés:} $a=\mathrm{dist}(B,C)$, $b=\mathrm{dist}(A,C)$, \\ $c=\mathrm{dist}(A,B)$.
+\end{itemize}
+ \begin{center}
+\includegraphics[width=0.4\textwidth]{triangle.png}
+\end{center}
+\item Si le triangle $ABC$ est rectangle, disons en $B$, alors on peut le "poser sur l'axe $Ox$" de sorte que $A$ soit à l'origine $(0,0)$ et que $B$ soit sur le point $(c,0)$. Dans ce cas, l'angle à l'origine est $\alpha$, et le triangle $ABC$ est semblable au triangle de sommets $(0,0)$, $(\cos\alpha,0)$, $(\cos\alpha, \sin\alpha)$.\\
+ \begin{center}
+\includegraphics[width=0.75\textwidth]{tri_rect.png}
+\end{center}
+\end{itemize}
+On peut alors déduire les relations
+\[\cos\alpha=\frac{c}{b}=\frac{\text{adjacent}}{\text{hypothénuse}},\,\,\,\sin\alpha=\frac{a}{b}=\frac{\text{opposé}}{\text{hypothénuse}},\,\,\,\tan\alpha=\frac{a}{c}=\frac{\text{opposé}}{\text{adjacent}}\] 
+
+\subsection{Triangles quelconques}
+\noindent On considère un triangle $\triangle=\triangle(ABC)$ \colorbox{def!40}{quelconque}, c'est-à-dire que ses angles et ses côtés sont de mesure arbitraire.
+\begin{itemize}[label=$\bullet$]
+\item \textcolor{th!60!black}{Théorème}: L'aire du triangle $\triangle=\triangle(ABC)$ est donnée par
+\[\mathrm{aire}(\triangle)=\frac{1}{2}\,ab\sin\gamma=\frac{1}{2}\,ac\sin\beta=\frac{1}{2}\,bc\sin\alpha.\]
+\item \textcolor{th!60!black}{Théorème du sinus}: 
+\[\frac{a}{\sin\alpha}=\frac{b}{\sin\beta}=\frac{c}{\sin\gamma}.\]
+
+\item \textcolor{th!60!black}{Théorème du cosinus}: 
+$$a^2=b^2+c^2-2\,bc\cos\alpha$$  $$b^2=a^2+c^2-2\,ac\cos\beta $$ $$c^2=a^2+b^2-2\,ab\cos\gamma.$$
+
+\item \textcolor{th!60!black}{Théorème de la bissectrice}: On dénote par $u$ (resp. $v$) la longueur du segment déterminé par la bissectrice de l'angle $\alpha$ sur le côté $a$ et qui est adjacent au côté $b$ (resp. $c$).\\
+ \begin{center}
+\includegraphics[width=0.6\textwidth]{th_bis.png}
+\end{center}
+Alors
+\[\frac{u}{v}=\frac{b}{c}.\]
+\end{itemize}
+
+\newpage
+\subsection{Autres formules trigonométriques}
+\begin{itemize}[label=$\bullet$]
+\item \textcolor{th!60!black}{Théorème (addition)}:
+\begin{itemize}[label=$\circ$]
+\item $\sin(\alpha + \beta)=\sin\alpha\,\cos\beta + \cos\alpha\,\sin\beta$
+\item $\sin(\alpha - \beta)=\sin\alpha\,\cos\beta - \cos\alpha\,\sin\beta$
+\item $\cos(\alpha + \beta)=\cos\alpha\,\cos\beta - \sin\alpha\,\sin\beta$
+\item $\cos(\alpha - \beta)=\cos\alpha\,\cos\beta + \sin\alpha\,\sin\beta$
+\item $\tan(\alpha + \beta)=\displaystyle\frac{\tan\alpha + \tan\beta}{1 - \tan\alpha\,\tan\beta}$
+\item $\tan(\alpha - \beta)=\displaystyle\frac{\tan\alpha - \tan\beta}{1 + \tan\alpha\,\tan\beta}$
+\end{itemize}
+\item \textcolor{th!60!black}{Théorème (duplication)}:
+\begin{itemize}[label=$\circ$]
+\item $\sin(2\alpha)=2\sin\alpha\,\cos\alpha$
+\item $\cos(2\alpha)=\cos^2\alpha-\sin^2\alpha=1-2\sin^2\alpha=2\cos^2\alpha-1$
+\end{itemize}
+\item \textcolor{th!60!black}{Théorème (bissection)}:
+\begin{itemize}[label=$\circ$]
+\item $2\sin^2\frac{\alpha}{2}=1-\cos\alpha$
+\item $2\cos^2\frac{\alpha}{2}=1+\cos\alpha$
+\end{itemize}
+\item \textcolor{th!60!black}{(Théorème somme $\rightarrow$ produit)}:
+\begin{itemize}[label=$\circ$]
+\item $\sin\alpha + \sin\beta=2\sin\frac{\alpha + \beta}{2}\cdot\cos\frac{\alpha - \beta}{2}$
+\item $\sin\alpha - \sin\beta=2\sin\frac{\alpha - \beta}{2}\cdot\cos\frac{\alpha + \beta}{2}$
+\item $\cos\alpha+\cos\beta=2\cos\frac{\alpha+\beta}{2}\cdot\cos\frac{\alpha-\beta}{2}$
+\item $\cos\alpha-\cos\beta=-2\sin\frac{\alpha+\beta}{2}\cdot\sin\frac{\alpha-\beta}{2}$
+
+\end{itemize}
+\item \textcolor{th!60!black}{Théorème (produit $\rightarrow$ somme)}:
+\begin{itemize}[label=$\circ$]
+\item $\sin\alpha\cdot\sin\beta=\frac{1}{2}\left(\cos(\alpha-\beta)-\cos(\alpha+\beta)\right)$
+\item $\sin\alpha\cdot\cos\beta=\frac{1}{2}\left(\sin(\alpha-\beta)+\sin(\alpha+\beta)\right)$
+\item $\cos\alpha\cdot\cos\beta=\frac{1}{2}\left(\cos(\alpha-\beta)+\cos(\alpha+\beta)\right)$
+\end{itemize}
+\end{itemize}
+\newpage 
+\section{Géométrie vectorielle}
+\noindent Dans ce qui suit, on se place dans l'espace $\mathbb{R}^3$. Cependant, la discussion reste valide si on est dans le plan $\mathbb{R}^2$, en "supprimant la dernière coordonnée".
+\subsection{Vecteurs}
+\begin{itemize}[label=$\bullet$]
+\item Pour $A,B\in\mathbb{R}^3$, le \colorbox{def!40}{vecteur} $\vect{AB}$ est l'ensemble des flèches qui sont
+\begin{itemize}[label=$\circ$]
+\item parallèles à la droite $(AB)$ (la \colorbox{def!40}{direction} de $\vect{AB}$),
+\item de \colorbox{def!40}{sens} $A\rightarrow B$, et 
+\item de longueur $\|\vect{AB}\|:=\mathrm{dist}(A,B)$ (la \colorbox{def!40}{norme} de $\vect{AB}$).
+\end{itemize}
+\item \textcolor{expl!60!black}{Remarque:} la norme de $\vect{AB}$ est parfois aussi notée $|\vect{AB}|$.
+\item Le vecteur $\vect{v}$ est dit \colorbox{def!40}{normé} si $$\|\vect{v}\|=1. $$
+\item Si $O = (0,0,0)$ désigne l'origine de $\mathbb{R}^3$, il existe un unique point \\ $C = (c_1,c_2,c_3)\in\mathbb{R}^3$ tel que $\vect{OC}=\vect{AB}$. Dans ce cas, le vecteur $\vect{AB}$ est appelé le \colorbox{def!40}{vecteur-lieu} du point $C$.\\
+Cette procédure donne une manière standardisée de décrire un vecteur. Dans ce cas, on écrit $\vect{AB}=\begin{pmatrix}
+c_1\\c_2\\c_3
+\end{pmatrix}$. Les nombres $c_1$, $c_2$, et~$c_3$ (les coordonnées du point $C$) sont appelées les \colorbox{def!40}{composantes} du vecteur~$\vect{AB}$. La notation verticale permet de distinguer le vecteur $\vect{OC}$ du point $C$.
+\item \textcolor{th!60!black}{Théorème:} 
+
+La norme de $\vect{v}=\begin{pmatrix}
+v_1\\v_2\\v_3
+\end{pmatrix}$ est donnée par $$\|\vect{v}\|=\sqrt{v_1^2+v_2^2+v_3^2}.$$
+
+\item Le \colorbox{def!40}{vecteur nul} est le vecteur $\vect{0}:=\vect{OO}=\begin{pmatrix}
+0\\0\\0
+\end{pmatrix}$.
+\item Le \colorbox{def!40}{vecteur opposé} au vecteur $\vect{v}$ est le vecteur $-\vect{v}$ qui a la même direction et la même norme que $\vect{v}$, mais qui est de sens opposé: si $\vect{v}=\begin{pmatrix}
+v_1\\v_2\\v_3
+\end{pmatrix}$, alors son vecteur opposé est $$-\vect{v}=\begin{pmatrix}
+-v_1\\-v_2\\-v_3
+\end{pmatrix}.$$
+\item Pour $\vect{u}=\vect{AB}$ et $\vect{v}=\vect{CD}$, la \colorbox{def!40}{somme} $\vect{u}+\vect{v}$ est le vecteur $\vect{AE}$, où $E\in\mathbb{R}^3$ est l'unique point tel que $\vect{CD}=\vect{BE}$.
+\item \textcolor{th!60!black}{Propriétés:}
+\begin{itemize}[label=$\circ$]
+\item $\vect{u}+\vect{v}=\vect{v}+\vect{u}$
+\item $(\vect{u}+\vect{v})+\vect{w}=\vect{u}+(\vect{v}+\vect{w})$
+\item $\vect{u}+\vect{o}=\vect{o}+\vect{v}=\vect{v}$
+\item $\vect{v}+(-\vect{v})=\vect{o}$
+\item Si $\vect{u}=\begin{pmatrix}
+u_1\\u_2\\u_3
+\end{pmatrix}$ et $\vect{v}=\begin{pmatrix}
+v_1\\v_2\\v_3
+\end{pmatrix}$, alors $$\vect{u}+\vect{v}=\begin{pmatrix}
+u_1+v_1\\u_2+v_2\\u_3+v_3
+\end{pmatrix}.$$
+\end{itemize}
+\item La \colorbox{def!40}{différence} de $\vect{u}$ et $\vect{v}$ est le vecteur $\vect{u}-\vect{v}:=\vect{u}+(-\vect{v})$.
+
+\item \textcolor{th!60!black}{Théorème}: Si $A(a_1,a_2,a_3)$ et $B(b_1,b_2,b_3)$, alors $$\vect{AB}=\vect{OB}-\vect{OA}=\begin{pmatrix}
+b_1-a_1\\b_2-a_2\\b_3-a_3
+\end{pmatrix}.$$
+
+\item La \colorbox{def!40}{multiplication} du vecteur $\vect{v}$ par le \colorbox{def!40}{scalaire} $\lambda\in\mathbb{R}$ est le vecteur \\ $\lambda\cdot \vect{v}=:\lambda\vect{v}$ qui a
+\begin{itemize}[label=$\circ$]
+\item la même direction que $\vect{v}$,
+\item le même sens que $\vect{v}$ si $\lambda\geq 0$, et le sens opposé si $\lambda <0$, et
+\item la norme $\|\lambda \vect{v}\|=|\lambda|\cdot \|\vect{v}\|$.
+\end{itemize}
+\item \textcolor{th!60!black}{Propriétés:}
+\begin{itemize}[label=$\circ$]
+\item $(\lambda+\mu)\cdot \vect{u}=\lambda \vect{u}+\mu \vect{v}$
+\item $\lambda\cdot(\vect{u}+\vect{v})=\lambda \vect{u}+\lambda \vect{v}$
+\item $(\lambda\cdot\mu)\vect{v}=\lambda\cdot(\mu\vect{v})$
+\item Si $\vect{v}=\begin{pmatrix}
+v_1\\v_2\\v_3
+\end{pmatrix}$, alors $$\lambda\vect{v}=\begin{pmatrix}
+\lambda v_1\\\lambda v_2\\\lambda v_3
+\end{pmatrix}.$$
+\end{itemize}
+\item Le point $C$ divise le segment $[A,B]$ selon une proportion $\alpha:\beta$ (dans cet ordre) si $\displaystyle\frac{\|\vect{AC}\|}{\|\vect{CB}\|}=\frac{\alpha}{\beta}$. Dans ce cas, $$\displaystyle\|\vect{AC}\|=\frac{\alpha}{\alpha+\beta}\cdot\|\vect{AB}\|$$ et $$\displaystyle\|\vect{CB}\|=\frac{\beta}{\alpha+\beta}\cdot\|\vect{AB}\|.$$
+\end{itemize}
+
+\newpage
+\subsection{Combinaisons linéaires}
+\begin{itemize}[label=$\bullet$]
+\item Le vecteur $\vect{v}$ est \colorbox{def!40}{combinaison linéaire} de $\vect{u}_1,...,\vect{u}_k$ s'il existe \\ $\lambda_1,...,\lambda_k\in\mathbb{R}$ tels que $$\displaystyle\vect{v}=\lambda_1\vect{u}_1+...+\lambda_k\vect{u}_k=\sum_{j=1}^k\lambda_j \vect{u}_j.$$
+
+\item Des vecteurs $\vect{v}_1,...,\vect{v}_k$ sont \colorbox{def!40}{linéairement indépendants} si aucun d'entre eux n'est combinaison linéaire des autres. Sinon, ils sont dits \colorbox{def!40}{linéairement dépendants}.
+\item \textcolor{th!60!black}{Théorème:} Les vecteurs $\vect{v}_1,...,\vect{v}_k$ sont linéairement indépendants si
+$$\lambda_1\vect{v}_1+...+\lambda_k\vect{v}_k=\vect{0}\hspace{0.5cm}\Longrightarrow \hspace{0.5cm}\lambda_1=...=\lambda_k=0,$$
+c'est-à-dire si seule la combinaison linéaire triviale de ces vecteurs permet d'obtenir le vecteur nul.
+\item Deux vecteurs sont dits \colorbox{def!40}{colinéaires} s'ils ont la même direction, c'est-à-dire s'ils sont multiples l'un de l'autre.
+\item Une \colorbox{def!40}{base} de $\mathbb{R}^3$ est une famille de trois vecteurs linéairement indépendants.
+
+\item \textcolor{th!60!black}{Théorème:} Si $\left\{\vect{v}_1,\vect{v}_2,\vect{v}_3\right\}$ est une base de $\mathbb{R}^3$, alors tout vecteur de $\mathbb{R}^3$ s'écrit comme combinaison linéaire unique des vecteurs de cette base. Plus précisément:
+\\
+
+ $\forall\,\vect{x}\in\mathbb{R}^3, \,\exists\,\lambda_1,\lambda_2,\lambda_3\in\mathbb{R}$ tels que $$\vect{x}=\lambda_1\vect{v}_1+\lambda_2\vect{v}_2+\lambda_3\vect{v}_3,$$ et
+
+\begin{align*}
+&\lambda_1\vect{v}_1+\lambda_2\vect{v}_2+\lambda_3\vect{v}_3=\mu_1\vect{v}_1+\mu_2\vect{v}_2+\mu_3\vect{v}_3\hspace{0.5cm}\Longrightarrow\hspace{0.5cm}\\ &\lambda_1=\mu_1,\,\lambda_2=\mu_2,\,\lambda_3=\mu_3
+\end{align*}
+\end{itemize}
+
+\newpage
+\subsection{Droites}
+\begin{itemize}[label=$\bullet$]
+\item Une \colorbox{def!40}{droite} $d$ par le point $A\in\mathbb{R}^3$ et de vecteur directeur $\vect{d}$ est l'ensemble \[d=\{P\in\mathbb{R}^3\,|\,\vect{AP}\parallel \vect{d}\}.\]
+\item L'\colorbox{def!40}{horaire} d'un point matériel situé au temps $t=0$ au point $A$ et de vecteur-vitesse $\vect{d}$ est donné par 
+\[\vect{r}(t)=\vect{OA}+t\cdot \vect{d},\,\,t\in\mathbb{R}.\]
+La \colorbox{def!40}{vitesse} du point est alors donnée par $\|\vect{d}\|$.
+\item Positions relatives de deux droites $d_1$ et $d_2$ données par $$\vect{r}_1(t)=\vect{OA}_1+t\cdot \vect{d}_1  \hspace{0.5cm}\text{et}\hspace{0.5cm}  \vect{r}_2(t)=\vect{OA}_2+t\cdot \vect{d}_2, \hspace{0.5cm} t\in\mathbb{R} $$ respectivement:
+\begin{enumerate}
+\item[(1)] Si $\vect{d_1}\parallel\vect{d_2}$, alors
+\begin{enumerate}
+\item[(1.1)] si $A_1\in d_2$ (ou $A_2\in d_1$, ou $\vect{A}_1\vect{A}_2\parallel \vect{d}_1$, ou $\vect{A}_1\vect{A}_2\parallel \vect{d}_2$), alors $$d_1=d_2$$ (elles sont \colorbox{def!40}{confondues}).
+\item[(1.2)] sinon, $$d_1\parallel d_2 \hspace{0.5cm}\text{et}\hspace{0.5cm} d_1\ne d_2$$ (elles sont \colorbox{def!40}{(strictement) parallèles})
+\end{enumerate}
+\item[(2)] sinon, alors
+\begin{enumerate}
+\item[(2.1)] si l'équation $\vect{r}_1(t)=\vect{r}_2(s)$ possède une (unique) solution $(t_\cap,s_\cap)\in\mathbb{R}^2$, alors $$d_1\cap d_2=\{P\}$$ (elles sont \colorbox{def!40}{sécantes}).
+\item[(2.2)] sinon, les droites sont \colorbox{def!40}{gauches}.
+\end{enumerate}
+\end{enumerate}
+\item \textcolor{expl!60!black}{Remarque:} si $\vect{r_1}$ et $\vect{r_2}$ sont les horaires de deux points matériels et que dans la condition $(2.1)$ ci-dessus on a $t_\cap=s_\cap$, alors les deux points matériels entrent en \colorbox{def!40}{collision}. Sinon, leurs trajectoires se croisent (sans collision).
+\end{itemize}
+
+\newpage
+\subsection{Produit scalaire}
+\begin{itemize}[label=$\bullet$]
+\item Si $\varphi\in [0,\pi]$ désigne l'angle entre les vecteurs $\vect{u}$ et $\vect{v}$, alors le \colorbox{def!40}{produit scalaire} de $\vect{u}$ et $\vect{v}$ est donné par
+\[\vect{u}\bullet\vect{v}:=\|\vect{u}\|\cdot\|\vect{v}\|\cdot\cos\varphi.\]
+\item \textcolor{expl!60!black}{Remarque:} le produit scalaire de $\vect{u}$ et $\vect{v}$ est parfois noté $\vect{u}\cdot\vect{v}$.
+\item \textcolor{th!60!black}{Théorème:} Si $\vect{u}=\begin{pmatrix}
+u_1\\u_2\\u_3
+\end{pmatrix}$ et $\vect{v}=\begin{pmatrix}
+v_1\\v_2\\v_3
+\end{pmatrix}$, alors \[\vect{u}\bullet\vect{v}=u_1v_1+u_2v_2+u_3v_3=\sum_{k=1}^3 u_kv_k.\]
+\item \textcolor{th!60!black}{Propriétés:} Si $\vect{u},\vect{v}\neq\vect{o}$, alors
+
+ $$\vect{u}\bullet\vect{v}\left\{\begin{array}{c} >\\=\\<\end{array}\right\}0\Longleftrightarrow \varphi\left\{\begin{array}{c} \mathrm{aigu}\\\mathrm{droit}\\\mathrm{obtus}\end{array}\right\}$$
+ 
+ $$\vect{u}\bullet\vect{u}=\|\vect{u}\|^2$$
+ 
+ $$\displaystyle\varphi=\arccos\frac{\vect{u}\bullet\vect{v}}{\|\vect{u}\|\cdot\|\vect{v}\|}$$
+ 
+ $$\vect{u}\bullet\vect{v}=\vect{v}\bullet\vect{u}$$
+ 
+$$\vect{u}\bullet(\vect{v}+\vect{w})=\vect{u}\bullet\vect{v}+\vect{u}\bullet\vect{w}$$
+
+ $$(\lambda \vect{u})\bullet (\mu\vect{v})=\lambda\mu\,(\vect{u}\bullet \vect{v})$$.
+
+\newpage
+\item Les vecteurs $\{\vect{v_1},\vect{v_2},\vect{v_3}\}$ forment une \colorbox{def!40}{base orthonormée} de $\mathbb{R}^3$ si les vecteurs sont tous de norme 1 et sont deux à deux orthogonaux, c'est-à-dire si $$\displaystyle \vect{v_i}\bullet\vect{v_j}=\left\{\begin{array}{cc} 0 & \text{si }i\neq j\\1 & \text{si } i=j\end{array}\right.$$
+\item \textcolor{th!60!black}{Théorème}: Si $\{\vect{v_1},\vect{v_2},\vect{v_3}\}$ est une base orthonormée de $\mathbb{R}^3$ et que $\vect{x}$ est un vecteur quelconque de $\mathbb{R}^3$, alors $$\displaystyle \vect{x}=\sum_{k=1}^3 (\vect{x}\bullet\vect{v_k})\,\vect{v_k}$$.
+\item La \colorbox{def!40}{projection orthogonale} de $\vect{u}$ sur $\vect{v}$ est le vecteur $$\displaystyle\vect{u}_{\vect{v}}=\frac{\vect{u}\bullet\vect{v}}{\vect{v}\bullet\vect{v}}\cdot\vect{v}.$$
+\end{itemize}
+
+\newpage
+\subsection{Plans}
+\begin{itemize}[label=$\bullet$]
+\item Pour $A\in\mathbb{R}^3$ et $\vect{v}_1$ et $\vect{v}_2$ deux vecteurs linéairement indépendants, un \colorbox{def!40}{plan} $\Pi\subset\mathbb{R}^3$ est un ensemble de la forme
+\[\Pi=\{P\in\mathbb{R}^3\,|\,\vect{OP}=\vect{OA}+\lambda\cdot\vect{v}_1+\mu\cdot\vect{v}_2,\,\lambda,\mu\in\mathbb{R}\}.\]
+En pratique, il est avantageux de décrire $\Pi$ à l'aide d'un \colorbox{def!40}{vecteur normal} $$\vect{n}\perp \vect{v}_1,\vect{v}_2.$$ Dans ce cas, on peut écrire
+\[\Pi=\{P\in\mathbb{R}^3\,|\,\vect{AP}\bullet\vect{n}=0\}.\]
+Si $\vect{n}=\begin{pmatrix}
+a\\b\\c
+\end{pmatrix}$, alors $\Pi$ possède l'équation
+\[\Pi:\,ax+by+cz=d,\]
+où $d=\vect{OA}\bullet\vect{n}$.
+\item \textcolor{th!60!black}{Conséquences:}
+\begin{itemize}[label=$\circ$]
+\item La \colorbox{def!40}{projection orthogonale} $Q$ \colorbox{def!40}{du point} $P\in\mathbb{R}^3$ \colorbox{def!40}{sur le plan} $\Pi$ contenant le point $A$ et de vecteur normal $\vect{n}$ est donnée par
+
+$$\displaystyle \vect{OQ}=\vect{OP}-\frac{\vect{AP}\bullet\vect{n}}{\vect{n}\bullet\vect{n}}\cdot \vect{n}.$$
+
+\item Dans le même contexte, la \colorbox{def!40}{distance entre le point} $P$ \colorbox{def!40}{et le plan} $\Pi$ est donnée par $$\mathrm{dist}(P,\Pi)=\displaystyle \frac{|\vect{AP}\bullet\vect{n}|}{\|\vect{n}\|}.$$
+
+\item L'\colorbox{def!40}{angle entre les plans} $\Pi_1$ et $\Pi_2$ de vecteurs normaux respectifs $\vect{n_1}$ et $\vect{n_2}$ est donné par $$\displaystyle \angle(\Pi_1,\Pi_2)=\angle(\vect{n_1},\vect{n_2})=\arccos\frac{\vect{n_1}\bullet\vect{n_2}}{\|\vect{n_1}\|\cdot\|\vect{n_2}\|}.$$
+
+\item L'\colorbox{def!40}{angle entre la droite} $d$ de vecteur directeur $\vect{d}$ \colorbox{def!40}{et le plan} $\Pi$ de vecteur normal~$\vect{n}$ est donné par $$\displaystyle\angle(d,\Pi)=\frac{\pi}{2}-\angle(\vect{d},\vect{n})=\frac{\pi}{2}-\arccos\frac{\vect{d}\bullet\vect{n}}{\|\vect{d}\|\cdot\|\vect{n}\|}.$$
+
+\item Les \colorbox{def!40}{plans bissecteurs} $\beta_1$ et $\beta_2$ des plans $$\Pi_1:\,a_1x+b_1y+c_1z=d_1$$ et $$\Pi_2:\,a_2x+b_2y+c_2z=d_2$$ sont donnés par
+\\
+$\beta_{1}$:
+    $$\|\vect{n_2}\|\cdot(a_1x+b_1y+c_1z-d_1)= \|\vect{n_1}\|\cdot(a_2x+b_2y+c_2z-d_2)$$ 
+
+$\beta_{2}$:
+    $$\|\vect{n_2}\|\cdot(a_1x+b_1y+c_1z-d_1)= -\|\vect{n_1}\|\cdot(a_2x+b_2y+c_2z-d_2).$$ 
+    
+\end{itemize}
+\end{itemize}
+
+\newpage
+\subsection{Produit vectoriel}
+\textcolor{expl!60!black}{Remarque:} cette section n'est définie que pour $\mathbb{R}^3$ (et pas $\mathbb{R}^2$).
+\begin{itemize}[label=$\bullet$]
+\item Pour $\vect{u}=\begin{pmatrix}
+u_1\\u_2\\u_3
+\end{pmatrix}$ et $\vect{v}=\begin{pmatrix}
+v_1\\v_2\\v_3
+\end{pmatrix}$, le \colorbox{def!40}{produit vectoriel} de $\vect{u}$ par $\vect{v}$ (dans cet ordre) est le vecteur $$\vect{u}\times\vect{v}:=\begin{pmatrix}
+u_2v_3-u_3v_2\\-(u_1v_3-u_3v_1)\\u_1v_2-u_2v_1
+\end{pmatrix}.$$
+
+\item \textcolor{th!60!black}{Propriétés:}
+
+ $$\vect{u}\times\vect{v}=\vect{o}\Longleftrightarrow \vect{u}\parallel\vect{v}$$
+ $$\vect{v}\times\vect{u}=-(\vect{u}\times\vect{v})$$
+ $$\alpha(\vect{u}\times\vect{v})=(\alpha\vect{u})\times\vect{v}=\vect{u}\times(\alpha\vect{v})$$
+$$\vect{u}\times(\vect{v}+\vect{w})=\vect{u}\times\vect{v}+\vect{u}\times\vect{w}$$
+$$(\vect{u}+\vect{v})\times\vect{w}=\vect{u}\times\vect{w}+\vect{v}\times\vect{w}$$
+
+\item \textcolor{th!60!black}{Théorème:} (Interprétation géométrique du produit vectoriel)\\
+Le vecteur $\vect{u}\times\vect{v}$ est...
+\begin{itemize}[label=$\circ$]
+\item perpendiculaire à $\vect{u}$ et à $\vect{v}$ (\colorbox{def!40}{direction}),
+\item de \colorbox{def!40}{sens} donné par la \underline{règle de la main droite} (pouce $\leftrightarrow\vect{u}$, index $\leftrightarrow\vect{v}$ $\rightsquigarrow$ majeur $\leftrightarrow\vect{u}\times\vect{v}$),
+\item de \colorbox{def!40}{norme} $\|\vect{u}\times\vect{v}\|=\|\vect{u}\|\cdot\|\vect{v}\|\cdot\sin\angle(\vect{u},\vect{v})$ (l'aire du parallélogramme de côtés $\vect{u}$ et $\vect{v}$).
+\end{itemize}
+\item La \colorbox{def!40}{distance du point} $P$ \colorbox{def!40}{à la droite} $d$ passant par $A$ et de vecteur directeur $\vect{d}$ est donnée par 
+$$\mathrm{dist}(P,d)=\displaystyle \frac{\|\vect{AP}\times\vect{d}\|}{\|\vect{d}\|}.$$
+\end{itemize}
+
+\newpage
+\section{Systèmes d'équations linéaires}
+\begin{itemize}[label=$\bullet$]
+    \item Un \colorbox{def!40}{système} de $m$ \colorbox{def!40}{équation} à $n$ \colorbox{def!40}{inconnues} ($m,n\in\mathbb{N}$) est un système de la forme
+    \[\left\{\begin{array}{ccc} a_{11}x_1+a_{12}x_2+...+a_{1n}x_n &=& b_1\\a_{21}x_1+a_{22}x_2+...+a_{2n}x_n &=& b_2 \\ \vdots &=& \vdots \\ a_{m1}x_1+a_{m2}x_2+...+a_{mn}x_n &=& b_m\end{array}\right.\]
+Les nombres $$a_{ij}\hspace{0.5cm}\text{et}\hspace{0.5cm} b_i\hspace{0.5cm}\text{avec} \hspace{0.5cm} 1\leq i\leq m,\hspace{0.5cm}  1\leq j\leq n$$ sont les \colorbox{def!40}{coefficients} du système.
+\\
+Les variables 
+\[
+x_j \hspace{0.5cm} \text{avec} \hspace{0.5cm} 1\leq j\leq n
+\]
+sont les \colorbox{def!40}{inconnues} du système.
+\item Une \colorbox{def!40}{solution} d'un système d'équations linéaires est une famille 
+\[
+(x_1^*,x_2^*\cdots,x_n^*)\in\mathbb{R}^n
+\]
+qui satisfait toutes les équations du système.
+\\
+On note 
+\[
+\mathcal{S} \subset \mathbb{R}^n
+\]
+l'\colorbox{def!40}{ensemble des solutions} du système. Cet ensemble contient toutes les solutions du système.
+\item Deux systèmes sont \colorbox{def!40}{équivalents} si ils possèdent le même ensemble de solutions.
+\end{itemize}
+
+\newpage
+\subsection{Opérations élémentaires sur les lignes}
+\begin{itemize}[label=$\bullet$]
+\item Les opérations suivantes ne changent pas l'ensemble des solutions d'un système d'équations linéaires.
+\begin{itemize}
+    \item \textcolor{th!60!black}{Echanger} deux lignes ($L_i \leftrightarrow
+ L_j$)
+ \item \textcolor{th!60!black}{Multiplier} une ligne par un scalaire ($L_i \rightarrow \lambda L_i$) \hspace{0.2cm} $\lambda\in\mathbb{R}^*$ 
+ \item \textcolor{th!60!black}{Ajouter} à une ligne un multiple d'une autre ligne ($L_i \rightarrow L_i + \lambda L_j$) \\ $i\neq j, \lambda\in\mathbb{R}$
+\end{itemize}
+\end{itemize}
+
+\subsection{Algorithme du pivot de Gauss}
+\begin{itemize}[label=$\bullet$]
+\item L'algorithme suivant permet d'échelonner un système d'équations linéaires, ce qui permet de facilement trouver l'ensemble des solutions.
+\subsubsection*{\textcolor{th!60!black}{Algorithme}}
+\begin{enumerate}
+    \item \textcolor{th!60!black}{Etape du pivot:} Si $a_{11}\neq 0$ on passe à l'étape $2$. 
+    \\
+    Sinon on utilise ($L_1 \leftrightarrow L_j$) pour obtenir un nouveau $a_{11}\neq 0$. On appelle ce nouveau $a_{11}$ un \colorbox{def!40}{pivot}.
+    \item \textcolor{th!60!black}{Etape de réduction:} On utilise ($L_i \rightarrow L_i + \lambda L_1$) sur les lignes 
+    \\
+    $i=2,...,m$ pour supprimer l'inconnue $x_1$. A la fin de cette étape, seule la première ligne doit contenir l'inconnue $x_1$.
+    \item \textcolor{th!60!black}{Etape de récursivité:} On répète les étapes $1$ et $2$ à partir de la deuxième ligne avec l'inconnue $x_2$, puis à partir de la troisième ligne avec l'inconnue $x_3$ et ainsi de suite jusqu'à la dernière ligne.
+\end{enumerate}
+\item \textcolor{expl!60!black}{Remarque:} Durant les étapes $1$ et $2$, on peut utiliser ($L_i \rightarrow \lambda L_i$) pour simplifier les calculs.
+\item Un système est \colorbox{def!40}{échelonné} si le nombre de coefficients nuls commençant une ligne croît strictement. L'algorithme de Gauss permet toujours d'obtenir un système échelonné.
+
+\end{itemize}
+\newpage
+\subsubsection*{\textcolor{expl!60!black}{Exemple}}
+Considérons le système suivant :
+\[
+\begin{array}{ccccccc}
+2x_1&+&4x_2&+&4x_3&=&4\\
+x_1&+&3x_2&-&2x_3&=&-1\\
+3x_1&+&5x_2&+&8x_3&=&8\\
+\end{array}
+\]
+Elimination de \(x_1\)
+\[
+\begin{array}{ccccccc}
+2x_1&+&4x_2&+&4x_3&=&4\\
+x_1&+&3x_2&-&2x_3&=&-1\\
+3x_1&+&5x_2&+&8x_3&=&8\\
+\end{array}
+~
+\begin{array}{c}
+ \mathsmaller{L_1 \rightarrow \frac{1}{2}L_1} \\
+~
+\\
+~
+\end{array}
+~
+\begin{array}{ccccccc}
+x_1&+&2x_2&+&2x_3&=&2\\
+x_1&+&3x_2&-&2x_3&=&-1\\
+3x_1&+&5x_2&+&8x_3&=&8\\
+\end{array}
+\]
+
+\[
+\begin{array}{ccccccc}
+x_1&+&2x_2&+&2x_3&=&2\\
+x_1&+&3x_2&-&2x_3&=&-1\\
+3x_1&+&5x_2&+&8x_3&=&8\\
+\end{array}
+~
+\begin{array}{c}
+\\
+~
+\mathsmaller{L_2 \rightarrow L_2 - L_1} \\
+~
+\mathsmaller{L_3 \rightarrow L_3 - 3L_1}
+\end{array}
+~
+\begin{array}{ccccccc}
+x_1&+&2x_2&+&2x_3&=&2\\
+&&x_2&-&4x_3&=&-3\\
+&-&x_2&+&2x_3&=&2\\
+\end{array}
+\]
+Elimination de \(x_2\)
+\[
+\begin{array}{ccccccc}
+x_1&+&2x_2&+&2x_3&=&2\\
+&&x_2&-&4x_3&=&-3\\
+&-&x_2&+&2x_3&=&2\\
+\end{array}
+~
+\begin{array}{c}
+\\
+~
+\\
+~
+\mathsmaller{L_3 \rightarrow L_3 + L_2}
+\end{array}
+~
+\begin{array}{ccccccc}
+x_1&+&2x_2&+&2x_3&=&2\\
+&&x_2&-&4x_3&=&-3\\
+&&&-&2x_3&=&-1\\
+\end{array}
+\]
+On obtient ainsi un système échelonné. Il est facile d'en extraire les solutions au système.
+\begin{alignat*}{3}
+  -2x_3& = -1 && \implies x_3 && = \frac{1}{2} \\
+  x_2 - 2& = -3 && \implies x_2 && = -1 \\
+  x_1 - 2 + 1& = 2 && \implies x_1 && = 3
+\end{alignat*}
+
+Enfin, on peut déduire l'ensemble des solutions
+$$ \mathcal{S} = \left\{ \left(3,-1,\frac{1}{2}\right)\right\}$$
+\newpage
+\subsection{Caractérisation des systèmes échelonnés}
+
+\begin{itemize}[label=$\bullet$]
+\item Les lignes obtenues à la fin de l'algorithme peuvent être de trois types :
+\begin{itemize}
+    \item Des lignes du type $0 = 0$
+    \item Des ligne du type $0 = \star$ avec $\star \neq 0$
+    \item Des lignes contenant un pivot (toutes les autres lignes)
+\end{itemize}
+\item Le \colorbox{def!40}{rang} $p$ d'un système linéaire est le nombre de ligne contenant un pivot. Le rang est toujours inférieur ou égal au nombre d'inconnues $(p\leq n)$.
+\item Si le système contient au moins une ligne du type 
+$$
+0 = \star \hspace{0.5cm}\text{avec}\hspace{0.5cm} \star\neq 0
+$$
+le système est \textcolor{th!60!black}{impossible}
+$$
+\mathcal{S} = \emptyset.
+$$
+\end{itemize}
+Sinon, le système possède des solution. 
+\\
+Considérons un système de rang $p$:
+\begin{itemize}[label=$\bullet$]
+\item Si le rang $p$ est \colorbox{def!40}{maximal} $(p=n)$, le système possède une solution \textcolor{th!60!black}{unique}.
+\item Si le rang est strictement inférieur au nombre d'inconnues $(p<n)$, le système possède une \textcolor{th!60!black}{infinité} de solutions. Dans ce cas, on peut choisir $n-p$ variables librement et exprimer l'ensemble des solutions en fonction de celles-ci.
+\end{itemize}
+
+\subsection{Systèmes homogènes}
+\begin{itemize}[label=$\bullet$]
+    \item Un système est \colorbox{def!40}{homogène} si 
+    $$
+    b_i = 0, \hspace{0.5cm} i=1,...,m.
+    $$
+    \item Un système homogène possède toujours la solution \colorbox{def!40}{triviale}
+    $$
+    (0.0,...,0) \in \mathbb{R}^n.
+    $$
+    \item Un système homogène possède donc soit une solution \textcolor{th!60!black}{unique}, soit une \textcolor{th!60!black}{infinité} de solutions.
+\end{itemize}
+
+\end{document}
+

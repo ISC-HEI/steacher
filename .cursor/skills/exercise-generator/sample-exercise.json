@@ -1,0 +1,104 @@
+{
+  "export_version": "1.0",
+  "exported_at": "2026-02-23T18:06:27.118095+00:00",
+  "source_course": {
+    "id": 21,
+    "name": "Linear Algebra 1"
+  },
+  "module": {
+    "name": "1.1 Droites",
+    "description": "",
+    "order": 3,
+    "visible": true,
+    "is_quiz": false,
+    "exercises": [
+      {
+        "title_i18n": {
+          "de": "* Geradengleichung aus zwei Punkten",
+          "en": "* Equation of a Line from Two Points",
+          "fr": "* \u00c9quation d'une droite \u00e0 partir de deux points"
+        },
+        "description_i18n": {
+          "de": "Berechnung der Steigung und der Gleichung einer Geraden.",
+          "en": "Calculating the slope and equation of a line.",
+          "fr": "Calcul de la pente et de l'\u00e9quation d'une droite."
+        },
+        "question_i18n": {
+          "de": "Bestimmen Sie die Gleichung der Geraden $d$, die durch die Punkte $P_1(1, 2)$ und $P_2(3, 8)$ verl\u00e4uft.\n\n*Geben Sie Ihre Antwort in der Form `y = ax + b` an.*",
+          "en": "Determine the equation of the line $d$ passing through the points $P_1(1, 2)$ and $P_2(3, 8)$.\n\n*Express your answer in the form `y = ax + b`.*",
+          "fr": "D\u00e9terminer l'\u00e9quation de la droite $d$ passant par les points $P_1(1, 2)$ et $P_2(3, 8)$.\n\n*Exprimez votre r\u00e9ponse sous la forme `y = ax + b`.*"
+        },
+        "exercise_type": "open_question",
+        "order": 1,
+        "exercise_data": {
+          "db": "",
+          "answer_template": ""
+        },
+        "answer_data": {
+          "hints": "First, calculate the slope 'a' of the line using the formula $a = \\frac{y_2 - y_1}{x_2 - x_1}$.\nOnce you have the slope 'a', use the point-slope form of a line's equation, $y - y_0 = a(x - x_0)$, with one of the given points to find the full equation.\nFinally, rearrange the equation into the form $y = ax + b$ to find the y-intercept 'b'.",
+          "unit_tests": null,
+          "correct_answers": [
+            {
+              "answer": "y = 3x - 1",
+              "explanation": "Calculate the slope: $a = \\frac{8 - 2}{3 - 1} = \\frac{6}{2} = 3$. Then, use point $P_1(1, 2)$: $2 = 3(1) + b$, giving $b = -1$. Therefore $y = 3x - 1$."
+            },
+            {
+              "answer": "y=3x-1",
+              "explanation": "Same answer without spaces."
+            },
+            {
+              "answer": "3x - y - 1 = 0",
+              "explanation": "General form $Ax + By + C = 0$, equivalent to $y = 3x - 1$."
+            }
+          ],
+          "expected_result": null,
+          "additional_context": "The student should apply the formulas from Section 1.1 of the course material. The expected answer format is the slope-intercept form y = ax + b, but other equivalent forms should be considered correct by the assistant if the student provides them."
+        },
+        "visible": true,
+        "allow_image_upload": true
+      },
+      {
+        "title_i18n": {
+          "de": "* Gerade durch 2 Punkte",
+          "en": "* Line passing through 2 points",
+          "fr": "* Droite passant par 2 points"
+        },
+        "description_i18n": {
+          "de": "",
+          "en": "",
+          "fr": ""
+        },
+        "question_i18n": {
+          "de": "Bestimmen Sie die Gleichung der Geraden, die durch $P_1(5, 10)$ und $P_2(5, -4)$ verl\u00e4uft. Hat diese Gerade eine definierte Steigung und einen y-Achsenabschnitt?",
+          "en": "Determine the equation of the line passing through $P_1(5, 10)$ and $P_2(5, -4)$. \n\nDoes this line have a defined slope and a y-intercept?",
+          "fr": "D\u00e9terminez l'\u00e9quation de la droite passant par $P_1(5, 10)$ et $P_2(5, -4)$. \n\nCette droite a-t-elle une pente d\u00e9finie et une ordonn\u00e9e \u00e0 l'origine ?"
+        },
+        "exercise_type": "open_question",
+        "order": 2,
+        "exercise_data": {
+          "db": "",
+          "answer_template": ""
+        },
+        "answer_data": {
+          "hints": "Look at the coordinates of the two points. What do you notice about their x-coordinates?\nRecall the formula for the slope: $a = \\frac{y_2 - y_1}{x_2 - x_1}$. What happens when you try to apply it here?\nA vertical line has an equation of the form $x = c$, where $c$ is a constant.",
+          "unit_tests": null,
+          "correct_answers": [
+            {
+              "answer": "The equation of the line is $x = 5$. The slope is undefined (division by zero). Since the line is vertical and parallel to the y-axis, it has no y-intercept.",
+              "explanation": "Both points share x = 5, so the line is vertical. The slope formula gives $a = \\frac{-4 - 10}{5 - 5} = \\frac{-14}{0}$, which is undefined."
+            },
+            {
+              "answer": "x = 5; no defined slope and no y-intercept",
+              "explanation": "Shorter answer, still correct."
+            }
+          ],
+          "expected_result": null,
+          "additional_context": "If a student describes the slope as 'infinite', acknowledge the intuition but gently correct them to use the more precise term 'undefined', explaining that it results from a division by zero in the slope formula."
+        },
+        "visible": true,
+        "allow_image_upload": true
+      }
+    ]
+  },
+  "asset_references": []
+}
