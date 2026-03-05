@@ -138,14 +138,6 @@
         <div id="navbarBasicExample" class="navbar-menu">
             <div class="navbar-end">
                 {% if user.is_authenticated %}
-                {% if user|can_author_any_course %}
-                <a class="navbar-item" href="{% url 'authoring_tools:landing' %}">
-                    <span class="icon">
-                        <i class="fas fa-magic"></i>
-                    </span>
-                    <span>Exercise Generator</span>
-                </a>
-                {% endif %}
                 <div class="navbar-item">
                     {% if instructor_email %}
                     <a href="https://teams.microsoft.com/l/chat/0/0?users={{ instructor_email|urlencode }}" class="button is-small is-info mr-4" target="_blank" rel="noopener">

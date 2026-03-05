@@ -706,12 +706,12 @@ curl -I https://steacher.org/ | head -n 1
 
 
 1) create cohort, copy id
-2) create csv with a column called email
+2) create csv with 3 columns called email, first_name, last_name (order doesn't matter)
 3)
 ```bash
-docker cp ../2025_year2_students.csv steacher_app-web-1:/tmp/invites.csv
-# set right cohort id
-docker exec steacher_app-web-1 python manage.py create_user_invites /tmp/invites.csv 11111
+docker cp ../students.csv steacher_app-web-1:/tmp/students.csv
+# !! set right cohort id
+docker exec steacher_app-web-1 python manage.py import_students2 /tmp/students.csv 11111 fr
 ```
 
 

@@ -1,4 +1,5 @@
-# Management command to import students from CSV files into cohort 9
+# Import students from CSV and enroll them in a cohort.
+# Supports French or English header names for identity fields.
 
 import csv
 from django.core.management.base import BaseCommand
@@ -11,7 +12,7 @@ User = get_user_model()
 
 
 class Command(BaseCommand):
-    help = 'Import students from CSV file and add them to cohort 9'
+    help = 'Import students from CSV file and add them to the given cohort'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -19,41 +20,66 @@ class Command(BaseCommand):
             type=str,
             help='Path to the CSV file containing student data'
         )
+        parser.add_argument(
+            'cohort_id',
+            type=int,
+            help='Cohort ID to enroll students into'
+        )
+        parser.add_argument(
+            'language',
+            choices=['fr', 'de', 'en'],
+            help='Preferred language for newly created users'
+        )
 
     def handle(self, *args, **options):
         csv_file = options['csv_file']
-        
-        # Get cohort 9
+        cohort_id = options['cohort_id']
+        language = options['language']
+
+        # Get target cohort
         try:
-            cohort = Cohort.objects.get(id=9)
+            cohort = Cohort.objects.get(id=cohort_id)
             self.stdout.write(self.style.SUCCESS(f"Found cohort: {cohort}"))
         except Cohort.DoesNotExist:
-            self.stderr.write(self.style.ERROR("Cohort with ID 9 does not exist"))
+            self.stderr.write(self.style.ERROR(f"Cohort with ID {cohort_id} does not exist"))
             return
 
         created_count = 0
-        updated_count = 0
         added_to_cohort_count = 0
         error_count = 0
 
         try:
             with open(csv_file, 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
-                
-                # Verify expected columns exist
-                if not all(col in reader.fieldnames for col in ['Nom', 'Prénom', 'Mail']):
+
+                french_headers = {'Nom', 'Prénom', 'Mail'}
+                english_headers = {'last_name', 'first_name', 'email'}
+
+                # Verify expected columns exist (French or English)
+                fieldnames = set(reader.fieldnames or [])
+                uses_french = french_headers.issubset(fieldnames)
+                uses_english = english_headers.issubset(fieldnames)
+                if not (uses_french or uses_english):
                     self.stderr.write(self.style.ERROR(
-                        f"CSV must contain 'Nom', 'Prénom', and 'Mail' columns. Found: {reader.fieldnames}"
+                        "CSV must contain either French headers "
+                        "('Nom', 'Prénom', 'Mail') or English headers "
+                        "('last_name', 'first_name', 'email'). "
+                        f"Found: {reader.fieldnames}"
                     ))
                     return
 
                 for row in reader:
-                    last_name = row['Nom'].strip()
-                    first_name = row['Prénom'].strip()
-                    email = row['Mail'].strip()
+                    if uses_french:
+                        last_name = (row.get('Nom') or '').strip()
+                        first_name = (row.get('Prénom') or '').strip()
+                        email = (row.get('Mail') or '').strip().lower()
+                    else:
+                        last_name = (row.get('last_name') or '').strip()
+                        first_name = (row.get('first_name') or '').strip()
+                        email = (row.get('email') or '').strip().lower()
 
                     if not email:
-                        self.stdout.write(self.style.WARNING(f"Skipping row with empty email, " + row))
+                        self.stdout.write(self.style.WARNING("Skipping row with empty email") + f" {row}")
                         error_count += 1
                         continue
 
@@ -66,7 +92,7 @@ class Command(BaseCommand):
                                 'first_name': first_name,
                                 'last_name': last_name,
                                 'password': make_password(get_random_string(12)),
-                                'preferred_language': 'fr'
+                                'preferred_language': language
                             }
                         )
 
@@ -75,45 +101,26 @@ class Command(BaseCommand):
                                 f"Created user: {first_name} {last_name} ({email})"
                             ))
                             created_count += 1
-                        else:
-                            # Update first/last name if changed
-                            updated = False
-                            if user.first_name != first_name:
-                                user.first_name = first_name
-                                updated = True
-                            if user.last_name != last_name:
-                                user.last_name = last_name
-                                updated = True
-                            
-                            if updated:
-                                user.save()
-                                self.stdout.write(self.style.NOTICE(
-                                    f"Updated name for: {email}"
-                                ))
-                                updated_count += 1
-                            else:
-                                self.stdout.write(self.style.NOTICE(
-                                    f"User already exists: {email}"
-                                ))
 
-                        # Ensure user is in cohort 9 as student
-                        membership, membership_created = CohortMembership.objects.get_or_create(
+                        # Ensure user is in cohort as student
+                        _, membership_created = CohortMembership.objects.get_or_create(
                             cohort=cohort,
                             user=user,
                             defaults={
                                 'role': 'student',
-                                'status': 'active'
+                                'status': 'active',
+                                'added_by': cohort.owner,
                             }
                         )
 
                         if membership_created:
                             self.stdout.write(self.style.SUCCESS(
-                                f"  → Added to cohort 9"
+                                f"  -> Added to cohort {cohort_id}"
                             ))
                             added_to_cohort_count += 1
                         else:
                             self.stdout.write(self.style.NOTICE(
-                                f"  → Already in cohort 9"
+                                f"  -> Already in cohort {cohort_id}"
                             ))
 
                     except Exception as e:
@@ -133,8 +140,7 @@ class Command(BaseCommand):
         self.stdout.write("\n" + "="*60)
         self.stdout.write(self.style.SUCCESS(f"Import complete!"))
         self.stdout.write(f"  Users created: {created_count}")
-        self.stdout.write(f"  Users updated: {updated_count}")
-        self.stdout.write(f"  Added to cohort 9: {added_to_cohort_count}")
+        self.stdout.write(f"  Added to cohort {cohort_id}: {added_to_cohort_count}")
         if error_count > 0:
             self.stdout.write(self.style.WARNING(f"  Errors: {error_count}"))
         self.stdout.write("="*60)
