@@ -35,3 +35,5 @@ research
 
 # vertex key
 steacher_app/gen-lang-client*.json
+import_tools/imported_exercises
+import_tools/tmp_corriges_images

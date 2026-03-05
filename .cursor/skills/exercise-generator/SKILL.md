@@ -11,8 +11,8 @@ Convert a teacher's question-answer pair(s) into a validated Steacher import JSO
 
 1. **Collect inputs** from the teacher:
    - **Course context** (required): the course prompt from Steacher, or a description of the course, section, and relevant concepts (notation, prerequisites, what students have/haven't learned)
-   - **Question + answer pair(s)** (required): one or more exercise questions with their correct answers, typically in French. The teacher may provide a single detailed Q&A, a batch of shorter ones (e.g., a numbered list), or a LaTeX exercise file (`.tex`). When the input is a LaTeX file, parse the questions and solutions from it — they may be in bilingual format (e.g. German/French).
-   - **Module structure**: By default, all exercises go into one module. However, when the input contains distinct exercise groups (e.g., "derivatives", "tangent problems", "angle problems"), ask the teacher whether to split them into separate modules. Each module gets its own JSON file.
+   - **Question + answer pair(s)** (required): one or more exercise questions with their correct answers, typically in French. The teacher may provide a single detailed Q&A, a batch of shorter ones (e.g., a numbered list), or a LaTeX exercise file (`.tex`). When the input is a LaTeX file, parse the questions and solutions from it — they may be in bilingual format (e.g. German/French). **Always skip commented-out items** (e.g., lines starting with `%` in LaTeX) — they are intentionally excluded by the teacher.
+   - **Module structure**: By default, all exercises go into one module. However, when the input contains distinct exercise groups (e.g., "derivatives", "tangent problems", "angle problems"), ask the teacher whether to split them into separate modules. Each module gets its own JSON file. When splitting, name each module as `"Serie N - Group Name"` (e.g., `"Serie 13 - Dérivées de base"`, `"Serie 14 - Optimisation"`).
 
 2. **Ask follow-up questions** only if the input is ambiguous or missing pedagogical context. Examples of useful follow-ups:
    - Are there specific formulas or methods the student must use, or are they free to choose?
@@ -58,7 +58,7 @@ The teacher's original questions and answers are the **source of truth**. You ar
 
 ### Exercise Type
 - Default to `open_question` for all exercises.
-- Set `allow_image_upload: true` (students may upload handwritten work).
+- Set `allow_image_upload: true`: Students may upload handwritten work, graphs, diagrams, etc. Students routinely photograph handwritten solutions or sketches. When an exercise asks students to draw or sketch something (e.g., graph a function), keep that instruction in the question text; students will upload an image of their drawing.
 
 ### Difficulty Stars
 - Do **not** add difficulty stars (`*`, `**`, `***`) to titles. Leave that for the teacher.

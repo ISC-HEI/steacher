@@ -117,19 +117,20 @@ def validate_exercise(ex: dict, index: int) -> list[str]:
     return errors
 
 
-def validate_json(data: dict) -> list[str]:
-    """Validate a Steacher import JSON. Accepts full envelope or bare exercise."""
+def validate_json(data) -> list[str]:
+    """Validate a Steacher import JSON. Accepts full envelope, bare exercise, or bare array of exercises."""
     errors = []
 
-    # Detect format: full envelope vs bare exercise
-    if "module" in data and "exercises" in data.get("module", {}):
+    if isinstance(data, list):
+        exercises = data
+    elif isinstance(data, dict) and "module" in data and "exercises" in data.get("module", {}):
         exercises = data["module"]["exercises"]
         if not isinstance(exercises, list):
             return ["module.exercises: expected a list"]
-    elif "exercise_type" in data:
+    elif isinstance(data, dict) and "exercise_type" in data:
         exercises = [data]
     else:
-        return ["Unrecognized format: expected either a full import envelope (with 'module.exercises') or a bare exercise (with 'exercise_type')"]
+        return ["Unrecognized format: expected a full import envelope (with 'module.exercises'), a bare exercise (with 'exercise_type'), or a JSON array of exercises"]
 
     if not exercises:
         return ["No exercises found"]

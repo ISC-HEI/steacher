@@ -97,6 +97,115 @@
         },
         "visible": true,
         "allow_image_upload": true
+      },
+      {
+        "title_i18n": {
+          "de": "Teilbar durch Drei",
+          "en": "Divisible by Three",
+          "fr": "Divisible par Trois"
+        },
+        "description_i18n": {
+          "de": "Bedingte Anweisungen und der Modulo-Operator.",
+          "en": "Conditional statements and the modulo operator.",
+          "fr": "Instructions conditionnelles et op\u00e9rateur modulo."
+        },
+        "question_i18n": {
+          "de": "Schreiben Sie ein Scala-Skript, das pr\u00fcft, ob die in der Variable `num` gespeicherte Zahl durch drei teilbar ist.\n\n- Wenn ja, geben Sie `\"divisible by three\"` aus.\n- Andernfalls geben Sie `\"not divisible by three\"` aus.\n\nSie k\u00f6nnen den Wert von `num` \u00e4ndern, um Ihren Code mit verschiedenen Zahlen zu testen.",
+          "en": "Write a Scala script that checks if the number stored in the `num` variable is divisible by three.\n\n- If it is, print `\"divisible by three\"`.\n- Otherwise, print `\"not divisible by three\"`.\n\nYou can change the value of `num` to test your code with different numbers.",
+          "fr": "\u00c9crivez un script Scala qui v\u00e9rifie si le nombre stock\u00e9 dans la variable `num` est divisible par trois.\n\n- Si c'est le cas, affichez `\"divisible by three\"`.\n- Sinon, affichez `\"not divisible by three\"`.\n\nVous pouvez changer la valeur de `num` pour tester votre code avec diff\u00e9rents nombres."
+        },
+        "exercise_type": "scala",
+        "order": 3,
+        "exercise_data": {
+          "answer_template": "val num = 9\n// Your code here"
+        },
+        "answer_data": {
+          "hints": "You will need an `if-else` statement to handle the two cases.\nThe modulo operator (`%`) is useful for checking divisibility. `a % b` gives the remainder of the division of `a` by `b`.\nA number is divisible by three if the remainder of its division by three is zero.",
+          "unit_tests": {
+            "setup_code": "",
+            "test_cases": [],
+            "timeout_seconds": 5
+          },
+          "correct_answers": [
+            {
+              "answer": "val num = 9\nif (num % 3 == 0) {\n  println(\"divisible by three\")\n} else {\n  println(\"not divisible by three\")\n}",
+              "explanation": "Uses a standard `if-else` statement. Checks if the remainder of num / 3 is 0 using the modulo operator (%)."
+            },
+            {
+              "answer": "val num = 9\nval message = if (num % 3 == 0) \"divisible by three\" else \"not divisible by three\"\nprintln(message)",
+              "explanation": "More idiomatic Scala: uses if-else as an expression that returns a value, stored in a variable, then printed."
+            }
+          ],
+          "expected_result": "divisible by three",
+          "additional_context": "This is an introductory exercise on conditional statements. The student should use the modulo operator (%) and an if-else construct. Accept both block-style if-else and expression-style if-else."
+        },
+        "visible": true,
+        "allow_image_upload": false
+      },
+      {
+        "title_i18n": {
+          "de": "Summe zweier Ganzzahlen",
+          "en": "Sum of two integers",
+          "fr": "Somme de deux entiers"
+        },
+        "description_i18n": {
+          "de": "Schreiben Sie eine einfache Funktion, die zwei Zahlen addiert.",
+          "en": "Write a simple function that adds two numbers.",
+          "fr": "\u00c9crire une fonction simple qui additionne deux nombres."
+        },
+        "question_i18n": {
+          "de": "Schreiben Sie eine Funktion `p1`, die zwei ganze Zahlen als Parameter entgegennimmt und deren Summe zur\u00fcckgibt.\n\n### Beispiele\n\n- `p1(3, 5)` sollte `8` zur\u00fcckgeben\n- `p1(-4, 3)` sollte `-1` zur\u00fcckgeben",
+          "en": "Write a function `p1` that takes two integers as parameters and returns their sum.\n\n### Examples\n\n- `p1(3, 5)` should return `8`\n- `p1(-4, 3)` should return `-1`",
+          "fr": "\u00c9crivez une fonction `p1` qui prend deux nombres entiers en param\u00e8tres et retourne leur somme.\n\n### Exemples\n\n- `p1(3, 5)` doit retourner `8`\n- `p1(-4, 3)` doit retourner `-1`"
+        },
+        "exercise_type": "scala",
+        "order": 4,
+        "exercise_data": {
+          "answer_template": "def p1(a: Int, b: Int): Int = {\n  // Votre code ici\n}"
+        },
+        "answer_data": {
+          "hints": "In Scala, the `+` operator is used for addition.\nYour function needs to accept two parameters of type `Int`.\nThe function's return type should be `Int`.",
+          "unit_tests": {
+            "setup_code": "",
+            "test_cases": [
+              {
+                "test_code": "print(p1(3, 5))",
+                "description": "Checks if p1(3, 5) returns 8.",
+                "expected_output": "8"
+              },
+              {
+                "test_code": "print(p1(-4, 3))",
+                "description": "Checks if p1(-4, 3) returns -1.",
+                "expected_output": "-1"
+              },
+              {
+                "test_code": "print(p1(-10, -5))",
+                "description": "Checks if p1(-10, -5) returns -15.",
+                "expected_output": "-15"
+              },
+              {
+                "test_code": "print(p1(0, 100))",
+                "description": "Checks if p1(0, 100) returns 100.",
+                "expected_output": "100"
+              }
+            ],
+            "timeout_seconds": 5
+          },
+          "correct_answers": [
+            {
+              "answer": "def p1(a: Int, b: Int): Int = {\n  a + b\n}",
+              "explanation": "Standard solution: defines a function p1 that takes two integers and returns their sum using the + operator."
+            },
+            {
+              "answer": "def p1(a: Int, b: Int): Int = a + b",
+              "explanation": "Concise single-expression version. In Scala, if a function body is a single expression, curly braces can be omitted."
+            }
+          ],
+          "expected_result": null,
+          "additional_context": "This is a very basic exercise to test function definition and simple arithmetic operations in Scala."
+        },
+        "visible": true,
+        "allow_image_upload": false
       }
     ]
   },
