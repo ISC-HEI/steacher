@@ -1,5 +1,7 @@
 # Import students from CSV and enroll them in a cohort.
-# Supports French or English header names for identity fields.
+# use English header names for identity fields.
+# english_headers = {'last_name', 'first_name', 'email'}
+
 
 import csv
 from django.core.management.base import BaseCommand
@@ -49,14 +51,19 @@ class Command(BaseCommand):
         error_count = 0
 
         try:
-            with open(csv_file, 'r', encoding='utf-8') as f:
+            with open(csv_file, 'r', encoding='utf-8-sig') as f:
                 reader = csv.DictReader(f)
 
                 french_headers = {'Nom', 'Prénom', 'Mail'}
                 english_headers = {'last_name', 'first_name', 'email'}
 
                 # Verify expected columns exist (French or English)
-                fieldnames = set(reader.fieldnames or [])
+                normalized_fieldnames = {
+                    (name or '').strip().lstrip('\ufeff')
+                    for name in (reader.fieldnames or [])
+                    if (name or '').strip()
+                }
+                fieldnames = normalized_fieldnames
                 uses_french = french_headers.issubset(fieldnames)
                 uses_english = english_headers.issubset(fieldnames)
                 if not (uses_french or uses_english):
@@ -69,14 +76,19 @@ class Command(BaseCommand):
                     return
 
                 for row in reader:
+                    normalized_row = {
+                        (key or '').strip().lstrip('\ufeff'): value
+                        for key, value in row.items()
+                        if (key or '').strip()
+                    }
                     if uses_french:
-                        last_name = (row.get('Nom') or '').strip()
-                        first_name = (row.get('Prénom') or '').strip()
-                        email = (row.get('Mail') or '').strip().lower()
+                        last_name = (normalized_row.get('Nom') or '').strip()
+                        first_name = (normalized_row.get('Prénom') or '').strip()
+                        email = (normalized_row.get('Mail') or '').strip().lower()
                     else:
-                        last_name = (row.get('last_name') or '').strip()
-                        first_name = (row.get('first_name') or '').strip()
-                        email = (row.get('email') or '').strip().lower()
+                        last_name = (normalized_row.get('last_name') or '').strip()
+                        first_name = (normalized_row.get('first_name') or '').strip()
+                        email = (normalized_row.get('email') or '').strip().lower()
 
                     if not email:
                         self.stdout.write(self.style.WARNING("Skipping row with empty email") + f" {row}")
