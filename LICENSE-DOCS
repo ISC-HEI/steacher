@@ -1,0 +1,32 @@
+Creative Commons Attribution 4.0 International (CC BY 4.0)
+
+Copyright (c) 2026 HES-SO Valais-Wallis
+
+Except where another license or attribution is explicitly stated, the
+project-authored documentation and instructional content listed below are
+licensed under Creative Commons Attribution 4.0 International:
+
+- Documentation in docs/, README.md, DEPLOY.md, and component README files.
+- Instructional prompt templates in
+  steacher_app/templates/exercises/prompts/ and
+  steacher_app/exercises/prompts/.
+- Authoring prompt templates in steacher_app/authoring_tools/*.md and
+  import_tools/prompt.md.
+- Sample exercises and classroom templates in import_tools/samples/.
+
+The governing license terms are available at:
+https://creativecommons.org/licenses/by/4.0/legalcode.en
+
+This notice identifies the licensed material; it does not replace or modify
+the Creative Commons legal code. Source code outside the instructional
+materials listed above is licensed separately under MIT; see LICENSE.
+Third-party dependencies and materials retain their own licenses and notices.
+User uploads and learner interaction data are not licensed by this notice.
+
+Suggested attribution:
+"Steacher, HES-SO Valais-Wallis (ISC-HEI), ELITE project.
+https://github.com/ISC-HEI/steacher. Licensed under CC BY 4.0:
+https://creativecommons.org/licenses/by/4.0/."
+
+When sharing adaptations, identify your changes and retain applicable
+attribution and license notices as required by the license.
