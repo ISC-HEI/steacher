@@ -817,9 +817,11 @@ class MobileAuthToken(models.Model):
     """
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='mobile_auth_tokens')
     token = models.CharField(max_length=64, unique=True, db_index=True)
+    code = models.CharField(max_length=6, db_index=True)
     expires_at = models.DateTimeField()
     used = models.BooleanField(default=False)
     first_used_at = models.DateTimeField(null=True, blank=True)
+    code_attempts = models.PositiveSmallIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:

@@ -28,6 +28,14 @@
             background: white;
             color: black;
         }
+        #code-input {
+            background: white;
+            color: black;
+            letter-spacing: 0.25em;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
         .logo {
             text-align: center;
             margin-bottom: 24px;
@@ -55,7 +63,7 @@
             <form id="login-form">
 
                 <div class="content">
-                    <p style="color: black;">Enter your email to receive a login link.</p>
+                    <p style="color: black;">Enter your email to receive a login link and code.</p>
                 </div>
 
                 <div class="field">
@@ -73,12 +81,51 @@
                 
                 <div class="field">
                     <button class="button is-primary is-fullwidth" type="submit" id="submit-button">
-                        Send Login Link
+                        Send Email
                     </button>
                 </div>
                 
             </form>
             <div id="message-box" style="display: none;"></div>
+
+            <form id="code-form" style="display: none;">
+                <div class="content" style="margin-top: 20px;">
+                    <p style="color: black; margin-bottom: 8px;">
+                        Hey, we just sent you a link.
+                    </p>
+                    <p style="color: black; margin-bottom: 8px;">
+                        Click on this link or enter the code below.
+                    </p>
+                </div>
+
+                <div class="field">
+                    <div class="control">
+                        <input
+                            class="input"
+                            type="text"
+                            id="code-input"
+                            placeholder="123456"
+                            inputmode="numeric"
+                            pattern="[0-9]{6}"
+                            maxlength="6"
+                            autocomplete="one-time-code"
+                            required
+                        >
+                    </div>
+                    <p class="help">6-digit code</p>
+                </div>
+
+                <div class="field">
+                    <button class="button is-primary is-fullwidth" type="submit" id="verify-button">
+                        Verify Code
+                    </button>
+                </div>
+                <div class="field">
+                    <button class="button is-light is-fullwidth" type="button" id="resend-button">
+                        Resend Email
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
     
@@ -87,6 +134,31 @@
         const emailInput = document.getElementById('email-input');
         const submitButton = document.getElementById('submit-button');
         const messageBox = document.getElementById('message-box');
+        const codeForm = document.getElementById('code-form');
+        const codeInput = document.getElementById('code-input');
+        const verifyButton = document.getElementById('verify-button');
+        const resendButton = document.getElementById('resend-button');
+        let submittedEmail = '';
+
+        function showMessage(message, kind = 'is-success') {
+            messageBox.style.display = 'block';
+            messageBox.className = `notification ${kind}`;
+            messageBox.textContent = message;
+        }
+
+        function onlyDigits(value) {
+            return value.replace(/\D/g, '').slice(0, 6);
+        }
+
+        async function sendAuthEmail(email) {
+            const formData = new FormData();
+            formData.append('email', email);
+            const response = await fetch('{% url "mobile:mobile_auth_send_link" %}', {
+                method: 'POST',
+                body: formData,
+            });
+            return response.json();
+        }
         
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -98,31 +170,77 @@
             submitButton.disabled = true;
             
             try {
-                const formData = new FormData();
-                formData.append('email', email);
-                
-                const response = await fetch('{% url "mobile:mobile_auth_send_link" %}', {
-                    method: 'POST',
-                    body: formData,
-                });
-                
-                const data = await response.json();
+                await sendAuthEmail(email);
+                submittedEmail = email;
                 
                 // Hide the form
                 form.style.display = 'none';
+                codeForm.style.display = 'block';
                 
                 // Show success message
-                messageBox.style.display = 'block';
-                messageBox.className = 'notification is-success';
-                messageBox.innerHTML = '<strong>Check your email for the login link.</strong><br><small>Note: University email may take 2-3 minutes to arrive.</small>';
+                showMessage('Check your email for the login link or code. Note: University email may take 2-3 minutes to arrive.', 'is-success');
                 
             } catch (error) {
-                messageBox.style.display = 'block';
-                messageBox.className = 'notification is-danger';
-                messageBox.textContent = 'An error occurred. Please try again.';
+                showMessage('An error occurred. Please try again.', 'is-danger');
             } finally {
                 submitButton.classList.remove('is-loading');
                 submitButton.disabled = false;
+            }
+        });
+
+        codeInput.addEventListener('input', () => {
+            codeInput.value = onlyDigits(codeInput.value);
+        });
+
+        codeForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const code = onlyDigits(codeInput.value.trim());
+            codeInput.value = code;
+            if (!submittedEmail || code.length !== 6) {
+                showMessage('Please enter a valid six-digit code.', 'is-danger');
+                return;
+            }
+
+            verifyButton.classList.add('is-loading');
+            verifyButton.disabled = true;
+
+            try {
+                const formData = new FormData();
+                formData.append('email', submittedEmail);
+                formData.append('code', code);
+                const response = await fetch('{% url "mobile:mobile_auth_verify_code" %}', {
+                    method: 'POST',
+                    body: formData,
+                });
+                const data = await response.json();
+                if (!response.ok || data.status !== 'success') {
+                    showMessage(data.message || 'Invalid or expired code.', 'is-danger');
+                    return;
+                }
+                window.location.href = data.redirect_url || '{% url "mobile:mobile_dashboard" %}';
+            } catch (error) {
+                showMessage('An error occurred. Please try again.', 'is-danger');
+            } finally {
+                verifyButton.classList.remove('is-loading');
+                verifyButton.disabled = false;
+            }
+        });
+
+        resendButton.addEventListener('click', async () => {
+            if (!submittedEmail) {
+                showMessage('Please enter your email first.', 'is-danger');
+                return;
+            }
+            resendButton.classList.add('is-loading');
+            resendButton.disabled = true;
+            try {
+                await sendAuthEmail(submittedEmail);
+                showMessage('Email resent. Use the most recent code.', 'is-success');
+            } catch (error) {
+                showMessage('Could not resend email. Please try again.', 'is-danger');
+            } finally {
+                resendButton.classList.remove('is-loading');
+                resendButton.disabled = false;
             }
         });
     </script>

@@ -2,7 +2,11 @@ Hello {{ user.username }},
 
 You requested a login link for Steacher Mobile.
 
-Click the link below to log in:
+Here is the code:
+
+{{ code }}
+
+Alternatively, click the link below using your cellphone:
 
 {{ magic_url }}
 

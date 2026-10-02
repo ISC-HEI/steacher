@@ -17,6 +17,7 @@ mobile_urlpatterns = [
     # Authentication (Magic Link Only)
     path('auth/request-link/', views_mobile.mobile_auth_request_link, name='mobile_auth_request_link'),
     path('auth/send-link/', views_mobile.mobile_auth_send_link, name='mobile_auth_send_link'),
+    path('auth/verify-code/', views_mobile.mobile_auth_verify_code, name='mobile_auth_verify_code'),
 ]
 
 # Students' URL patterns

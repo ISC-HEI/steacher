@@ -388,7 +388,7 @@ const TeacherCourseApp = defineComponent({
         };
 
         const submitImport = async () => {
-            if (!state.selectedFile) return;
+            if (!state.selectedFile || state.importing) return;
             
             state.importing = true;
             state.importError = null;
