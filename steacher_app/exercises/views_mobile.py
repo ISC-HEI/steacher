@@ -433,11 +433,15 @@ def mobile_auth_send_link(request):
     
     # Create token (9 bytes → 12 characters)
     token = secrets.token_urlsafe(9)
+    code = f"{secrets.randbelow(1_000_000):06d}"
     
     validity_minutes = 30
+    # Resend invalidates prior still-usable tokens for this user.
+    MobileAuthToken.objects.filter(user=user, used=False, expires_at__gt=timezone.now()).update(used=True)
     MobileAuthToken.objects.create(
         user=user,
         token=token,
+        code=code,
         expires_at=timezone.now() + timedelta(minutes=validity_minutes)
     )
     magic_url = request.build_absolute_uri(reverse('mobile_magic_login', args=[token]))
@@ -448,6 +452,7 @@ def mobile_auth_send_link(request):
         message = render_to_string('exercises/mobile/magic_link_email.txt', {
             'user': user,
             'magic_url': magic_url,
+            'code': code,
             'expires_minutes': validity_minutes,
         })
         
@@ -472,8 +477,69 @@ def mobile_auth_send_link(request):
     
     return JsonResponse({
         'status': 'success',
-        'message': 'Check your email for the login link. Note: Some university email servers may delay delivery.'
+        'message': 'Check your email for the login link or the six-digit code. Note: Some university email servers may delay delivery.'
     })
+
+
+def _create_mobile_session(request, user):
+    """
+    Create the long-lived mobile session.
+    """
+    login(request, user, backend=settings.AUTHENTICATION_BACKENDS[0])
+    request.session.set_expiry(60 * 60 * 24 * 180)  # 6 months
+    request.session['is_mobile'] = True
+    request.session['mobile_login_at'] = timezone.now().isoformat()
+
+
+@csrf_exempt
+@require_POST
+@rate_limit(ip_limit=20, name='mobile_auth_verify_code')
+def mobile_auth_verify_code(request):
+    """
+    Validate six-digit code and create a mobile session.
+    """
+    email = (request.POST.get('email') or '').strip().lower()
+    code = (request.POST.get('code') or '').strip()
+    if not email or not code:
+        return JsonResponse({'status': 'error', 'message': 'Email and code are required.'}, status=400)
+    if not code.isdigit() or len(code) != 6:
+        return JsonResponse({'status': 'error', 'message': 'Invalid code.'}, status=400)
+
+    max_attempts = 5
+    now = timezone.now()
+    auth_token = (
+        MobileAuthToken.objects
+        .select_related('user')
+        .filter(
+            user__email=email,
+            code=code,
+            used=False,
+            expires_at__gt=now,
+            code_attempts__lt=max_attempts,
+        )
+        .order_by('-created_at')
+        .first()
+    )
+
+    if not auth_token:
+        # Increment attempts on the latest active token for this email, if any.
+        latest_active = (
+            MobileAuthToken.objects
+            .filter(user__email=email, used=False, expires_at__gt=now)
+            .order_by('-created_at')
+            .first()
+        )
+        if latest_active:
+            latest_active.code_attempts = min(max_attempts, latest_active.code_attempts + 1)
+            if latest_active.code_attempts >= max_attempts:
+                latest_active.used = True
+            latest_active.save(update_fields=['code_attempts', 'used'])
+        return JsonResponse({'status': 'error', 'message': 'Invalid or expired code.'}, status=403)
+
+    auth_token.used = True
+    auth_token.save(update_fields=['used'])
+    _create_mobile_session(request, auth_token.user)
+    return JsonResponse({'status': 'success', 'redirect_url': reverse('mobile:mobile_dashboard')})
 
 
 @csrf_exempt
@@ -514,10 +580,7 @@ def mobile_magic_login(request, token):
     # Otherwise: within 1-minute window, allow reuse without updating
     
     # Create 6-month session
-    login(request, auth_token.user, backend=settings.AUTHENTICATION_BACKENDS[0])
-    request.session.set_expiry(60 * 60 * 24 * 180)  # 6 months
-    request.session['is_mobile'] = True
-    request.session['mobile_login_at'] = timezone.now().isoformat()
+    _create_mobile_session(request, auth_token.user)
     
     # Redirect to original destination or dashboard
     next_url = request.GET.get('next', reverse('mobile:mobile_dashboard'))
